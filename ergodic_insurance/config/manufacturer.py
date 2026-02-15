@@ -358,6 +358,15 @@ class ManufacturerConfig(BaseModel):
         "Noise shrinks proportionally to claim maturity.",
     )
 
+    # PP&E useful life for book depreciation (Issue #1321)
+    ppe_useful_life_years: float = Field(
+        default=10,
+        gt=0,
+        le=50,
+        description="Average useful life of PP&E in years for book depreciation "
+        "(straight-line). Used in both record_depreciation() and DTL calculation.",
+    )
+
     # Accelerated tax depreciation configuration (Issue #367, ASC 740)
     tax_depreciation_life_years: Optional[float] = Field(
         default=None,
@@ -381,6 +390,17 @@ class ManufacturerConfig(BaseModel):
         "0.0 = no reinvestment (legacy behavior). "
         "Typical range: 1.0-2.5 for manufacturers "
         "(Damodaran sector data).",
+    )
+
+    # Working capital facility configuration (Issue #1337, ASC 470-10 / ASC 205-40-50-12)
+    working_capital_facility_limit: Optional[float] = Field(
+        default=None,
+        ge=0,
+        description="Maximum working capital facility (credit line) amount in dollars. "
+        "When cash goes below -(facility_limit), the company has exhausted its "
+        "credit facility and is deemed insolvent per ASC 205-40-50-12. "
+        "None = unlimited facility (legacy behavior). "
+        "Typical: 10-20%% of total assets for manufacturers.",
     )
 
     # Loss adjustment expense configuration (Issue #468, ASC 944-40)

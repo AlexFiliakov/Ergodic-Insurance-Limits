@@ -211,11 +211,11 @@ class TestConfigSetupLogging:
         # (we just verify no exception is raised)
 
 
-class TestConfigValidatePaths:
-    """Test Config.validate_paths (config.py line 775)."""
+class TestConfigEnsureOutputDirs:
+    """Test Config.ensure_output_dirs (renamed from validate_paths, Issue #1299)."""
 
-    def test_validate_paths_creates_output_dir(self, tmp_path):
-        """validate_paths should create the output directory if missing."""
+    def test_ensure_output_dirs_creates_output_dir(self, tmp_path):
+        """ensure_output_dirs should create the output directory if missing."""
         output_dir = tmp_path / "new_output"
         config = Config(
             manufacturer=ManufacturerConfig(
@@ -240,7 +240,17 @@ class TestConfigValidatePaths:
             logging=LoggingConfig(enabled=False),
         )
         assert not output_dir.exists()
-        config.validate_paths()
+        config.ensure_output_dirs()
+        assert output_dir.exists()
+
+    def test_validate_paths_deprecated_alias(self, tmp_path):
+        """validate_paths should still work but emit a deprecation warning."""
+        output_dir = tmp_path / "deprecated_output"
+        config = Config(
+            output=OutputConfig(output_directory=str(output_dir), file_format="csv"),
+        )
+        with pytest.warns(DeprecationWarning, match="validate_paths.*deprecated"):
+            config.validate_paths()
         assert output_dir.exists()
 
 
@@ -350,8 +360,8 @@ class TestExcelReportConfigEngine:
             assert cfg.engine == engine
 
 
-class TestConfigApplyModuleNonDict:
-    """Test Config.apply_module with non-dict and non-BaseModel values (config.py lines 1714, 1736-1738)."""
+class TestConfigWithModuleNonDict:
+    """Test Config.with_module with non-dict and non-BaseModel values."""
 
     @pytest.fixture
     def base_config_v2(self):
@@ -375,29 +385,33 @@ class TestConfigApplyModuleNonDict:
             logging=LoggingConfig(),
         )
 
-    def test_apply_module_non_dict_value(self, base_config_v2):
-        """apply_module should handle scalar values by using setattr directly."""
+    def test_with_module_non_dict_value(self, base_config_v2):
+        """with_module should handle scalar values, returning new Config."""
         module_data = {
             "applied_presets": ["preset_from_module"],
         }
         yaml_content = yaml.dump(module_data)
         with patch("builtins.open", mock_open(read_data=yaml_content)):
-            base_config_v2.apply_module(Path("module.yaml"))
-            assert base_config_v2.applied_presets == ["preset_from_module"]
+            new_config = base_config_v2.with_module(Path("module.yaml"))
+            assert new_config.applied_presets == ["preset_from_module"]
+            # Original unchanged
+            assert base_config_v2.applied_presets == []
 
-    def test_apply_module_dict_value_for_non_basemodel(self, base_config_v2):
-        """apply_module with dict value on a non-BaseModel attr -> setattr(dict)."""
+    def test_with_module_dict_value_for_non_basemodel(self, base_config_v2):
+        """with_module with dict value on a non-BaseModel attr returns new Config."""
         module_data = {
             "overrides": {"key1": "val1"},
         }
         yaml_content = yaml.dump(module_data)
         with patch("builtins.open", mock_open(read_data=yaml_content)):
-            base_config_v2.apply_module(Path("module.yaml"))
-            assert base_config_v2.overrides == {"key1": "val1"}
+            new_config = base_config_v2.with_module(Path("module.yaml"))
+            assert new_config.overrides == {"key1": "val1"}
+            # Original unchanged
+            assert base_config_v2.overrides == {}
 
 
-class TestConfigApplyPresetBranches:
-    """Test Config.apply_preset non-dict and non-BaseModel branches (config.py lines 1736-1738)."""
+class TestConfigWithPresetBranches:
+    """Test Config.with_preset non-dict and non-BaseModel branches."""
 
     @pytest.fixture
     def base_config_v2(self):
@@ -420,27 +434,32 @@ class TestConfigApplyPresetBranches:
             logging=LoggingConfig(),
         )
 
-    def test_apply_preset_dict_on_non_basemodel_attr(self, base_config_v2):
-        """apply_preset with dict value for a plain-dict attribute uses setattr."""
+    def test_with_preset_dict_on_non_basemodel_attr(self, base_config_v2):
+        """with_preset with dict value for a plain-dict attribute returns new Config."""
         preset_data = {
             "overrides": {"custom_key": 99},
         }
-        base_config_v2.apply_preset("custom_preset", preset_data)
-        assert base_config_v2.overrides == {"custom_key": 99}
-        assert "custom_preset" in base_config_v2.applied_presets
+        new_config = base_config_v2.with_preset("custom_preset", preset_data)
+        assert new_config.overrides == {"custom_key": 99}
+        assert "custom_preset" in new_config.applied_presets
+        # Original unchanged
+        assert base_config_v2.overrides == {}
+        assert "custom_preset" not in base_config_v2.applied_presets
 
-    def test_apply_preset_scalar_value(self, base_config_v2):
-        """apply_preset with a scalar (non-dict) value uses setattr.
+    def test_with_preset_scalar_value(self, base_config_v2):
+        """with_preset with a scalar (non-dict) value returns new Config.
 
-        Note: apply_preset first appends the preset name, then the loop
-        overwrites 'applied_presets' via setattr with the provided list.
+        Note: with_preset first appends the preset name, then deep_merge
+        overwrites 'applied_presets' with the provided list.
         """
         preset_data = {
             "applied_presets": ["a", "b"],
         }
-        base_config_v2.apply_preset("scalar_preset", preset_data)
-        # The setattr in the loop overwrites the list that was appended to
-        assert base_config_v2.applied_presets == ["a", "b"]
+        new_config = base_config_v2.with_preset("scalar_preset", preset_data)
+        # deep_merge overwrites the list that was appended to
+        assert new_config.applied_presets == ["a", "b"]
+        # Original unchanged
+        assert base_config_v2.applied_presets == []
 
 
 class TestConfigWithOverridesNewSection:
@@ -479,8 +498,8 @@ class TestConfigWithOverridesNewSection:
         assert new_config.manufacturer.initial_assets == 20_000_000
 
 
-class TestConfigValidateCompleteness:
-    """Test validate_completeness (config.py line 1788)."""
+class TestConfigValidate:
+    """Test Config.validate_config() (Issue #1299)."""
 
     @pytest.fixture
     def base_config_v2(self):
@@ -503,8 +522,10 @@ class TestConfigValidateCompleteness:
             logging=LoggingConfig(),
         )
 
-    def test_validate_completeness_insurance_without_losses(self, base_config_v2):
-        """Flag when insurance is enabled but no loss distribution configured."""
+    def test_validate_raises_insurance_without_losses(self, base_config_v2):
+        """Raise ConfigurationError when insurance enabled but no losses configured."""
+        from ergodic_insurance.config.exceptions import ConfigurationError
+
         base_config_v2.insurance = InsuranceConfig(
             layers=[
                 InsuranceLayerConfig(
@@ -516,13 +537,12 @@ class TestConfigValidateCompleteness:
             ]
         )
         base_config_v2.losses = None
-        issues = base_config_v2.validate_completeness()
-        assert any("Insurance enabled but no loss distribution" in i for i in issues)
+        with pytest.raises(ConfigurationError, match="Insurance enabled but no loss distribution"):
+            base_config_v2.validate_config()
 
-    def test_validate_completeness_no_issues(self, base_config_v2):
-        """Fully configured config should have no completeness issues."""
-        issues = base_config_v2.validate_completeness()
-        assert issues == []
+    def test_validate_no_issues(self, base_config_v2):
+        """Fully configured config should pass validate_config() without raising."""
+        base_config_v2.validate_config()  # should not raise
 
 
 # ---------------------------------------------------------------------------

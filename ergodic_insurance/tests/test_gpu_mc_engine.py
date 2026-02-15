@@ -17,6 +17,7 @@ import pytest
 from ergodic_insurance.gpu_mc_engine import (
     _MAX_EVENTS_PER_YEAR,
     GPUSimulationParams,
+    _scatter_events,
     apply_insurance_vectorized,
     extract_params,
     generate_losses_for_year,
@@ -261,7 +262,7 @@ class TestApplyInsurance:
         loss_amounts = xp.array([[50_000.0]], dtype=dtype)
         n_events = xp.array([1], dtype=xp.int32)
 
-        _, recoveries, retained = apply_insurance_vectorized(
+        _, recoveries, retained, _ = apply_insurance_vectorized(
             loss_amounts, n_events, params, xp, dtype
         )
 
@@ -284,7 +285,7 @@ class TestApplyInsurance:
         loss_amounts = xp.array([[500_000.0]], dtype=dtype)
         n_events = xp.array([1], dtype=xp.int32)
 
-        _, recoveries, retained = apply_insurance_vectorized(
+        _, recoveries, retained, _ = apply_insurance_vectorized(
             loss_amounts, n_events, params, xp, dtype
         )
 
@@ -307,7 +308,7 @@ class TestApplyInsurance:
         loss_amounts = xp.array([[2_000_000.0]], dtype=dtype)
         n_events = xp.array([1], dtype=xp.int32)
 
-        _, recoveries, retained = apply_insurance_vectorized(
+        _, recoveries, retained, _ = apply_insurance_vectorized(
             loss_amounts, n_events, params, xp, dtype
         )
 
@@ -333,7 +334,7 @@ class TestApplyInsurance:
         loss_amounts = xp.array([[1_000_000.0]], dtype=dtype)
         n_events = xp.array([1], dtype=xp.int32)
 
-        _, recoveries, retained = apply_insurance_vectorized(
+        _, recoveries, retained, _ = apply_insurance_vectorized(
             loss_amounts, n_events, params, xp, dtype
         )
 
@@ -356,7 +357,7 @@ class TestApplyInsurance:
         loss_amounts = xp.array([[100_000.0, 200_000.0, 999_999.0]], dtype=dtype)
         n_events = xp.array([2], dtype=xp.int32)
 
-        total, recoveries, retained = apply_insurance_vectorized(
+        total, recoveries, retained, _ = apply_insurance_vectorized(
             loss_amounts, n_events, params, xp, dtype
         )
 
@@ -379,7 +380,7 @@ class TestApplyInsurance:
         loss_amounts = xp.array([[500_000.0, 500_000.0, 500_000.0]], dtype=dtype)
         n_events = xp.array([3], dtype=xp.int32)
 
-        _, recoveries, _ = apply_insurance_vectorized(loss_amounts, n_events, params, xp, dtype)
+        _, recoveries, _, _ = apply_insurance_vectorized(loss_amounts, n_events, params, xp, dtype)
 
         assert abs(float(recoveries[0]) - 800_000.0) < 1.0
 
@@ -398,7 +399,7 @@ class TestApplyInsurance:
         loss_amounts = xp.array([[500_000.0]], dtype=dtype)
         n_events = xp.array([1], dtype=xp.int32)
 
-        _, recoveries, retained = apply_insurance_vectorized(
+        _, recoveries, retained, _ = apply_insurance_vectorized(
             loss_amounts, n_events, params, xp, dtype
         )
 
@@ -824,8 +825,10 @@ class TestMonteCarloEngineGPUIntegration:
         config = MonteCarloConfig(use_gpu=True)
         assert config.use_gpu is True
 
-    def test_gpu_path_fallback_warns(self):
+    def test_gpu_path_fallback_warns(self, caplog):
         """With use_gpu=True and no GPU, a warning is issued and CPU is used."""
+        import logging
+
         from ergodic_insurance.config import ManufacturerConfig
         import ergodic_insurance.gpu_backend as gpu_mod
         from ergodic_insurance.insurance_program import InsuranceProgram
@@ -855,18 +858,202 @@ class TestMonteCarloEngineGPUIntegration:
         )
 
         with patch.object(gpu_mod, "_CUPY_AVAILABLE", False):
-            with warnings.catch_warnings(record=True) as w:
-                warnings.simplefilter("always")
+            with caplog.at_level(logging.WARNING, logger="ergodic_insurance.monte_carlo"):
                 results = engine.run()
 
                 gpu_warnings = [
-                    x for x in w if "use_gpu" in str(x.message).lower() or "GPU" in str(x.message)
+                    r
+                    for r in caplog.records
+                    if "use_gpu" in r.message.lower() or "GPU" in r.message
                 ]
                 assert len(gpu_warnings) > 0, "Expected a GPU fallback warning"
 
         # Should still produce valid results
         assert results.final_assets.shape == (100,)
         assert results.annual_losses.shape == (100, 3)
+
+
+# ── TestScatterEvents ────────────────────────────────────────────────────
+
+
+def _scatter_events_reference(
+    loss_amounts_cpu,
+    att_counts,
+    lg_counts,
+    cat_counts,
+    att_sevs,
+    lg_sevs,
+    cat_sevs,
+    max_events,
+):
+    """Scalar reference implementation (the original Python for-loop)."""
+    n_sims = loss_amounts_cpu.shape[0]
+    att_ptr = lg_ptr = cat_ptr = 0
+    for i in range(n_sims):
+        col = 0
+        for counts_i, sevs_arr, ptr_name in (
+            (att_counts[i], att_sevs, "att"),
+            (lg_counts[i], lg_sevs, "lg"),
+            (cat_counts[i], cat_sevs, "cat"),
+        ):
+            if counts_i > 0:
+                end = min(col + counts_i, max_events)
+                count = end - col
+                ptr = {"att": att_ptr, "lg": lg_ptr, "cat": cat_ptr}[ptr_name]
+                loss_amounts_cpu[i, col:end] = sevs_arr[ptr : ptr + count]
+                if ptr_name == "att":
+                    att_ptr += counts_i
+                elif ptr_name == "lg":
+                    lg_ptr += counts_i
+                else:
+                    cat_ptr += counts_i
+                col = end
+
+
+class TestScatterEvents:
+    """Vectorized _scatter_events matches the scalar reference."""
+
+    def test_matches_reference_random(self):
+        """Random counts and severities produce identical output."""
+        rng = np.random.default_rng(777)
+        n_sims = 500
+        max_events = 20
+
+        att_counts = rng.poisson(3.0, size=n_sims).astype(np.int32)
+        lg_counts = rng.poisson(0.5, size=n_sims).astype(np.int32)
+        cat_counts = rng.poisson(0.1, size=n_sims).astype(np.int32)
+
+        att_sevs = rng.lognormal(10, 1.5, size=int(np.sum(att_counts)))
+        lg_sevs = rng.lognormal(13, 1.0, size=int(np.sum(lg_counts)))
+        cat_sevs = rng.lognormal(14, 0.5, size=int(np.sum(cat_counts)))
+
+        # Vectorized
+        result_vec = np.zeros((n_sims, max_events), dtype=np.float64)
+        _scatter_events(
+            result_vec,
+            att_counts,
+            lg_counts,
+            cat_counts,
+            att_sevs,
+            lg_sevs,
+            cat_sevs,
+            max_events,
+        )
+
+        # Reference
+        result_ref = np.zeros((n_sims, max_events), dtype=np.float64)
+        _scatter_events_reference(
+            result_ref,
+            att_counts,
+            lg_counts,
+            cat_counts,
+            att_sevs,
+            lg_sevs,
+            cat_sevs,
+            max_events,
+        )
+
+        np.testing.assert_array_equal(result_vec, result_ref)
+
+    def test_clipping_when_total_exceeds_max_events(self):
+        """Events beyond max_events are correctly dropped."""
+        n_sims = 3
+        max_events = 4
+        # Sim 0: 3+2+1=6 events but max=4 → only first 4
+        # Sim 1: 1+0+0=1 event
+        # Sim 2: 0+0+3=3 events
+        att_counts = np.array([3, 1, 0], dtype=np.int32)
+        lg_counts = np.array([2, 0, 0], dtype=np.int32)
+        cat_counts = np.array([1, 0, 3], dtype=np.int32)
+
+        att_sevs = np.array([10.0, 20.0, 30.0, 40.0])  # 3+1=4
+        lg_sevs = np.array([100.0, 200.0])  # 2+0+0=2
+        cat_sevs = np.array([1000.0, 2000.0, 3000.0, 4000.0])  # 1+0+3=4
+
+        result_vec = np.zeros((n_sims, max_events), dtype=np.float64)
+        _scatter_events(
+            result_vec,
+            att_counts,
+            lg_counts,
+            cat_counts,
+            att_sevs,
+            lg_sevs,
+            cat_sevs,
+            max_events,
+        )
+
+        result_ref = np.zeros((n_sims, max_events), dtype=np.float64)
+        _scatter_events_reference(
+            result_ref,
+            att_counts,
+            lg_counts,
+            cat_counts,
+            att_sevs,
+            lg_sevs,
+            cat_sevs,
+            max_events,
+        )
+
+        np.testing.assert_array_equal(result_vec, result_ref)
+
+    def test_all_zeros(self):
+        """All-zero counts produce an unchanged output array."""
+        n_sims = 10
+        max_events = 5
+        zeros = np.zeros(n_sims, dtype=np.int32)
+        empty = np.empty(0, dtype=np.float64)
+
+        result = np.zeros((n_sims, max_events), dtype=np.float64)
+        _scatter_events(result, zeros, zeros, zeros, empty, empty, empty, max_events)
+
+        np.testing.assert_array_equal(result, 0.0)
+
+    def test_benchmark_no_python_loop(self):
+        """Vectorized scatter is >= 10x faster than reference at 100K sims."""
+        import time
+
+        rng = np.random.default_rng(42)
+        n_sims = 100_000
+        max_events = 20
+
+        att_counts = rng.poisson(3.0, size=n_sims).astype(np.int32)
+        lg_counts = rng.poisson(0.3, size=n_sims).astype(np.int32)
+        cat_counts = rng.poisson(0.05, size=n_sims).astype(np.int32)
+
+        att_sevs = rng.lognormal(10, 1.5, size=int(np.sum(att_counts)))
+        lg_sevs = rng.lognormal(13, 1.0, size=int(np.sum(lg_counts)))
+        cat_sevs = rng.lognormal(14, 0.5, size=int(np.sum(cat_counts)))
+
+        # Warm up
+        buf = np.zeros((n_sims, max_events), dtype=np.float64)
+        _scatter_events(
+            buf, att_counts, lg_counts, cat_counts, att_sevs, lg_sevs, cat_sevs, max_events
+        )
+
+        # Time vectorized
+        n_runs = 3
+        t0 = time.perf_counter()
+        for _ in range(n_runs):
+            buf[:] = 0.0
+            _scatter_events(
+                buf, att_counts, lg_counts, cat_counts, att_sevs, lg_sevs, cat_sevs, max_events
+            )
+        t_vec = (time.perf_counter() - t0) / n_runs
+
+        # Time reference
+        t0 = time.perf_counter()
+        for _ in range(n_runs):
+            buf[:] = 0.0
+            _scatter_events_reference(
+                buf, att_counts, lg_counts, cat_counts, att_sevs, lg_sevs, cat_sevs, max_events
+            )
+        t_ref = (time.perf_counter() - t0) / n_runs
+
+        speedup = t_ref / t_vec
+        assert speedup >= 10, (
+            f"Expected >= 10x speedup, got {speedup:.1f}x "
+            f"(vec={t_vec*1000:.1f}ms, ref={t_ref*1000:.1f}ms)"
+        )
 
 
 # ── TestLazyImports ──────────────────────────────────────────────────────

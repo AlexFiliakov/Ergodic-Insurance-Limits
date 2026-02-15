@@ -11,10 +11,12 @@ Since:
 
 from pathlib import Path
 from typing import Any, Dict, List, Optional
+import warnings
 
 from pydantic import BaseModel, Field
 import yaml
 
+from .exceptions import ConfigurationError
 from .insurance import InsuranceConfig, LossDistributionConfig
 from .manufacturer import (
     DepreciationConfig,
@@ -474,14 +476,21 @@ class Config(BaseModel):
     #  Module / preset composition
     # ------------------------------------------------------------------ #
 
-    def apply_module(self, module_path: Path) -> None:
-        """Apply a configuration module.
+    def with_module(self, module_path: Path) -> "Config":
+        """Return a new Config with a configuration module applied.
 
         Merges module data via dict-dump-merge-reconstruct so that every
-        field change goes through Pydantic validation.
+        field change goes through Pydantic validation.  The original
+        Config instance is **not** mutated.
 
         Args:
             module_path: Path to the module YAML file.
+
+        Returns:
+            New Config instance with the module applied.
+
+        Since:
+            Version 0.13.0 (Issue #1295) — replaces ``apply_module()``
         """
         with open(module_path, "r") as f:
             module_data = yaml.safe_load(f)
@@ -489,42 +498,133 @@ class Config(BaseModel):
         # Dump -> merge -> reconstruct to enforce Pydantic validation
         current_data = self.model_dump()
         merged = deep_merge(current_data, module_data)
-        updated = self.model_validate(merged)
+        return self.model_validate(merged)
 
-        # Copy all validated fields back
-        for field_name in type(self).model_fields:
-            object.__setattr__(self, field_name, getattr(updated, field_name))
-
-    def apply_preset(self, preset_name: str, preset_data: Dict[str, Any]) -> None:
-        """Apply a preset to the configuration.
+    def with_preset(self, preset_name: str, preset_data: Dict[str, Any]) -> "Config":
+        """Return a new Config with a preset applied.
 
         Merges preset data via dict-dump-merge-reconstruct so that every
-        field change goes through Pydantic validation.
+        field change goes through Pydantic validation.  The original
+        Config instance is **not** mutated.
 
         Args:
             preset_name: Name of the preset.
             preset_data: Preset parameters to apply.
+
+        Returns:
+            New Config instance with the preset applied.
+
+        Since:
+            Version 0.13.0 (Issue #1295) — replaces ``apply_preset()``
         """
         # Dump -> merge -> reconstruct to enforce Pydantic validation
         current_data = self.model_dump()
         current_data.setdefault("applied_presets", [])
         current_data["applied_presets"].append(preset_name)
         merged = deep_merge(current_data, preset_data)
-        updated = self.model_validate(merged)
+        return self.model_validate(merged)
 
-        # Copy all validated fields back
-        for field_name in type(self).model_fields:
-            object.__setattr__(self, field_name, getattr(updated, field_name))
+    # -- Deprecated aliases ------------------------------------------------
+
+    def apply_module(self, module_path: Path) -> "Config":
+        """Apply a configuration module.
+
+        .. deprecated:: 0.13.0
+            Use :meth:`with_module` instead.  ``apply_module`` will be
+            removed in a future release.
+        """
+        warnings.warn(
+            "Config.apply_module() is deprecated and will be removed in a "
+            "future release. Use Config.with_module() instead, which returns "
+            "a new Config instance without mutating the original.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+        return self.with_module(module_path)
+
+    def apply_preset(self, preset_name: str, preset_data: Dict[str, Any]) -> "Config":
+        """Apply a preset to the configuration.
+
+        .. deprecated:: 0.13.0
+            Use :meth:`with_preset` instead.  ``apply_preset`` will be
+            removed in a future release.
+        """
+        warnings.warn(
+            "Config.apply_preset() is deprecated and will be removed in a "
+            "future release. Use Config.with_preset() instead, which returns "
+            "a new Config instance without mutating the original.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+        return self.with_preset(preset_name, preset_data)
 
     # ------------------------------------------------------------------ #
     #  Validation
     # ------------------------------------------------------------------ #
 
+    def validate_config(self) -> None:
+        """Validate configuration, raising on critical issues.
+
+        Checks for missing required sections and logical inconsistencies.
+        Raises :class:`~ergodic_insurance.config.exceptions.ConfigurationError`
+        if any critical issues are found.
+
+        The method is named ``validate_config`` rather than ``validate`` to
+        avoid conflicting with Pydantic's deprecated ``BaseModel.validate``
+        classmethod.
+
+        Raises:
+            ConfigurationError: If the configuration has critical issues.
+                The exception's ``issues`` attribute contains the full list
+                of problems found.
+
+        Examples:
+            Basic validation::
+
+                config = Config()
+                config.validate_config()  # OK — defaults are valid
+
+            Catching issues::
+
+                try:
+                    config.validate_config()
+                except ConfigurationError as e:
+                    for issue in e.issues:
+                        print(f"  - {issue}")
+
+        Since:
+            Version 0.14.0 (Issue #1299)
+        """
+        issues = self._collect_issues()
+        if issues:
+            raise ConfigurationError(issues)
+
     def validate_completeness(self) -> List[str]:
-        """Validate configuration completeness.
+        """Validate configuration completeness (soft check).
+
+        .. deprecated:: 0.14.0
+            Use :meth:`validate_config` instead, which raises
+            :class:`~ergodic_insurance.config.exceptions.ConfigurationError`
+            for critical issues.  ``validate_completeness`` will be removed
+            in a future release.
 
         Returns:
             List of missing or invalid configuration items.
+        """
+        warnings.warn(
+            "Config.validate_completeness() is deprecated and will be removed "
+            "in a future release. Use Config.validate_config() instead, which raises "
+            "ConfigurationError for critical issues.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+        return self._collect_issues()
+
+    def _collect_issues(self) -> List[str]:
+        """Collect all configuration issues.
+
+        Returns:
+            List of issue description strings (empty if valid).
         """
         issues = []
 
@@ -592,13 +692,34 @@ class Config(BaseModel):
             file_handler.setFormatter(formatter)
             logger.addHandler(file_handler)
 
-    def validate_paths(self) -> None:
+    def ensure_output_dirs(self) -> None:
         """Create output directories if they don't exist.
 
         Ensures that the configured output directory exists,
         creating it if necessary.
+
+        Since:
+            Version 0.14.0 (Issue #1299) — renamed from ``validate_paths``
         """
         Path(self.output.output_directory).mkdir(parents=True, exist_ok=True)
+
+    def validate_paths(self) -> None:
+        """Create output directories if they don't exist.
+
+        .. deprecated:: 0.14.0
+            Use :meth:`ensure_output_dirs` instead. The old name suggested
+            read-only validation but the method actually creates directories.
+            ``validate_paths`` will be removed in a future release.
+        """
+        warnings.warn(
+            "Config.validate_paths() is deprecated and will be removed in a "
+            "future release. Use Config.ensure_output_dirs() instead — the "
+            "old name suggested read-only validation but the method creates "
+            "directories.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+        self.ensure_output_dirs()
 
     # ------------------------------------------------------------------ #
     #  Internal helpers

@@ -15,11 +15,16 @@ import warnings
 import numpy as np
 from scipy.optimize import Bounds, OptimizeResult, differential_evolution, minimize
 
-from .config import DEFAULT_RISK_FREE_RATE, DecisionEngineConfig, PricingScenarioConfig
+from .config import (
+    DEFAULT_RISK_FREE_RATE,
+    DecisionEngineConfig,
+    ManufacturerConfig,
+    PricingScenarioConfig,
+)
 from .config_manager import ConfigManager
 from .ergodic_analyzer import ErgodicAnalyzer
 from .insurance_program import EnhancedInsuranceLayer as Layer
-from .loss_distributions import LossDistribution
+from .loss_distributions import LognormalLoss, LossDistribution
 from .manufacturer import WidgetManufacturer
 from .optimization import (
     AugmentedLagrangianOptimizer,
@@ -48,11 +53,18 @@ class OptimizationMethod(Enum):
 
 @dataclass
 class DecisionOptimizationConstraints:
-    """Constraints for insurance optimization."""
+    """Constraints for insurance optimization.
+
+    Attributes:
+        min_total_coverage: Minimum total program coverage (sum of all
+            layer limits).  This is *not* a per-occurrence layer limit;
+            it bounds the overall insurance program size.
+        max_total_coverage: Maximum total program coverage.
+    """
 
     max_premium_budget: float = field(default=1_000_000)
-    min_coverage_limit: float = field(default=5_000_000)
-    max_coverage_limit: float = field(default=100_000_000)
+    min_total_coverage: float = field(default=5_000_000)
+    max_total_coverage: float = field(default=100_000_000)
     max_bankruptcy_probability: float = field(default=0.01)
     min_retained_limit: float = field(default=100_000)
     max_retained_limit: float = field(default=10_000_000)
@@ -63,6 +75,30 @@ class DecisionOptimizationConstraints:
     max_insurance_cost_ratio: float = field(default=0.03)  # Max insurance cost as % of revenue
     min_coverage_requirement: float = field(default=0.0)  # Minimum required coverage
     max_retention_limit: float = field(default=float("inf"))  # Maximum retention allowed
+    # Deprecated aliases (use min_total_coverage / max_total_coverage instead)
+    min_coverage_limit: Optional[float] = field(default=None, repr=False)
+    max_coverage_limit: Optional[float] = field(default=None, repr=False)
+
+    def __post_init__(self):
+        """Resolve deprecated ``min_coverage_limit`` / ``max_coverage_limit`` aliases."""
+        if self.min_coverage_limit is not None:
+            warnings.warn(
+                "DecisionOptimizationConstraints.min_coverage_limit is deprecated. "
+                "Use min_total_coverage instead.",
+                DeprecationWarning,
+                stacklevel=2,
+            )
+            self.min_total_coverage = self.min_coverage_limit
+            self.min_coverage_limit = None
+        if self.max_coverage_limit is not None:
+            warnings.warn(
+                "DecisionOptimizationConstraints.max_coverage_limit is deprecated. "
+                "Use max_total_coverage instead.",
+                DeprecationWarning,
+                stacklevel=2,
+            )
+            self.max_total_coverage = self.max_coverage_limit
+            self.max_coverage_limit = None
 
 
 @dataclass
@@ -87,21 +123,64 @@ class InsuranceDecision:
 
 
 @dataclass
-class DecisionMetrics:
-    """Comprehensive metrics for evaluating an insurance decision."""
+class GrowthMetrics:
+    """Ergodic growth metrics for insurance decision evaluation.
+
+    The ergodic growth rate measures the time-average (geometric) growth of
+    firm value under a given insurance program.  Unlike the ensemble-average
+    used in traditional expected-value analysis, the time-average captures
+    the compounding effect of sequential outcomes and correctly penalizes
+    variance — making it the appropriate objective for a single firm
+    operating through time.
+    """
 
     ergodic_growth_rate: float  # Time-average growth with insurance
+
+
+@dataclass
+class DecisionRiskMetrics:
+    """Tail-risk metrics for an insurance decision.
+
+    ``bankruptcy_probability`` is the simulated ruin frequency,
+    ``value_at_risk_95`` is the 95th-percentile loss, and
+    ``conditional_value_at_risk`` (Tail Value-at-Risk / Expected Shortfall)
+    is the expected loss in the worst 5% of scenarios — the standard
+    regulatory solvency metric under Solvency II and NAIC RBC frameworks.
+    """
+
     bankruptcy_probability: float  # Probability of ruin
+    value_at_risk_95: float  # 95th percentile loss
+    conditional_value_at_risk: float  # Expected loss beyond VaR (TVaR)
+
+
+@dataclass
+class ROEComponentMetrics:
+    """Decomposition of Return on Equity into operational drivers.
+
+    This DuPont-style breakdown isolates the ROE impact of underwriting
+    operations, the insurance program cost, and the tax shield.  Actuaries
+    and CFOs use this decomposition to attribute value creation to the
+    insurance purchasing decision versus organic business performance.
+    """
+
+    operating_roe: float = 0.0  # ROE from operations
+    insurance_impact_roe: float = 0.0  # ROE impact from insurance
+    tax_effect_roe: float = 0.0  # Tax impact on ROE
+
+
+@dataclass
+class ROEMetrics:
+    """Return-on-equity metrics for insurance decision evaluation.
+
+    Captures expected ROE, its improvement versus the uninsured baseline,
+    risk-adjusted performance (Sharpe ratio, downside deviation), and
+    rolling averages.  The ``components`` sub-group isolates the operational,
+    insurance, and tax contributions to ROE — useful for board-level
+    attribution reporting.
+    """
+
     expected_roe: float  # Expected return on equity
     roe_improvement: float  # Change in ROE vs no insurance
-    premium_to_limit_ratio: float  # Premium efficiency
-    coverage_adequacy: float  # Coverage vs expected losses
-    capital_efficiency: float  # Benefit per dollar of premium
-    value_at_risk_95: float  # 95th percentile loss
-    conditional_value_at_risk: float  # Expected loss beyond VaR
-    decision_score: float = 0.0  # Overall decision quality score
-
-    # Enhanced ROE metrics
     time_weighted_roe: float = 0.0  # Time-weighted average ROE
     roe_volatility: float = 0.0  # ROE standard deviation
     roe_sharpe_ratio: float = 0.0  # ROE risk-adjusted performance
@@ -109,11 +188,225 @@ class DecisionMetrics:
     roe_1yr_rolling: float = 0.0  # 1-year rolling average ROE
     roe_3yr_rolling: float = 0.0  # 3-year rolling average ROE
     roe_5yr_rolling: float = 0.0  # 5-year rolling average ROE
+    components: ROEComponentMetrics = field(default_factory=ROEComponentMetrics)
 
-    # ROE component breakdown
-    operating_roe: float = 0.0  # ROE from operations
-    insurance_impact_roe: float = 0.0  # ROE impact from insurance
-    tax_effect_roe: float = 0.0  # Tax impact on ROE
+
+@dataclass
+class EfficiencyMetrics:
+    """Premium efficiency and coverage adequacy metrics.
+
+    ``premium_to_limit_ratio`` (rate-on-line) measures how many cents of
+    premium are paid per dollar of limit — a standard broker metric for
+    layer pricing comparisons.  ``coverage_adequacy`` measures how well the
+    program covers expected aggregate losses.  ``capital_efficiency`` is the
+    incremental firm value per dollar of premium, analogous to the ROIC
+    of the insurance spend.
+    """
+
+    premium_to_limit_ratio: float  # Premium efficiency (rate-on-line)
+    coverage_adequacy: float  # Coverage vs expected losses
+    capital_efficiency: float  # Benefit per dollar of premium
+
+
+# Maps flat field names to (group_attr, ..., field_name) paths for
+# backward-compatible attribute delegation in DecisionMetrics.
+_FIELD_TO_GROUP: Dict[str, Tuple[str, ...]] = {
+    # GrowthMetrics
+    "ergodic_growth_rate": ("growth", "ergodic_growth_rate"),
+    # DecisionRiskMetrics
+    "bankruptcy_probability": ("risk", "bankruptcy_probability"),
+    "value_at_risk_95": ("risk", "value_at_risk_95"),
+    "conditional_value_at_risk": ("risk", "conditional_value_at_risk"),
+    # ROEMetrics (direct)
+    "expected_roe": ("roe", "expected_roe"),
+    "roe_improvement": ("roe", "roe_improvement"),
+    "time_weighted_roe": ("roe", "time_weighted_roe"),
+    "roe_volatility": ("roe", "roe_volatility"),
+    "roe_sharpe_ratio": ("roe", "roe_sharpe_ratio"),
+    "roe_downside_deviation": ("roe", "roe_downside_deviation"),
+    "roe_1yr_rolling": ("roe", "roe_1yr_rolling"),
+    "roe_3yr_rolling": ("roe", "roe_3yr_rolling"),
+    "roe_5yr_rolling": ("roe", "roe_5yr_rolling"),
+    # ROEComponentMetrics (nested under roe.components)
+    "operating_roe": ("roe", "components", "operating_roe"),
+    "insurance_impact_roe": ("roe", "components", "insurance_impact_roe"),
+    "tax_effect_roe": ("roe", "components", "tax_effect_roe"),
+    # EfficiencyMetrics
+    "premium_to_limit_ratio": ("efficiency", "premium_to_limit_ratio"),
+    "coverage_adequacy": ("efficiency", "coverage_adequacy"),
+    "capital_efficiency": ("efficiency", "capital_efficiency"),
+}
+
+# Top-level instance attributes stored directly on DecisionMetrics.
+_DECISION_METRICS_DIRECT_ATTRS = frozenset(
+    {"growth", "risk", "roe", "efficiency", "decision_score"}
+)
+
+
+class DecisionMetrics:
+    """Comprehensive metrics for evaluating an insurance decision.
+
+    Metrics are organized into four logical groups accessible as sub-objects:
+
+    * ``growth`` (:class:`GrowthMetrics`) — Ergodic (time-average) growth
+    * ``risk`` (:class:`DecisionRiskMetrics`) — Ruin probability and tail risk
+    * ``roe`` (:class:`ROEMetrics`) — Return-on-equity with components
+    * ``efficiency`` (:class:`EfficiencyMetrics`) — Premium efficiency and coverage
+
+    For backward compatibility, all fields remain accessible as flat
+    attributes (e.g. ``metrics.bankruptcy_probability``) in addition to
+    the grouped path (``metrics.risk.bankruptcy_probability``).
+    """
+
+    def __init__(
+        self,
+        *,
+        ergodic_growth_rate: float,
+        bankruptcy_probability: float,
+        expected_roe: float,
+        roe_improvement: float,
+        premium_to_limit_ratio: float,
+        coverage_adequacy: float,
+        capital_efficiency: float,
+        value_at_risk_95: float,
+        conditional_value_at_risk: float,
+        decision_score: float = 0.0,
+        time_weighted_roe: float = 0.0,
+        roe_volatility: float = 0.0,
+        roe_sharpe_ratio: float = 0.0,
+        roe_downside_deviation: float = 0.0,
+        roe_1yr_rolling: float = 0.0,
+        roe_3yr_rolling: float = 0.0,
+        roe_5yr_rolling: float = 0.0,
+        operating_roe: float = 0.0,
+        insurance_impact_roe: float = 0.0,
+        tax_effect_roe: float = 0.0,
+    ):
+        self.growth = GrowthMetrics(
+            ergodic_growth_rate=ergodic_growth_rate,
+        )
+        self.risk = DecisionRiskMetrics(
+            bankruptcy_probability=bankruptcy_probability,
+            value_at_risk_95=value_at_risk_95,
+            conditional_value_at_risk=conditional_value_at_risk,
+        )
+        self.roe = ROEMetrics(
+            expected_roe=expected_roe,
+            roe_improvement=roe_improvement,
+            time_weighted_roe=time_weighted_roe,
+            roe_volatility=roe_volatility,
+            roe_sharpe_ratio=roe_sharpe_ratio,
+            roe_downside_deviation=roe_downside_deviation,
+            roe_1yr_rolling=roe_1yr_rolling,
+            roe_3yr_rolling=roe_3yr_rolling,
+            roe_5yr_rolling=roe_5yr_rolling,
+            components=ROEComponentMetrics(
+                operating_roe=operating_roe,
+                insurance_impact_roe=insurance_impact_roe,
+                tax_effect_roe=tax_effect_roe,
+            ),
+        )
+        self.efficiency = EfficiencyMetrics(
+            premium_to_limit_ratio=premium_to_limit_ratio,
+            coverage_adequacy=coverage_adequacy,
+            capital_efficiency=capital_efficiency,
+        )
+        self.decision_score = decision_score
+
+    # -- Backward-compatible flat attribute access -------------------------
+
+    def __getattr__(self, name: str) -> Any:
+        path = _FIELD_TO_GROUP.get(name)
+        if path is not None:
+            obj: Any = self
+            for segment in path:
+                obj = object.__getattribute__(obj, segment)
+            return obj
+        raise AttributeError(f"'{type(self).__name__}' object has no attribute '{name}'")
+
+    def __setattr__(self, name: str, value: Any) -> None:
+        if name in _DECISION_METRICS_DIRECT_ATTRS:
+            super().__setattr__(name, value)
+            return
+        path = _FIELD_TO_GROUP.get(name)
+        if path is not None:
+            obj: Any = self
+            for segment in path[:-1]:
+                obj = object.__getattribute__(obj, segment)
+            object.__setattr__(obj, path[-1], value)
+            return
+        super().__setattr__(name, value)
+
+    # -- Display and comparison --------------------------------------------
+
+    def __repr__(self) -> str:
+        return (
+            f"DecisionMetrics("
+            f"score={self.decision_score:.3f}, "
+            f"growth={self.growth.ergodic_growth_rate:.4f}, "
+            f"risk={self.risk.bankruptcy_probability:.4f}, "
+            f"roe={self.roe.expected_roe:.4f}, "
+            f"efficiency={self.efficiency.capital_efficiency:.4f})"
+        )
+
+    def __eq__(self, other: object) -> bool:
+        if not isinstance(other, DecisionMetrics):
+            return NotImplemented
+        return (
+            self.growth == other.growth
+            and self.risk == other.risk
+            and self.roe == other.roe
+            and self.efficiency == other.efficiency
+            and self.decision_score == other.decision_score
+        )
+
+    # -- Serialization -----------------------------------------------------
+
+    def to_dict(self, group: Optional[str] = None) -> Dict[str, Any]:
+        """Serialize metrics to a flat dictionary.
+
+        Args:
+            group: If ``None``, returns all metrics as a flat dict.  If a
+                group name (``"growth"``, ``"risk"``, ``"roe"``,
+                ``"efficiency"``), returns only that group's fields.  For
+                ``"roe"``, component metrics are inlined into the same dict.
+
+        Returns:
+            Dictionary of metric name to value.
+
+        Raises:
+            ValueError: If *group* is not a recognized group name.
+        """
+        from dataclasses import asdict as _asdict
+
+        def _flat(obj: Any) -> Dict[str, Any]:
+            d: Dict[str, Any] = _asdict(obj)
+            if "components" in d:
+                d.update(d.pop("components"))
+            return d
+
+        groups: Dict[str, Any] = {
+            "growth": self.growth,
+            "risk": self.risk,
+            "roe": self.roe,
+            "efficiency": self.efficiency,
+        }
+
+        if group is not None:
+            if group not in groups:
+                raise ValueError(
+                    f"Unknown group '{group}'. " f"Valid groups: {sorted(groups.keys())}"
+                )
+            return _flat(groups[group])
+
+        # No group specified — return all fields flat
+        result: Dict[str, Any] = {}
+        for sub in groups.values():
+            result.update(_flat(sub))
+        result["decision_score"] = self.decision_score
+        return result
+
+    # -- Scoring -----------------------------------------------------------
 
     def calculate_score(
         self,
@@ -249,6 +542,137 @@ class InsuranceDecisionEngine:
         # Cache for performance
         self._decision_cache: Dict[str, InsuranceDecision] = {}
         self._metrics_cache: Dict[str, DecisionMetrics] = {}
+        self._baseline_cache: Dict[str, Dict[str, np.ndarray]] = {}
+
+    @classmethod
+    def from_company(
+        cls,
+        initial_assets: float = 10_000_000,
+        loss_mean: float = 1_000_000,
+        loss_cv: float = 1.5,
+        operating_margin: float = 0.08,
+        industry: str = "manufacturing",
+        tax_rate: float = 0.25,
+        growth_rate: float = 0.05,
+        pricing_scenario: str = "baseline",
+        seed: Optional[int] = None,
+    ) -> "InsuranceDecisionEngine":
+        """Create a decision engine from basic company parameters.
+
+        Factory method that mirrors ``Config.from_company()`` so actuaries
+        and risk managers can start optimizing without constructing
+        ``ManufacturerConfig``, ``WidgetManufacturer``, or
+        ``LossDistribution`` objects manually.
+
+        Args:
+            initial_assets: Starting asset value in dollars.
+            loss_mean: Mean annual loss severity in dollars.
+            loss_cv: Loss severity coefficient of variation (std / mean).
+            operating_margin: Base operating margin (e.g. 0.08 for 8%).
+            industry: Industry type for deriving config defaults.
+                Supported values: ``"manufacturing"``, ``"service"``,
+                ``"retail"``.
+            tax_rate: Corporate tax rate.
+            growth_rate: Annual revenue growth rate.
+            pricing_scenario: Insurance market pricing scenario.
+            seed: Random seed for the loss distribution.
+
+        Returns:
+            Ready-to-use ``InsuranceDecisionEngine`` instance.
+
+        Examples:
+            Minimal — uses all defaults::
+
+                engine = InsuranceDecisionEngine.from_company(
+                    initial_assets=10_000_000,
+                )
+
+            Specify loss distribution::
+
+                engine = InsuranceDecisionEngine.from_company(
+                    initial_assets=50_000_000,
+                    loss_mean=2_000_000,
+                    loss_cv=2.0,
+                    industry="service",
+                )
+
+            Full optimization workflow::
+
+                engine = InsuranceDecisionEngine.from_company(
+                    initial_assets=10_000_000,
+                    loss_mean=1_000_000,
+                    loss_cv=1.5,
+                )
+                decision = engine.optimize(max_premium=500_000)
+        """
+        manufacturer_config = ManufacturerConfig(
+            initial_assets=initial_assets,
+            base_operating_margin=operating_margin,
+            tax_rate=tax_rate,
+        )
+        manufacturer = WidgetManufacturer(manufacturer_config)
+        loss_distribution = LognormalLoss(mean=loss_mean, cv=loss_cv, seed=seed)
+
+        return cls(
+            manufacturer=manufacturer,
+            loss_distribution=loss_distribution,
+            pricing_scenario=pricing_scenario,
+        )
+
+    def optimize(
+        self,
+        max_premium: Optional[float] = None,
+        max_bankruptcy_probability: float = 0.01,
+        method: OptimizationMethod = OptimizationMethod.SLSQP,
+        weights: Optional[Dict[str, float]] = None,
+        **constraint_overrides,
+    ) -> "InsuranceDecision":
+        """Optimize insurance purchasing with sensible defaults.
+
+        Convenience wrapper around ``optimize_insurance_decision()`` that
+        builds ``DecisionOptimizationConstraints`` from keyword arguments,
+        filling in reasonable defaults where omitted.
+
+        Args:
+            max_premium: Maximum annual premium budget.  Defaults to 10%
+                of expected annual revenue.
+            max_bankruptcy_probability: Maximum acceptable probability of
+                ruin (default 1%).
+            method: Optimization algorithm to use.
+            weights: Objective function weights (growth, risk, cost).
+            **constraint_overrides: Additional overrides passed directly
+                to ``DecisionOptimizationConstraints`` fields.
+
+        Returns:
+            Optimal ``InsuranceDecision``.
+
+        Examples:
+            Quick optimization::
+
+                decision = engine.optimize(max_premium=500_000)
+
+            With custom constraints::
+
+                decision = engine.optimize(
+                    max_premium=1_000_000,
+                    max_bankruptcy_probability=0.005,
+                    min_total_coverage=10_000_000,
+                )
+        """
+        if max_premium is None:
+            revenue = (
+                self.manufacturer.config.initial_assets
+                * self.manufacturer.config.asset_turnover_ratio
+            )
+            max_premium = revenue * 0.10
+
+        constraints = DecisionOptimizationConstraints(
+            max_premium_budget=max_premium,
+            max_bankruptcy_probability=max_bankruptcy_probability,
+            **constraint_overrides,
+        )
+
+        return self.optimize_insurance_decision(constraints, method=method, weights=weights)
 
     def _load_pricing_scenarios(
         self, scenario_file: str = "insurance_pricing_scenarios"
@@ -408,7 +832,7 @@ class InsuranceDecisionEngine:
         x0[0] = constraints.min_retained_limit  # Start with minimum retention
         if constraints.max_layers > 0:
             layer_size = (
-                constraints.max_coverage_limit - constraints.min_retained_limit
+                constraints.max_total_coverage - constraints.min_retained_limit
             ) / constraints.max_layers
             for i in range(1, min(3, n_vars)):  # Start with 2-3 layers
                 x0[i] = layer_size
@@ -416,7 +840,7 @@ class InsuranceDecisionEngine:
         # Bounds for decision variables
         bounds = [(constraints.min_retained_limit, constraints.max_retained_limit)]
         for _ in range(constraints.max_layers):
-            bounds.append((0, constraints.max_coverage_limit / constraints.max_layers))
+            bounds.append((0, constraints.max_total_coverage / constraints.max_layers))
 
         # Define objective function
         def objective(x):
@@ -459,7 +883,7 @@ class InsuranceDecisionEngine:
                 Constraint value (positive when satisfied)
             """
             total_coverage = sum(x)
-            return total_coverage - constraints.min_coverage_limit
+            return total_coverage - constraints.min_total_coverage
 
         def coverage_max_constraint(x):
             """Constraint function for maximum coverage.
@@ -471,7 +895,7 @@ class InsuranceDecisionEngine:
                 Constraint value (positive when satisfied)
             """
             total_coverage = sum(x)
-            return constraints.max_coverage_limit - total_coverage
+            return constraints.max_total_coverage - total_coverage
 
         constraint_list.extend(
             [
@@ -517,7 +941,7 @@ class InsuranceDecisionEngine:
         # Bounds for decision variables
         bounds = [(constraints.min_retained_limit, constraints.max_retained_limit)]
         for _ in range(constraints.max_layers):
-            bounds.append((0, constraints.max_coverage_limit / constraints.max_layers))
+            bounds.append((0, constraints.max_total_coverage / constraints.max_layers))
 
         # Define objective with penalty for constraint violations
         def objective_with_penalty(x):
@@ -541,10 +965,10 @@ class InsuranceDecisionEngine:
 
             # Coverage constraints
             total_coverage = sum(x)
-            if total_coverage < constraints.min_coverage_limit:
-                penalty += 1000 * (constraints.min_coverage_limit - total_coverage)
-            if total_coverage > constraints.max_coverage_limit:
-                penalty += 1000 * (total_coverage - constraints.max_coverage_limit)
+            if total_coverage < constraints.min_total_coverage:
+                penalty += 1000 * (constraints.min_total_coverage - total_coverage)
+            if total_coverage > constraints.max_total_coverage:
+                penalty += 1000 * (total_coverage - constraints.max_total_coverage)
 
             # Bankruptcy constraint
             bankruptcy_prob = self._estimate_bankruptcy_probability(x)
@@ -608,7 +1032,7 @@ class InsuranceDecisionEngine:
         x0[0] = constraints.min_retained_limit
         if constraints.max_layers > 0:
             layer_size = (
-                constraints.max_coverage_limit - constraints.min_retained_limit
+                constraints.max_total_coverage - constraints.min_retained_limit
             ) / constraints.max_layers
             for i in range(1, min(3, n_vars)):
                 x0[i] = layer_size
@@ -617,7 +1041,7 @@ class InsuranceDecisionEngine:
         bounds = Bounds(
             lb=[constraints.min_retained_limit] + [0] * constraints.max_layers,
             ub=[constraints.max_retained_limit]
-            + [constraints.max_coverage_limit / constraints.max_layers] * constraints.max_layers,
+            + [constraints.max_total_coverage / constraints.max_layers] * constraints.max_layers,
         )
 
         # Create constraints list
@@ -646,7 +1070,7 @@ class InsuranceDecisionEngine:
         x0[0] = constraints.min_retained_limit
         if constraints.max_layers > 0:
             layer_size = (
-                constraints.max_coverage_limit - constraints.min_retained_limit
+                constraints.max_total_coverage - constraints.min_retained_limit
             ) / constraints.max_layers
             for i in range(1, min(3, n_vars)):
                 x0[i] = layer_size
@@ -655,7 +1079,7 @@ class InsuranceDecisionEngine:
         bounds = Bounds(
             lb=[constraints.min_retained_limit] + [0] * constraints.max_layers,
             ub=[constraints.max_retained_limit]
-            + [constraints.max_coverage_limit / constraints.max_layers] * constraints.max_layers,
+            + [constraints.max_total_coverage / constraints.max_layers] * constraints.max_layers,
         )
 
         # Create constraints list
@@ -684,7 +1108,7 @@ class InsuranceDecisionEngine:
         x0[0] = constraints.min_retained_limit
         if constraints.max_layers > 0:
             layer_size = (
-                constraints.max_coverage_limit - constraints.min_retained_limit
+                constraints.max_total_coverage - constraints.min_retained_limit
             ) / constraints.max_layers
             for i in range(1, min(3, n_vars)):
                 x0[i] = layer_size
@@ -693,7 +1117,7 @@ class InsuranceDecisionEngine:
         bounds = Bounds(
             lb=[constraints.min_retained_limit] + [0] * constraints.max_layers,
             ub=[constraints.max_retained_limit]
-            + [constraints.max_coverage_limit / constraints.max_layers] * constraints.max_layers,
+            + [constraints.max_total_coverage / constraints.max_layers] * constraints.max_layers,
         )
 
         # Create constraints list
@@ -720,7 +1144,7 @@ class InsuranceDecisionEngine:
         x0[0] = constraints.min_retained_limit
         if constraints.max_layers > 0:
             layer_size = (
-                constraints.max_coverage_limit - constraints.min_retained_limit
+                constraints.max_total_coverage - constraints.min_retained_limit
             ) / constraints.max_layers
             for i in range(1, min(3, n_vars)):
                 x0[i] = layer_size
@@ -729,7 +1153,7 @@ class InsuranceDecisionEngine:
         bounds = Bounds(
             lb=[constraints.min_retained_limit] + [0] * constraints.max_layers,
             ub=[constraints.max_retained_limit]
-            + [constraints.max_coverage_limit / constraints.max_layers] * constraints.max_layers,
+            + [constraints.max_total_coverage / constraints.max_layers] * constraints.max_layers,
         )
 
         # Create constraints list
@@ -756,7 +1180,7 @@ class InsuranceDecisionEngine:
         x0[0] = constraints.min_retained_limit
         if constraints.max_layers > 0:
             layer_size = (
-                constraints.max_coverage_limit - constraints.min_retained_limit
+                constraints.max_total_coverage - constraints.min_retained_limit
             ) / constraints.max_layers
             for i in range(1, min(3, n_vars)):
                 x0[i] = layer_size
@@ -765,7 +1189,7 @@ class InsuranceDecisionEngine:
         bounds = Bounds(
             lb=[constraints.min_retained_limit] + [0] * constraints.max_layers,
             ub=[constraints.max_retained_limit]
-            + [constraints.max_coverage_limit / constraints.max_layers] * constraints.max_layers,
+            + [constraints.max_total_coverage / constraints.max_layers] * constraints.max_layers,
         )
 
         # Create constraints list
@@ -800,11 +1224,11 @@ class InsuranceDecisionEngine:
         # Coverage limit constraints
         def coverage_min_constraint(x):
             total_coverage = sum(x)
-            return total_coverage - constraints.min_coverage_limit
+            return total_coverage - constraints.min_total_coverage
 
         def coverage_max_constraint(x):
             total_coverage = sum(x)
-            return constraints.max_coverage_limit - total_coverage
+            return constraints.max_total_coverage - total_coverage
 
         constraint_list.extend(
             [
@@ -1164,10 +1588,10 @@ class InsuranceDecisionEngine:
             return False
 
         # Check coverage limits
-        if decision.total_coverage < constraints.min_coverage_limit:
+        if decision.total_coverage < constraints.min_total_coverage:
             logger.warning(f"Coverage ${decision.total_coverage:,.0f} below minimum")
             return False
-        if decision.total_coverage > constraints.max_coverage_limit:
+        if decision.total_coverage > constraints.max_total_coverage:
             logger.warning(f"Coverage ${decision.total_coverage:,.0f} above maximum")
             return False
 
@@ -1182,6 +1606,46 @@ class InsuranceDecisionEngine:
             return False
 
         return True
+
+    def _baseline_cache_key(self) -> str:
+        """Build a cache key for the without-insurance baseline.
+
+        The key captures manufacturer financials and loss distribution
+        parameters so the baseline is recomputed whenever either changes.
+        """
+        mfr = self.manufacturer
+        parts = [
+            f"assets={float(mfr.total_assets):.2f}",
+            f"equity={float(mfr.equity):.2f}",
+            f"turnover={mfr.asset_turnover_ratio}",
+            f"margin={mfr.base_operating_margin}",
+            f"tax={getattr(mfr, 'tax_rate', 0.25)}",
+        ]
+        if hasattr(self.loss_distribution, "expected_value"):
+            parts.append(f"ev={self.loss_distribution.expected_value():.4f}")
+        if hasattr(self.loss_distribution, "cv"):
+            parts.append(f"cv={self.loss_distribution.cv():.4f}")
+        cfg = self.engine_config
+        parts.append(f"n={cfg.metrics_n_simulations}")
+        parts.append(f"t={cfg.metrics_time_horizon}")
+        return "|".join(parts)
+
+    def _generate_loss_sequence(
+        self, n_simulations: int, time_horizon: int, seed: int = 42
+    ) -> np.ndarray:
+        """Pre-generate a (n_simulations, time_horizon) loss array.
+
+        Used for Common Random Numbers so with-insurance and without-insurance
+        simulations share the same loss draws.
+        """
+        rng = np.random.default_rng(seed)
+        if hasattr(self.loss_distribution, "expected_value"):
+            expected = max(self.loss_distribution.expected_value(), 1.0)
+            cv = self.loss_distribution.cv() if hasattr(self.loss_distribution, "cv") else 0.5
+            sigma_sq = np.log(1 + cv**2)
+            mu = np.log(expected) - sigma_sq / 2
+            return rng.lognormal(mu, np.sqrt(sigma_sq), size=(n_simulations, time_horizon))
+        return np.zeros((n_simulations, time_horizon))
 
     def calculate_decision_metrics(self, decision: InsuranceDecision) -> DecisionMetrics:
         """Calculate comprehensive metrics for a decision.
@@ -1204,25 +1668,36 @@ class InsuranceDecisionEngine:
             else 0.3
         )
 
-        # Run simulations to calculate metrics
-        n_simulations = 1000
-        time_horizon = 10  # years
+        # Use configurable simulation parameters
+        n_simulations = self.engine_config.metrics_n_simulations
+        time_horizon = self.engine_config.metrics_time_horizon
+
+        # Pre-generate shared loss sequence for CRN (paired comparison)
+        use_crn = self.engine_config.use_crn
+        loss_seq = self._generate_loss_sequence(n_simulations, time_horizon) if use_crn else None
 
         # Simulate with insurance
-        with_insurance_results = self._run_simulation(decision, n_simulations, time_horizon)
+        with_insurance_results = self._run_simulation(
+            decision, n_simulations, time_horizon, loss_sequence=loss_seq
+        )
 
-        # Simulate without insurance
-        no_insurance_decision = InsuranceDecision(
-            retained_limit=float("inf"),
-            layers=[],
-            total_premium=0,
-            total_coverage=0,
-            pricing_scenario=self.pricing_scenario,
-            optimization_method="none",
-        )
-        without_insurance_results = self._run_simulation(
-            no_insurance_decision, n_simulations, time_horizon
-        )
+        # Simulate without insurance — use cached baseline when possible
+        bl_key = self._baseline_cache_key()
+        if bl_key in self._baseline_cache:
+            without_insurance_results = self._baseline_cache[bl_key]
+        else:
+            no_insurance_decision = InsuranceDecision(
+                retained_limit=float("inf"),
+                layers=[],
+                total_premium=0,
+                total_coverage=0,
+                pricing_scenario=self.pricing_scenario,
+                optimization_method="none",
+            )
+            without_insurance_results = self._run_simulation(
+                no_insurance_decision, n_simulations, time_horizon, loss_sequence=loss_seq
+            )
+            self._baseline_cache[bl_key] = without_insurance_results
 
         # Import ROEAnalyzer for enhanced metrics
         from .risk_metrics import ROEAnalyzer
@@ -1341,26 +1816,65 @@ class InsuranceDecisionEngine:
 
         return metrics
 
+    def _get_sim_param(self, name: str, default):
+        """Safely extract a config parameter from the manufacturer.
+
+        Checks ``manufacturer.config``, then direct manufacturer attributes,
+        falling back to *default*.  This keeps backward compatibility with
+        mock-based tests that don't attach a full ``ManufacturerConfig``.
+        """
+        cfg = getattr(self.manufacturer, "config", None)
+        if cfg is not None:
+            val = getattr(cfg, name, None)
+            if val is not None:
+                return val
+        val = getattr(self.manufacturer, name, None)
+        if val is not None:
+            return val
+        return default
+
     def _run_simulation(
         self,
         decision: InsuranceDecision,
         n_simulations: int,
         time_horizon: int,
         seed: Optional[int] = 42,
+        loss_sequence: Optional[np.ndarray] = None,
     ) -> Dict[str, np.ndarray]:
         """Run Monte Carlo simulation for given decision.
+
+        The financial model replicates the GPU engine (``gpu_mc_engine.py``)
+        including balance sheet tracking, depreciation, DTL, working capital,
+        NOL carryforward, dividends, and cash-based insolvency.
 
         Args:
             decision: Insurance decision to simulate.
             n_simulations: Number of Monte Carlo paths.
             time_horizon: Number of years per path.
             seed: Random seed for reproducibility. Pass None for non-deterministic.
+            loss_sequence: Pre-generated loss array of shape
+                ``(n_simulations, time_horizon)`` for Common Random Numbers.
+                When provided, *seed* is ignored for loss generation.
         """
-        equity_ratio = (
-            float(self.manufacturer.equity) / float(self.manufacturer.total_assets)
-            if float(self.manufacturer.total_assets) > 0
-            else 0.3
-        )
+        initial_assets = float(self.manufacturer.total_assets)
+        initial_equity = float(self.manufacturer.equity)
+
+        # ---- Extract financial model parameters (GPU-engine-aligned) ----
+        tax_rate = getattr(self.manufacturer, "tax_rate", 0.25)
+        ppe_ratio = self._get_sim_param("ppe_ratio", 0.3)
+        book_life = self._get_sim_param("ppe_useful_life_years", 10.0)
+        tax_depr_life = self._get_sim_param("tax_depreciation_life_years", None)
+        capex_ratio = self._get_sim_param("capex_to_depreciation_ratio", 1.0)
+        # retention_ratio=1.0 preserves existing mock behavior (no dividends)
+        retention_ratio = self._get_sim_param("retention_ratio", 1.0)
+        nol_enabled = self._get_sim_param("nol_carryforward_enabled", True)
+        nol_limit_pct = self._get_sim_param("nol_limitation_pct", 0.80)
+        dpo = self._get_sim_param("dpo", 30.0)
+        dso = self._get_sim_param("dso", 45.0)
+        dio = self._get_sim_param("dio", 60.0)
+        # insolvency_tolerance=0.0 preserves existing ``equity <= 0`` for mocks
+        insolvency_tolerance = self._get_sim_param("insolvency_tolerance", 0.0)
+
         rng = np.random.default_rng(seed)
         results = {
             "growth_rates": np.zeros(n_simulations),
@@ -1377,23 +1891,33 @@ class InsuranceDecisionEngine:
         all_equity_series = []
 
         for i in range(n_simulations):
-            # Initialize company state from manufacturer financials
-            assets = float(self.manufacturer.total_assets)
-            equity = float(self.manufacturer.equity)
+            # ---- Initialize balance sheet (matches GPU engine) ----
+            equity = initial_equity
+            gross_ppe = initial_assets * ppe_ratio
+            accum_book_depr = 0.0
+            accum_tax_depr = 0.0
+            nol_carryforward = 0.0
+            prev_ap = 0.0
+            prev_net_dtl = 0.0
 
             bankrupt = False
             annual_returns = []
             sim_roe_series = []
             sim_equity_series = []
 
-            for _ in range(time_horizon):
-                # Generate revenue
+            for t in range(time_horizon):
+                # ---- Derive total_assets from balance sheet state ----
+                total_liabilities = prev_ap + prev_net_dtl
+                assets = equity + total_liabilities
+
+                # ---- Revenue ----
                 revenue = assets * self.manufacturer.asset_turnover_ratio
 
-                # Generate losses using loss distribution parameters
-                if hasattr(self.loss_distribution, "expected_value"):
+                # ---- Generate losses ----
+                if loss_sequence is not None:
+                    annual_losses = float(loss_sequence[i, t])
+                elif hasattr(self.loss_distribution, "expected_value"):
                     expected = max(self.loss_distribution.expected_value(), 1.0)
-                    # Use distribution's CV if available, otherwise default 0.5
                     if hasattr(self.loss_distribution, "cv"):
                         cv = self.loss_distribution.cv()
                     else:
@@ -1404,7 +1928,7 @@ class InsuranceDecisionEngine:
                 else:
                     annual_losses = 0.0
 
-                # Apply insurance
+                # ---- Apply insurance ----
                 retained_losses = min(annual_losses, decision.retained_limit)
                 insured_losses = 0.0
 
@@ -1417,15 +1941,34 @@ class InsuranceDecisionEngine:
                         if remaining_loss <= 0:
                             break
 
-                # Calculate net income with tax per ASC 740 (Issue #500)
+                # ---- Income statement (matches GPU engine) ----
                 operating_income = revenue * self.manufacturer.base_operating_margin
                 net_losses = retained_losses + max(annual_losses - decision.total_coverage, 0)
-                income_before_tax = operating_income - net_losses - decision.total_premium
-                tax_rate = getattr(self.manufacturer, "tax_rate", 0.25)
-                tax_expense = max(0.0, income_before_tax * tax_rate)
-                net_income = income_before_tax - tax_expense
+                pre_tax_income = operating_income - net_losses - decision.total_premium
 
-                # Calculate ROE before updating equity
+                # ---- Tax with NOL carryforward (IRC §172, Issue #1300) ----
+                if nol_enabled:
+                    if pre_tax_income > 0:
+                        nol_deduction = min(nol_carryforward, pre_tax_income * nol_limit_pct)
+                        taxable_income = max(pre_tax_income - nol_deduction, 0.0)
+                        tax_expense = taxable_income * tax_rate
+                        nol_carryforward -= nol_deduction
+                    else:
+                        tax_expense = 0.0
+                        nol_carryforward += abs(pre_tax_income)
+                else:
+                    tax_expense = max(0.0, pre_tax_income * tax_rate)
+
+                net_income = pre_tax_income - tax_expense
+
+                # ---- Dividends (only on positive income) ----
+                if net_income > 0:
+                    dividends = net_income * (1.0 - retention_ratio)
+                else:
+                    dividends = 0.0
+                retained_earnings = net_income - dividends
+
+                # ---- Calculate ROE before updating equity ----
                 if equity > 0:
                     roe = net_income / equity
                     annual_returns.append(roe)
@@ -1434,16 +1977,53 @@ class InsuranceDecisionEngine:
                 else:
                     annual_returns.append(net_income / max(equity, 1))
 
-                # Update equity
-                equity += net_income
+                # ---- Depreciation (book) ----
+                net_ppe = max(gross_ppe - accum_book_depr, 0.0)
+                book_depr = min(gross_ppe / book_life, net_ppe)
+                accum_book_depr += book_depr
 
-                # Check bankruptcy
-                if equity <= 0:
+                # ---- Depreciation (tax, for DTL) ----
+                if tax_depr_life is not None:
+                    remaining_tax_basis = max(gross_ppe - accum_tax_depr, 0.0)
+                    tax_depr = min(gross_ppe / tax_depr_life, remaining_tax_basis)
+                    accum_tax_depr += tax_depr
+
+                # ---- Capex reinvestment ----
+                capex = book_depr * capex_ratio
+                gross_ppe += capex
+
+                # ---- Working capital update ----
+                cogs = revenue * (1.0 - self.manufacturer.base_operating_margin)
+                new_ap = cogs * (dpo / 365.0)
+
+                # ---- DTL / DTA (ASC 740-10-45-6) ----
+                dta = nol_carryforward * tax_rate
+                timing_diff = max(accum_tax_depr - accum_book_depr, 0.0)
+                dtl = timing_diff * tax_rate
+                new_net_dtl = max(dtl - dta, 0.0)
+                delta_net_dtl = new_net_dtl - prev_net_dtl
+
+                # ---- Equity update (GPU engine line 864) ----
+                equity += retained_earnings - delta_net_dtl
+
+                # ---- Update liabilities for next period ----
+                prev_ap = new_ap
+                prev_net_dtl = new_net_dtl
+
+                # ---- Derive total assets for ruin check ----
+                new_total_liabilities = new_ap + new_net_dtl
+                new_total_assets = equity + new_total_liabilities
+
+                # ---- Cash estimation for cash-based insolvency ----
+                net_ppe_now = max(gross_ppe - accum_book_depr, 0.0)
+                ar = revenue * (dso / 365.0)
+                inventory = cogs * (dio / 365.0)
+                cash = new_total_assets - net_ppe_now - ar - inventory
+
+                # ---- Ruin detection: equity-based OR cash-based ----
+                if equity <= insolvency_tolerance or cash < 0:
                     bankrupt = True
                     break
-
-                # Update assets for next period
-                assets = equity / equity_ratio
 
             # Store results
             results["growth_rates"][i] = np.mean(annual_returns) if annual_returns else 0  # type: ignore
@@ -1516,6 +2096,7 @@ class InsuranceDecisionEngine:
                     # Clear caches so modified parameters take effect
                     self._decision_cache.clear()
                     self._metrics_cache.clear()
+                    self._baseline_cache.clear()
 
                     # Re-optimize with modified parameter
                     constraints = DecisionOptimizationConstraints(
@@ -1556,6 +2137,7 @@ class InsuranceDecisionEngine:
             # Clear caches so restored state is used for subsequent calls
             self._decision_cache.clear()
             self._metrics_cache.clear()
+            self._baseline_cache.clear()
 
         # Flatten parameter sensitivities for the report
         flattened_sensitivities = {}

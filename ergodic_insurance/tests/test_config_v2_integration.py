@@ -96,16 +96,15 @@ class TestIntegration:
             },
         )
 
-        # Validate completeness
-        issues = config.validate_completeness()
-        assert len(issues) == 0
+        # Validate completeness (should not raise)
+        config.validate_config()
 
-        # Apply preset
+        # Apply preset (returns new instance)
         preset_data = {
             "growth": {"volatility": 0.25},
             "losses": {"tail_alpha": 3.0},
         }
-        config.apply_preset("high_volatility", preset_data)
+        config = config.with_preset("high_volatility", preset_data)
         assert config.growth.volatility == 0.25
         assert config.losses is not None and config.losses.tail_alpha == 3.0
         assert "high_volatility" in config.applied_presets

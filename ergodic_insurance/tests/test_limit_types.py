@@ -53,10 +53,11 @@ class TestPerOccurrenceLimits:
         assert total_paid == 5_000_000  # 10 claims * 500K each
         assert not state.is_exhausted  # Never exhausts
 
-    def test_per_occurrence_reinstatement_warning(self):
+    def test_per_occurrence_reinstatement_warning(self, caplog):
         """Test that reinstatements generate warning for per-occurrence limits."""
-        with warnings.catch_warnings(record=True) as w:
-            warnings.simplefilter("always")
+        import logging
+
+        with caplog.at_level(logging.WARNING, logger="ergodic_insurance.insurance_program"):
             layer = EnhancedInsuranceLayer(
                 limit=1_000_000,
                 attachment_point=100_000,
@@ -66,8 +67,10 @@ class TestPerOccurrenceLimits:
             )
 
             # Check that a warning was raised
-            assert len(w) == 1
-            assert "not used for per-occurrence limits" in str(w[0].message)
+            warning_records = [
+                r for r in caplog.records if "not used for per-occurrence limits" in r.message
+            ]
+            assert len(warning_records) == 1
 
 
 class TestAggregateLimits:
@@ -220,11 +223,12 @@ class TestHybridLimits:
 class TestReinstatementBehavior:
     """Test reinstatement behavior for different limit types."""
 
-    def test_reinstatements_with_limit_types(self):
+    def test_reinstatements_with_limit_types(self, caplog):
         """Test reinstatement behavior for different limit types."""
+        import logging
+
         # Per-occurrence: reinstatements ignored with warning
-        with warnings.catch_warnings(record=True) as w:
-            warnings.simplefilter("always")
+        with caplog.at_level(logging.WARNING, logger="ergodic_insurance.insurance_program"):
             layer_po = EnhancedInsuranceLayer(
                 limit=1_000_000,
                 attachment_point=100_000,
@@ -232,8 +236,10 @@ class TestReinstatementBehavior:
                 limit_type="per-occurrence",
                 reinstatements=2,  # Should be ignored with a warning
             )
-            assert len(w) == 1
-            assert "not used for per-occurrence limits" in str(w[0].message)
+            warning_records = [
+                r for r in caplog.records if "not used for per-occurrence limits" in r.message
+            ]
+            assert len(warning_records) == 1
 
         # Aggregate: reinstatements work
         layer_agg = EnhancedInsuranceLayer(

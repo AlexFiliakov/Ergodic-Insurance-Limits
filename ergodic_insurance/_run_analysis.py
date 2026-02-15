@@ -14,7 +14,7 @@ Examples:
             loss_frequency=2.5,
             loss_severity_mean=1_000_000,
             deductible=500_000,
-            coverage_limit=10_000_000,
+            limit=10_000_000,
             premium_rate=0.025,
         )
         print(results.summary())
@@ -27,7 +27,7 @@ Examples:
             loss_frequency=1.0,
             loss_severity_mean=5_000_000,
             deductible=1_000_000,
-            coverage_limit=25_000_000,
+            limit=25_000_000,
             premium_rate=0.02,
             n_simulations=500,
             time_horizon=30,
@@ -38,7 +38,7 @@ Examples:
     With a pre-built Config::
 
         config = Config.from_company(initial_assets=50_000_000, industry="service")
-        results = run_analysis(config=config, deductible=500_000, coverage_limit=10_000_000)
+        results = run_analysis(config=config, deductible=500_000, limit=10_000_000)
 
     With a pre-built InsuranceProgram::
 
@@ -53,6 +53,7 @@ import copy
 from dataclasses import dataclass, field
 import logging
 from typing import Any, Dict, List, Optional
+import warnings
 
 import numpy as np
 import pandas as pd
@@ -114,6 +115,56 @@ class AnalysisResults:
 
     # Cached summary text
     _summary_cache: Optional[str] = field(default=None, repr=False)
+
+    @property
+    def survival_rate(self) -> float:
+        """Fraction of insured simulations that survived."""
+        if not self.insured_results:
+            return 0.0
+        survived = sum(1 for r in self.insured_results if r.insolvency_year is None)
+        return survived / len(self.insured_results)
+
+    @property
+    def ergodic_advantage_gain(self) -> Optional[float]:
+        """Time-average growth gain from insurance, or None if not compared."""
+        if self.comparison is None:
+            return None
+        return self.comparison.ergodic_advantage.time_average_gain
+
+    def __repr__(self) -> str:
+        n = len(self.insured_results)
+        sr = self.survival_rate
+        adv = self.ergodic_advantage_gain
+        adv_str = f", ergodic_advantage={adv:+.2%}" if adv is not None else ""
+        return f"AnalysisResults(n_simulations={n}, " f"survival_rate={sr:.1%}{adv_str})"
+
+    def __str__(self) -> str:
+        return self.summary()
+
+    def _repr_html_(self) -> str:
+        """Rich HTML display for Jupyter notebooks."""
+        n = len(self.insured_results)
+        sr = self.survival_rate
+        adv = self.ergodic_advantage_gain
+
+        rows = [
+            f"<tr><td><b>Simulations</b></td><td>{n}</td></tr>",
+            f"<tr><td><b>Survival Rate</b></td><td>{sr:.1%}</td></tr>",
+        ]
+        if adv is not None:
+            color = "#27ae60" if adv > 0 else "#e74c3c"
+            rows.append(
+                f"<tr><td><b>Ergodic Advantage</b></td>"
+                f"<td style='color:{color}'>{adv:+.2%}</td></tr>"
+            )
+        table_rows = "".join(rows)
+        return (
+            "<div style='font-family: monospace; padding: 8px; "
+            "border: 1px solid #ddd; border-radius: 4px; display: inline-block;'>"
+            "<b>AnalysisResults</b>"
+            f"<table style='margin-top:4px'>{table_rows}</table>"
+            "</div>"
+        )
 
     @property
     def insurance_policy(self):
@@ -200,18 +251,12 @@ class AnalysisResults:
 
         # --- Ergodic advantage ---
         if self.comparison is not None:
-            adv = self.comparison.get("ergodic_advantage", {})
+            adv = self.comparison.ergodic_advantage
             lines.append("")
             lines.append("--- Ergodic Advantage (Insured - Uninsured) ---")
-            ta_gain = adv.get("time_average_gain")
-            if ta_gain is not None:
-                lines.append(f"Time-Average Growth Gain: {ta_gain:+.2%}")
-            surv_gain = adv.get("survival_gain")
-            if surv_gain is not None:
-                lines.append(f"Survival Rate Gain: {surv_gain:+.1%}")
-            sig = adv.get("significant")
-            if sig is not None:
-                lines.append(f"Statistically Significant: {'Yes' if sig else 'No'}")
+            lines.append(f"Time-Average Growth Gain: {adv.time_average_gain:+.2%}")
+            lines.append(f"Survival Rate Gain: {adv.survival_gain:+.1%}")
+            lines.append(f"Statistically Significant: {'Yes' if adv.significant else 'No'}")
 
         lines.append("=" * 60)
         text = "\n".join(lines)
@@ -390,8 +435,10 @@ def run_analysis(
     loss_severity_std: Optional[float] = None,
     # Insurance parameters
     deductible=_UNSET,
-    coverage_limit=_UNSET,
+    limit=_UNSET,
     premium_rate=_UNSET,
+    # Deprecated aliases
+    coverage_limit=_UNSET,
     # Simulation parameters
     n_simulations: int = 1000,
     time_horizon=_UNSET,
@@ -434,10 +481,15 @@ def run_analysis(
             data suggests a different CV.
         deductible: Self-insured retention in dollars.
             Default ``500_000``.
-        coverage_limit: Maximum insurance payout per occurrence.
+        limit: Per-occurrence layer limit — the maximum insurance
+            payout per occurrence above the deductible.  This matches
+            the *limit* parameter of :meth:`InsuranceProgram.simple`.
+            Note: total program coverage is ``deductible + limit``.
             Default ``10_000_000``.
         premium_rate: Annual premium as a fraction of
-            *coverage_limit* (e.g. 0.025 for 2.5%).  Default ``0.025``.
+            *limit* (e.g. 0.025 for 2.5%).  Default ``0.025``.
+        coverage_limit: Deprecated alias for *limit*.  Emits a
+            :class:`DeprecationWarning` when used.
         n_simulations: Number of Monte Carlo paths to run.
         time_horizon: Simulation length in years.  Default ``50``.
         seed: Base random seed for reproducibility.
@@ -453,7 +505,7 @@ def run_analysis(
         insurance_program: Pre-built :class:`InsuranceProgram` object.
             When provided, the insurance parameters are drawn from this
             object and flat insurance scalars (*deductible*,
-            *coverage_limit*, *premium_rate*) are ignored (a warning is
+            *limit*, *premium_rate*) are ignored (a warning is
             logged if they are also explicitly passed).
 
     Returns:
@@ -471,7 +523,7 @@ def run_analysis(
                 loss_frequency=2.5,
                 loss_severity_mean=1_000_000,
                 deductible=500_000,
-                coverage_limit=10_000_000,
+                limit=10_000_000,
                 premium_rate=0.025,
             )
             print(results.summary())
@@ -487,7 +539,7 @@ def run_analysis(
                 initial_assets=50_000_000, industry="service",
             )
             results = run_analysis(config=config, deductible=500_000,
-                                   coverage_limit=10_000_000)
+                                   limit=10_000_000)
 
         With a pre-built InsuranceProgram::
 
@@ -504,6 +556,20 @@ def run_analysis(
             df.to_csv("results.csv")
             results.plot()
     """
+    # --- Resolve deprecated coverage_limit alias ---
+    if coverage_limit is not _UNSET:
+        if limit is not _UNSET:
+            raise TypeError(
+                "Cannot specify both 'limit' and deprecated 'coverage_limit'. " "Use 'limit' only."
+            )
+        warnings.warn(
+            "The 'coverage_limit' parameter is deprecated. "
+            "Use 'limit' instead (matches InsuranceProgram.simple()).",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+        limit = coverage_limit
+
     if loss_severity_std is None:
         loss_severity_std = loss_severity_mean
         logger.info(
@@ -547,16 +613,16 @@ def run_analysis(
     # --- Build insurance program ---
     if insurance_program is not None:
         program = insurance_program
-        if deductible is not _UNSET or coverage_limit is not _UNSET or premium_rate is not _UNSET:
+        if deductible is not _UNSET or limit is not _UNSET or premium_rate is not _UNSET:
             logger.warning(
                 "Both insurance_program and flat insurance parameters were provided. "
                 "The pre-built insurance_program takes precedence; flat insurance "
-                "parameters (deductible, coverage_limit, premium_rate) are ignored."
+                "parameters (deductible, limit, premium_rate) are ignored."
             )
     else:
         program = InsuranceProgram.simple(
             deductible=deductible if deductible is not _UNSET else 500_000,
-            limit=coverage_limit if coverage_limit is not _UNSET else 10_000_000,
+            limit=limit if limit is not _UNSET else 10_000_000,
             rate=premium_rate if premium_rate is not _UNSET else 0.025,
         )
 

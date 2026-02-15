@@ -64,8 +64,8 @@ class IncomeCalculationMixin:
         """
         # Exclude net DTA from asset base — tax assets do not generate
         # revenue; they represent future tax benefits (Issue #1055)
-        net_dta = getattr(self, "net_deferred_tax_asset", ZERO)
-        available_assets = max(ZERO, self.total_assets - net_dta)
+        net_dta = getattr(self, "net_deferred_tax_asset", to_decimal(0))
+        available_assets = max(to_decimal(0), self.total_assets - net_dta)
         revenue = available_assets * to_decimal(self.asset_turnover_ratio)
 
         if apply_stochastic and self.stochastic_process is not None:
@@ -96,17 +96,21 @@ class IncomeCalculationMixin:
         base_operating_income = revenue_decimal * to_decimal(self.base_operating_margin)
 
         # Net reserve development: adverse increases expense, favorable decreases it
-        net_reserve_development = getattr(self, "period_adverse_development", ZERO) - getattr(
-            self, "period_favorable_development", ZERO
-        )
+        net_reserve_development = getattr(
+            self, "period_adverse_development", to_decimal(0)
+        ) - getattr(self, "period_favorable_development", to_decimal(0))
 
         # LAE tracked separately per ASC 944-40 (Issue #468)
-        period_lae: Decimal = getattr(self, "period_insurance_lae", ZERO)
+        period_lae: Decimal = getattr(self, "period_insurance_lae", to_decimal(0))
+
+        # Insurance recoveries offset losses in NI (Issue #1297)
+        period_recoveries: Decimal = getattr(self, "period_insurance_recoveries", to_decimal(0))
 
         actual_operating_income = (
             base_operating_income
             - self.period_insurance_premiums
             - self.period_insurance_losses
+            + period_recoveries
             - period_lae
             - net_reserve_development
         )
@@ -174,12 +178,20 @@ class IncomeCalculationMixin:
 
         income_before_tax = operating_income_decimal - collateral_costs_decimal
 
+        # Cache for closing entries residual (Issue #1297).  The residual
+        # formula uses income_before_tax (not net_income) so that accrued
+        # taxes are excluded from the cash adjustment — taxes are non-cash
+        # until paid via accrual payments.
+        self._period_income_before_tax = income_before_tax
+
         # Capture DTA before tax calculation for journal entry delta (Issue #365)
-        old_dta = self.tax_handler.deferred_tax_asset if self._nol_carryforward_enabled else ZERO
+        old_dta = (
+            self.tax_handler.deferred_tax_asset if self._nol_carryforward_enabled else to_decimal(0)
+        )
 
         # Compute theoretical tax for logging (no side effects)
         theoretical_tax_for_log = max(
-            ZERO, to_decimal(income_before_tax) * to_decimal(self.tax_rate)
+            to_decimal(0), to_decimal(income_before_tax) * to_decimal(self.tax_rate)
         )
 
         # Read equity BEFORE tax accrual (critical for non-circular flow)
@@ -298,11 +310,22 @@ class IncomeCalculationMixin:
         logger.info(f"NET INCOME:              ${net_income:,.2f}")
         logger.info("============================")
 
-        # Validation assertion
+        # Warn if net income exceeds operating income (Issue #1314)
+        # This legitimately occurs when DTA recognition, DTL reversal, or
+        # valuation allowance reversal creates a tax benefit that exceeds
+        # collateral costs.  A hard assertion is inappropriate because the
+        # net-income / operating-income relationship depends on ASC 740
+        # deferred-tax adjustments that can go in either direction.
         epsilon = to_decimal("0.000000001")
-        if collateral_costs_decimal > epsilon:
-            assert (
-                net_income <= operating_income_decimal + epsilon
-            ), f"Net income ({net_income}) should be less than or equal to operating income ({operating_income_decimal}) when costs exist"
+        if collateral_costs_decimal > epsilon and net_income > operating_income_decimal + epsilon:
+            logger.warning(
+                "Net income ($%s) exceeds operating income ($%s) despite "
+                "collateral costs ($%s). This may be caused by deferred tax "
+                "adjustments (DTA recognition, DTL reversal, or valuation "
+                "allowance reversal).",
+                f"{net_income:,.2f}",
+                f"{operating_income_decimal:,.2f}",
+                f"{collateral_costs_decimal:,.2f}",
+            )
 
         return net_income

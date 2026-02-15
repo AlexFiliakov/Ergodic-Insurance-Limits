@@ -46,6 +46,7 @@ Examples:
 """
 
 import copy as copy_module
+from dataclasses import dataclass, field
 from decimal import Decimal
 import logging
 import random
@@ -58,7 +59,13 @@ try:
         PaymentSchedule,
     )
     from ergodic_insurance.config import ManufacturerConfig
-    from ergodic_insurance.decimal_utils import ONE, ZERO, MetricsDict, to_decimal
+    from ergodic_insurance.decimal_utils import (
+        ONE,
+        ZERO,
+        MetricsDict,
+        enable_float_mode,
+        to_decimal,
+    )
     from ergodic_insurance.insurance_accounting import InsuranceAccounting
     from ergodic_insurance.ledger import AccountName, Ledger, TransactionType
     from ergodic_insurance.stochastic_processes import StochasticProcess
@@ -66,7 +73,7 @@ except ImportError:
     try:
         from .accrual_manager import AccrualManager, AccrualType, PaymentSchedule
         from .config import ManufacturerConfig
-        from .decimal_utils import ONE, ZERO, MetricsDict, to_decimal
+        from .decimal_utils import ONE, ZERO, MetricsDict, enable_float_mode, to_decimal
         from .insurance_accounting import InsuranceAccounting
         from .ledger import AccountName, Ledger, TransactionType
         from .stochastic_processes import StochasticProcess
@@ -77,7 +84,13 @@ except ImportError:
             PaymentSchedule,
         )
         from config import ManufacturerConfig  # type: ignore[no-redef]
-        from decimal_utils import ONE, ZERO, MetricsDict, to_decimal  # type: ignore[no-redef]
+        from decimal_utils import (  # type: ignore[no-redef]
+            ONE,
+            ZERO,
+            MetricsDict,
+            enable_float_mode,
+            to_decimal,
+        )
         from insurance_accounting import InsuranceAccounting  # type: ignore[no-redef]
         from ledger import AccountName, Ledger, TransactionType  # type: ignore[no-redef]
         from stochastic_processes import StochasticProcess  # type: ignore[no-redef]
@@ -98,6 +111,19 @@ from ergodic_insurance.manufacturer_solvency import SolvencyMixin
 from ergodic_insurance.tax_handler import TaxHandler  # noqa: F401  pylint: disable=unused-import
 
 logger = logging.getLogger(__name__)
+
+
+@dataclass
+class _PPECohort:
+    """A vintage-year cohort of PP&E assets for depreciation tracking (Issue #1321).
+
+    Tracks gross cost and cumulative tax depreciation per acquisition cohort
+    so that per-cohort remaining-basis caps are applied correctly in the DTL
+    calculation (ASC 740-10-25-20).
+    """
+
+    amount: Decimal
+    tax_accumulated_depreciation: Decimal = field(default_factory=lambda: ZERO)
 
 
 class WidgetManufacturer(
@@ -149,6 +175,8 @@ class WidgetManufacturer(
         self,
         config: ManufacturerConfig,
         stochastic_process: Optional[StochasticProcess] = None,
+        use_float: bool = False,
+        simulation_mode: bool = False,
     ):
         """Initialize manufacturer with configuration parameters.
 
@@ -156,15 +184,23 @@ class WidgetManufacturer(
             config (ManufacturerConfig): Manufacturing configuration parameters.
             stochastic_process (Optional[StochasticProcess]): Optional stochastic
                 process for adding revenue volatility. Defaults to None.
+            use_float (bool): If True, enable float mode for this instance
+                to avoid Decimal overhead in Monte Carlo hot paths (Issue #1142).
+            simulation_mode (bool): If True, the ledger only maintains balance
+                caches without storing individual entries (Issue #1146).
         """
+        self._use_float = use_float
+        if use_float:
+            enable_float_mode()
+
         self.config = config
         self.stochastic_process = stochastic_process
 
         # Initialize the event-sourcing ledger FIRST
-        self.ledger = Ledger()
+        self.ledger = Ledger(simulation_mode=simulation_mode)
 
         # Track original prepaid premium for amortization calculation
-        self._original_prepaid_premium: Decimal = ZERO
+        self._original_prepaid_premium: Decimal = to_decimal(0)
 
         # Insurance accounting module
         self.insurance_accounting = InsuranceAccounting()
@@ -182,7 +218,7 @@ class WidgetManufacturer(
         self.tax_handler = TaxHandler(
             tax_rate=config.tax_rate,
             accrual_manager=self.accrual_manager,
-            nol_carryforward=Decimal("0"),
+            nol_carryforward=to_decimal(0),
             nol_limitation_pct=(
                 config.nol_limitation_pct if config.nol_carryforward_enabled else 0.0
             ),
@@ -196,23 +232,23 @@ class WidgetManufacturer(
         self.current_month = 0
 
         # Insurance cost tracking for tax purposes
-        self.period_insurance_premiums: Decimal = ZERO
-        self.period_insurance_losses: Decimal = ZERO
-        self.period_insurance_lae: Decimal = ZERO  # LAE per ASC 944-40 (Issue #468)
+        self.period_insurance_premiums: Decimal = to_decimal(0)
+        self.period_insurance_losses: Decimal = to_decimal(0)
+        self.period_insurance_lae: Decimal = to_decimal(0)  # LAE per ASC 944-40 (Issue #468)
 
         # Cached net income from step() for use by calculate_metrics() (Issue #617)
         self._period_net_income: Optional[Decimal] = None
 
         # Track actual dividends paid
-        self._last_dividends_paid: Decimal = ZERO
+        self._last_dividends_paid: Decimal = to_decimal(0)
 
         # Solvency tracking
         self.is_ruined = False
         self.ruin_month: Optional[int] = None
 
         # Reserve development tracking (Issue #470, ASC 944-40-25)
-        self.period_adverse_development: Decimal = ZERO
-        self.period_favorable_development: Decimal = ZERO
+        self.period_adverse_development: Decimal = to_decimal(0)
+        self.period_favorable_development: Decimal = to_decimal(0)
         self._enable_reserve_development = config.enable_reserve_development
         self._reserve_rng: Optional[random.Random] = (
             random.Random(42) if self._enable_reserve_development else None
@@ -260,6 +296,20 @@ class WidgetManufacturer(
             collateral=initial_collateral,
             restricted_assets=initial_restricted_assets,
         )
+
+        # PP&E vintage cohort tracking for accurate DTL calculation (Issue #1321)
+        self._ppe_cohorts: List[_PPECohort] = []
+        if initial_gross_ppe > ZERO:
+            self._ppe_cohorts.append(_PPECohort(amount=initial_gross_ppe))
+
+        # Pre-compute frequently used config conversions (Issue #1142)
+        self._cache_config_values()
+
+    def _cache_config_values(self) -> None:
+        """Pre-compute to_decimal() conversions for config values (Issue #1142)."""
+        self._cached_capex_ratio = to_decimal(self.config.capex_to_depreciation_ratio)
+        self._cached_base_margin_complement = to_decimal(1 - self.base_operating_margin)
+        self._cached_book_life = to_decimal(self.config.ppe_useful_life_years)
 
     def _record_initial_balances(
         self,
@@ -465,12 +515,14 @@ class WidgetManufacturer(
 
         payments_due = self.accrual_manager.get_payments_due(period)
 
-        total_due = sum((to_decimal(v) for v in payments_due.values()), ZERO)
+        total_due = sum((to_decimal(v) for v in payments_due.values()), to_decimal(0))
         if max_payable is not None:
             max_total_payable: Decimal = min(total_due, to_decimal(max_payable))
         else:
             current_equity = self.equity
-            max_total_payable = min(total_due, current_equity) if current_equity > ZERO else ZERO
+            max_total_payable = (
+                min(total_due, current_equity) if current_equity > ZERO else to_decimal(0)
+            )
 
         if total_due > max_total_payable:
             logger.warning(
@@ -478,9 +530,11 @@ class WidgetManufacturer(
                 f"Due: ${total_due:,.2f}, Payable: ${max_total_payable:,.2f}"
             )
 
-        payment_ratio: Decimal = max_total_payable / total_due if total_due > ZERO else ZERO
+        payment_ratio: Decimal = (
+            max_total_payable / total_due if total_due > ZERO else to_decimal(0)
+        )
 
-        total_paid: Decimal = ZERO
+        total_paid: Decimal = to_decimal(0)
         for accrual_type, amount_due in payments_due.items():
             payable_amount: Decimal = to_decimal(amount_due) * payment_ratio
             unpayable_amount = to_decimal(amount_due) - payable_amount
@@ -634,15 +688,41 @@ class WidgetManufacturer(
         # Calculate financial performance
         revenue = self.calculate_revenue(apply_stochastic)
 
-        # Calculate working capital components BEFORE payment coordination
+        # Issue #1308: Record revenue BEFORE working capital adjustments.
+        # Revenue recognition (ASC 606) logically precedes working capital
+        # effects.  Posting Dr AR / Cr REVENUE first ensures the WC module
+        # reads the correct AR balance (including this period's revenue) and
+        # eliminates artificial negative-cash states that triggered spurious
+        # working-capital facility draws.
+        if time_resolution == "monthly":
+            _revenue_to_record = revenue / to_decimal(12)
+        else:
+            _revenue_to_record = revenue
+        if _revenue_to_record > ZERO:
+            self.ledger.record_double_entry(
+                date=self.current_year,
+                debit_account=AccountName.ACCOUNTS_RECEIVABLE,
+                credit_account=AccountName.SALES_REVENUE,
+                amount=_revenue_to_record,
+                transaction_type=TransactionType.REVENUE,
+                description=f"Year {self.current_year} revenue recognition (ASC 606)",
+                month=self.current_month,
+            )
+
+        # Calculate working capital components BEFORE payment coordination.
+        # Issue #1302 / #1308: Revenue is already posted to AR above, so
+        # pass period_revenue=ZERO — the WC module reads the updated AR
+        # balance directly and computes collections = current_AR − target_AR.
         if time_resolution == "annual":
-            self.calculate_working_capital_components(revenue)
+            self.calculate_working_capital_components(revenue, period_revenue=ZERO)
         elif time_resolution == "monthly":
             if hasattr(self, "_annual_revenue_for_wc"):
-                self.calculate_working_capital_components(self._annual_revenue_for_wc)
+                self.calculate_working_capital_components(
+                    self._annual_revenue_for_wc, period_revenue=ZERO
+                )
             else:
                 annual_revenue = self.total_assets * to_decimal(self.asset_turnover_ratio)
-                self.calculate_working_capital_components(annual_revenue)
+                self.calculate_working_capital_components(annual_revenue, period_revenue=ZERO)
 
         # COORDINATED LIMITED LIABILITY ENFORCEMENT
         if time_resolution == "monthly":
@@ -654,11 +734,11 @@ class WidgetManufacturer(
         self.accrual_manager.current_period = period
         accrual_payments_due = self.accrual_manager.get_payments_due(period)
         total_accrual_due: Decimal = sum(
-            (to_decimal(v) for v in accrual_payments_due.values()), ZERO
+            (to_decimal(v) for v in accrual_payments_due.values()), to_decimal(0)
         )
 
         # Calculate total claim payments scheduled
-        total_claim_due: Decimal = ZERO
+        total_claim_due: Decimal = to_decimal(0)
         if time_resolution == "annual" or self.current_month == 0:
             for claim_item in self.claim_liabilities:
                 years_since = self.current_year - claim_item.year_incurred
@@ -666,10 +746,17 @@ class WidgetManufacturer(
                 total_claim_due += scheduled_payment
 
         # Cap TOTAL payments at available liquid resources
+        # Issue #1337: Include working capital facility in available liquidity
+        # so payments can draw on the credit facility up to its limit.
         total_payments_due = total_accrual_due + total_claim_due
+        facility_limit = getattr(self.config, "working_capital_facility_limit", None)
         available_liquidity = self.cash + self.restricted_assets
+        if facility_limit is not None:
+            available_liquidity += to_decimal(facility_limit)
         max_total_payable: Decimal = (
-            min(total_payments_due, available_liquidity) if available_liquidity > ZERO else ZERO
+            min(total_payments_due, available_liquidity)
+            if available_liquidity > ZERO
+            else to_decimal(0)
         )
 
         # Allocate capped amount proportionally
@@ -678,14 +765,15 @@ class WidgetManufacturer(
             max_accrual_payable: Decimal = total_accrual_due * allocation_ratio
             max_claim_payable: Decimal = total_claim_due * allocation_ratio
         else:
-            max_accrual_payable = ZERO
-            max_claim_payable = ZERO
+            max_accrual_payable = to_decimal(0)
+            max_claim_payable = to_decimal(0)
 
         if total_payments_due > max_total_payable:
             logger.warning(
                 f"LIQUIDITY CONSTRAINT: Total payments due ${total_payments_due:,.2f} "
                 f"exceeds available liquidity ${available_liquidity:,.2f} "
-                f"(cash: ${self.cash:,.2f}, restricted: ${self.restricted_assets:,.2f}). "
+                f"(cash: ${self.cash:,.2f}, restricted: ${self.restricted_assets:,.2f}"
+                f"{f', facility: ${to_decimal(facility_limit):,.2f}' if facility_limit is not None else ''}). "
                 f"Capping at ${max_total_payable:,.2f} "
                 f"(Accruals: ${max_accrual_payable:,.2f}, Claims: ${max_claim_payable:,.2f})"
             )
@@ -697,21 +785,37 @@ class WidgetManufacturer(
         if time_resolution == "annual" or self.current_month == 0:
             self.pay_claim_liabilities(max_payable=max_claim_payable)
 
+        # Post-payment liquidity check (Issue #1337, ASC 205-40-50-12)
+        # After claim/accrual payments, verify the working capital facility
+        # has not been breached.  This catches genuine liquidity crises from
+        # large mandatory payments before the period continues.
+        if facility_limit is not None:
+            facility_limit_d = to_decimal(facility_limit)
+            if self.cash < -facility_limit_d:
+                logger.warning(
+                    f"LIQUIDITY CRISIS: After claim/accrual payments, cash "
+                    f"${self.cash:,.2f} breaches facility limit "
+                    f"${facility_limit_d:,.2f} (Issue #1337)."
+                )
+                self.is_ruined = True
+                return self._handle_insolvent_step(time_resolution)
+
         # Re-estimate reserves per ASC 944-40-25 (Issue #470)
         if time_resolution == "annual" or self.current_month == 0:
             self.re_estimate_reserves()
 
-        # Calculate depreciation expense for the period
+        # Calculate depreciation expense for the period (Issue #1321: parameterized)
+        book_life = self._cached_book_life
         if time_resolution == "annual":
-            depreciation_expense = self.record_depreciation(useful_life_years=10)
+            depreciation_expense = self.record_depreciation(useful_life_years=book_life)
         elif time_resolution == "monthly":
-            depreciation_expense = self.record_depreciation(useful_life_years=10 * 12)
+            depreciation_expense = self.record_depreciation(useful_life_years=book_life * 12)
         else:
-            depreciation_expense = ZERO
+            depreciation_expense = to_decimal(0)
 
         # Record capital expenditure (reinvestment in PP&E) (Issue #543)
         # Capex is capitalized (Dr GROSS_PPE, Cr CASH) — does not affect income.
-        capex_ratio = to_decimal(self.config.capex_to_depreciation_ratio)
+        capex_ratio = self._cached_capex_ratio
         if capex_ratio > ZERO and depreciation_expense > ZERO:
             capex_amount = depreciation_expense * capex_ratio
             self.record_capex(capex_amount)
@@ -732,35 +836,49 @@ class WidgetManufacturer(
         else:
             collateral_costs = self.calculate_collateral_costs(letter_of_credit_rate, "annual")
 
-        # Issue #687: Record summary income entries in the ledger so that
-        # closing entries (#803) can properly close income statement accounts
-        # to retained earnings instead of routing through Dr/Cr CASH.
-        # revenue and operating_income are already period amounts at this point.
-        base_expenses = revenue * to_decimal(1 - self.base_operating_margin)
-        # Cash operating expenses exclude depreciation (non-cash)
-        period_cash_expenses = base_expenses - depreciation_expense
-
+        # Issue #1326: Record COGS and OPEX as explicit ledger entries
+        # so the ledger can produce: Revenue - COGS - OPEX - Depreciation = Operating Income.
+        # Only the cash-consuming portions are recorded here; depreciation is
+        # already recorded via Dr DEPRECIATION_EXPENSE / Cr ACCUMULATED_DEPRECIATION.
+        cogs_expense = to_decimal(0)
+        opex_expense = to_decimal(0)
         if revenue > ZERO:
-            self.ledger.record_double_entry(
-                date=self.current_year,
-                debit_account=AccountName.CASH,
-                credit_account=AccountName.SALES_REVENUE,
-                amount=revenue,
-                transaction_type=TransactionType.REVENUE,
-                description=f"Year {self.current_year} revenue recognition",
-                month=self.current_month,
-            )
+            expense_ratios = getattr(self.config, "expense_ratios", None)
+            if expense_ratios is not None:
+                cogs_ratio = to_decimal(expense_ratios.cogs_ratio)
+                sga_ratio = to_decimal(expense_ratios.sga_expense_ratio)
+                mfg_dep_alloc = to_decimal(expense_ratios.manufacturing_depreciation_allocation)
+                admin_dep_alloc = to_decimal(expense_ratios.admin_depreciation_allocation)
+            else:
+                cogs_ratio = to_decimal(0.85)
+                sga_ratio = to_decimal(0.07)
+                mfg_dep_alloc = to_decimal(0.7)
+                admin_dep_alloc = to_decimal(0.3)
 
-        if period_cash_expenses > ZERO:
-            self.ledger.record_double_entry(
-                date=self.current_year,
-                debit_account=AccountName.OPERATING_EXPENSES,
-                credit_account=AccountName.CASH,
-                amount=period_cash_expenses,
-                transaction_type=TransactionType.EXPENSE,
-                description=f"Year {self.current_year} cash operating expenses",
-                month=self.current_month,
-            )
+            # Cash-consuming portions (depreciation already recorded separately)
+            cogs_expense = max(ZERO, revenue * cogs_ratio - depreciation_expense * mfg_dep_alloc)
+            opex_expense = max(ZERO, revenue * sga_ratio - depreciation_expense * admin_dep_alloc)
+
+            if cogs_expense > ZERO:
+                self.ledger.record_double_entry(
+                    date=self.current_year,
+                    debit_account=AccountName.COST_OF_GOODS_SOLD,
+                    credit_account=AccountName.CASH,
+                    amount=cogs_expense,
+                    transaction_type=TransactionType.EXPENSE,
+                    description=f"Year {self.current_year} cost of goods sold",
+                    month=self.current_month,
+                )
+            if opex_expense > ZERO:
+                self.ledger.record_double_entry(
+                    date=self.current_year,
+                    debit_account=AccountName.OPERATING_EXPENSES,
+                    credit_account=AccountName.CASH,
+                    amount=opex_expense,
+                    transaction_type=TransactionType.EXPENSE,
+                    description=f"Year {self.current_year} operating expenses (SGA)",
+                    month=self.current_month,
+                )
 
         # Calculate net income
         net_income = self.calculate_net_income(
@@ -773,14 +891,17 @@ class WidgetManufacturer(
         # Cache net income for calculate_metrics() to avoid double tax mutation (Issue #617)
         self._period_net_income = net_income
 
-        # Update balance sheet with retained earnings (Issue #803: proper closing
-        # entries close income statement accounts to RE instead of Dr/Cr CASH)
+        # Update balance sheet with retained earnings (Issue #803/#1213: closing
+        # entries close income statement accounts to RE using net_income directly,
+        # avoiding the period_cash_expenses decomposition that double-counted
+        # depreciation embedded in base_operating_margin)
         self.update_balance_sheet(
             net_income,
             growth_rate,
             depreciation_expense,
             period_revenue=revenue,
-            period_cash_expenses=period_cash_expenses,
+            cogs_expense=cogs_expense,
+            opex_expense=opex_expense,
         )
 
         # Amortize prepaid insurance if applicable
@@ -821,6 +942,10 @@ class WidgetManufacturer(
         timing differences are perpetually created, making the DTL persistent
         rather than transient (Issue #367).
 
+        Uses per-cohort vintage-year tax depreciation so that fully-depreciated
+        cohorts contribute zero and per-cohort remaining-basis caps are applied
+        correctly (Issue #1321, ASC 740-10-25-20).
+
         Args:
             time_resolution: "annual" or "monthly".
         """
@@ -828,7 +953,6 @@ class WidgetManufacturer(
         if tax_life_cfg is None:
             return  # No accelerated depreciation configured
 
-        book_life = 10.0  # Matches hardcoded book useful life in step()
         if time_resolution == "monthly":
             tax_life = tax_life_cfg * 12
         else:
@@ -838,22 +962,28 @@ class WidgetManufacturer(
         if self.gross_ppe <= ZERO or tax_life_decimal <= ZERO:
             return
 
-        # Calculate period tax depreciation (same pool approach as book)
-        tax_depr = self.gross_ppe / tax_life_decimal
+        # Compute tax depreciation per vintage cohort (Issue #1321)
+        # Each cohort is capped at its own remaining tax basis, so
+        # fully-depreciated cohorts contribute zero.
+        total_tax_depr = ZERO
+        for cohort in self._ppe_cohorts:
+            cohort_tax_depr = cohort.amount / tax_life_decimal
+            remaining_basis = cohort.amount - cohort.tax_accumulated_depreciation
+            if remaining_basis <= ZERO:
+                continue
+            cohort_tax_depr = min(cohort_tax_depr, remaining_basis)
+            cohort.tax_accumulated_depreciation += cohort_tax_depr
+            total_tax_depr += cohort_tax_depr
 
-        # Cap at remaining tax basis (cannot depreciate below zero)
-        tax_net = self.gross_ppe - self.tax_handler.tax_accumulated_depreciation
-        if tax_net <= ZERO:
-            tax_depr = ZERO
-        else:
-            tax_depr = min(tax_depr, tax_net)
-
-        self.tax_handler.tax_accumulated_depreciation += tax_depr
+        # Keep TaxHandler aggregate in sync for external consumers
+        self.tax_handler.tax_accumulated_depreciation = sum(
+            (c.tax_accumulated_depreciation for c in self._ppe_cohorts), ZERO
+        )
 
         # Compute desired DTL = (tax_accum - book_accum) * tax_rate
         # Positive when tax depreciation is ahead of book depreciation
         temp_diff = self.tax_handler.tax_accumulated_depreciation - self.accumulated_depreciation
-        desired_dtl = max(ZERO, temp_diff * to_decimal(self.config.tax_rate))
+        desired_dtl = max(to_decimal(0), temp_diff * to_decimal(self.config.tax_rate))
         current_dtl = self.ledger.get_balance(AccountName.DEFERRED_TAX_LIABILITY)
         dtl_change = desired_dtl - current_dtl
 
@@ -901,18 +1031,18 @@ class WidgetManufacturer(
         self.metrics_history = []
 
         # Reset period insurance cost tracking
-        self.period_insurance_premiums = ZERO
-        self.period_insurance_losses = ZERO
-        self.period_insurance_lae = ZERO
+        self.period_insurance_premiums = to_decimal(0)
+        self.period_insurance_losses = to_decimal(0)
+        self.period_insurance_lae = to_decimal(0)
 
         # Reset reserve development tracking (Issue #470)
-        self.period_adverse_development = ZERO
-        self.period_favorable_development = ZERO
+        self.period_adverse_development = to_decimal(0)
+        self.period_favorable_development = to_decimal(0)
         if self._enable_reserve_development and self._reserve_rng is not None:
             self._reserve_rng.seed(42)
 
         # Reset dividend tracking
-        self._last_dividends_paid = ZERO
+        self._last_dividends_paid = to_decimal(0)
 
         # Reset cached net income (Issue #617)
         self._period_net_income = None
@@ -929,14 +1059,14 @@ class WidgetManufacturer(
         self.tax_handler = TaxHandler(
             tax_rate=self.config.tax_rate,
             accrual_manager=self.accrual_manager,
-            nol_carryforward=Decimal("0"),
+            nol_carryforward=to_decimal(0),
             nol_limitation_pct=(
                 self.config.nol_limitation_pct if self._nol_carryforward_enabled else 0.0
             ),
         )
 
         # Track original prepaid premium for amortization calculation
-        self._original_prepaid_premium = ZERO
+        self._original_prepaid_premium = to_decimal(0)
 
         # FIX 1 (Issue #305): Use config.ppe_ratio directly, same as __init__()
         # Previously, reset() recalculated ppe_ratio from margin thresholds,
@@ -964,7 +1094,7 @@ class WidgetManufacturer(
         initial_cash: Decimal = initial_assets * (ONE - ppe_ratio) - working_capital_assets
 
         # Reset ledger FIRST (single source of truth)
-        self.ledger = Ledger()
+        self.ledger = Ledger(simulation_mode=self.ledger._simulation_mode)
         self._record_initial_balances(
             cash=initial_cash,
             accounts_receivable=initial_accounts_receivable,
@@ -976,6 +1106,11 @@ class WidgetManufacturer(
             collateral=initial_collateral,
             restricted_assets=initial_restricted_assets,
         )
+
+        # Reset PP&E vintage cohort tracking (Issue #1321)
+        self._ppe_cohorts = []
+        if initial_gross_ppe > ZERO:
+            self._ppe_cohorts.append(_PPECohort(amount=initial_gross_ppe))
 
         # Reset stochastic process if present
         if self.stochastic_process is not None:
@@ -1004,6 +1139,8 @@ class WidgetManufacturer(
         cls,
         config: ManufacturerConfig,
         stochastic_process: Optional[StochasticProcess] = None,
+        use_float: bool = False,
+        simulation_mode: bool = False,
     ) -> "WidgetManufacturer":
         """Create a fresh manufacturer from configuration alone.
 
@@ -1016,8 +1153,15 @@ class WidgetManufacturer(
             stochastic_process: Optional stochastic process instance.  The
                 caller is responsible for ensuring independence (e.g. by
                 deep-copying the process once before passing it in).
+            use_float: If True, enable float mode (Issue #1142).
+            simulation_mode: If True, ledger skips entry storage (Issue #1146).
 
         Returns:
             A new WidgetManufacturer in its initial state.
         """
-        return cls(config=config, stochastic_process=stochastic_process)
+        return cls(
+            config=config,
+            stochastic_process=stochastic_process,
+            use_float=use_float,
+            simulation_mode=simulation_mode,
+        )

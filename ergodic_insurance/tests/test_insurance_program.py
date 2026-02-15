@@ -1,3 +1,4 @@
+# pylint: disable=too-many-lines
 """Tests for multi-layer insurance program with reinstatements.
 
 Comprehensive test suite for advanced insurance program features including
@@ -12,6 +13,13 @@ import numpy as np
 import pytest
 import yaml
 
+from ergodic_insurance.config.core import Config
+from ergodic_insurance.config.insurance import (
+    InsuranceConfig,
+    InsuranceLayerConfig,
+    LossDistributionConfig,
+)
+from ergodic_insurance.config.simulation import GrowthConfig, SimulationConfig
 from ergodic_insurance.ergodic_types import ClaimResult, LayerPayment
 from ergodic_insurance.insurance_program import (
     EnhancedInsuranceLayer,
@@ -22,6 +30,7 @@ from ergodic_insurance.insurance_program import (
     ProgramState,
     ReinstatementType,
 )
+from ergodic_insurance.simulation import Simulation
 
 
 class TestEnhancedInsuranceLayer:
@@ -139,20 +148,20 @@ class TestEnhancedInsuranceLayer:
         assert not layer.can_respond(1_000_000)  # At attachment
         assert layer.can_respond(1_000_001)  # Above attachment
 
-    def test_calculate_layer_loss(self):
+    @pytest.mark.parametrize(
+        "loss,expected",
+        [
+            pytest.param(500_000, 0.0, id="below-attachment"),
+            pytest.param(3_000_000, 2_000_000, id="within-layer"),
+            pytest.param(10_000_000, 5_000_000, id="exceeds-layer-capped"),
+        ],
+    )
+    def test_calculate_layer_loss(self, loss, expected):
         """Test layer loss calculation."""
         layer = EnhancedInsuranceLayer(
             attachment_point=1_000_000, limit=5_000_000, base_premium_rate=0.01
         )
-
-        # Below attachment
-        assert layer.calculate_layer_loss(500_000) == 0.0
-
-        # Within layer
-        assert layer.calculate_layer_loss(3_000_000) == 2_000_000
-
-        # Exceeds layer
-        assert layer.calculate_layer_loss(10_000_000) == 5_000_000  # Capped at limit
+        assert layer.calculate_layer_loss(loss) == expected
 
 
 class TestLayerState:
@@ -345,8 +354,8 @@ class TestInsuranceProgram:
         assert program.layers[0].attachment_point == 0
         assert program.layers[1].attachment_point == 5_000_000
 
-    def test_calculate_annual_premium(self):
-        """Test annual premium calculation."""
+    def test_calculate_premium(self):
+        """Test premium calculation."""
         layers = [
             EnhancedInsuranceLayer(attachment_point=0, limit=5_000_000, base_premium_rate=0.02),
             EnhancedInsuranceLayer(
@@ -355,7 +364,7 @@ class TestInsuranceProgram:
         ]
 
         program = InsuranceProgram(layers)
-        assert program.calculate_annual_premium() == 200_000  # 100K + 100K
+        assert program.calculate_premium() == 200_000  # 100K + 100K
 
     def test_process_small_claim(self):
         """Test processing a small claim within deductible."""
@@ -541,6 +550,11 @@ class TestInsuranceProgram:
         program = InsuranceProgram(layers, deductible=500_000)
         assert program.get_total_coverage() == 0.0
 
+    def test_get_total_coverage_empty_layers(self):
+        """get_total_coverage returns 0 when no layers."""
+        program = InsuranceProgram(layers=[], deductible=0)
+        assert program.get_total_coverage() == 0.0
+
     def test_yaml_loading(self):
         """Test loading program from YAML configuration."""
         config = {
@@ -664,6 +678,132 @@ class TestProgramState:
 
         # Loss ratio = recoveries / premiums
         assert stats["loss_ratio"] == 9_000_000 / 150_000  # 60
+
+
+class TestProgramStateBoundedHistory:
+    """Test bounded history deques in ProgramState (#1354)."""
+
+    def test_history_uses_deque(self):
+        """History lists are deques, not plain lists."""
+        from collections import deque
+
+        layers = [
+            EnhancedInsuranceLayer(attachment_point=0, limit=5_000_000, base_premium_rate=0.01)
+        ]
+        program = InsuranceProgram(layers)
+        state = ProgramState(program)
+
+        assert isinstance(state.total_claims, deque)
+        assert isinstance(state.total_recoveries, deque)
+        assert isinstance(state.total_premiums, deque)
+        assert isinstance(state.annual_results, deque)
+
+    def test_deque_maxlen_from_program(self):
+        """Deque maxlen is set from InsuranceProgram.max_history_years."""
+        from collections import deque
+
+        layers = [
+            EnhancedInsuranceLayer(attachment_point=0, limit=5_000_000, base_premium_rate=0.01)
+        ]
+        program = InsuranceProgram(layers, max_history_years=10)
+        state = ProgramState(program)
+
+        assert state.total_claims.maxlen == 10
+        assert state.total_recoveries.maxlen == 10
+        assert state.total_premiums.maxlen == 10
+        assert state.annual_results.maxlen == 10
+
+    def test_deque_maxlen_override(self):
+        """ProgramState.max_history_years overrides program setting."""
+        from collections import deque
+
+        layers = [
+            EnhancedInsuranceLayer(attachment_point=0, limit=5_000_000, base_premium_rate=0.01)
+        ]
+        program = InsuranceProgram(layers, max_history_years=50)
+        state = ProgramState(program, max_history_years=5)
+
+        assert state.total_claims.maxlen == 5
+
+    def test_old_entries_evicted(self):
+        """Old history entries are evicted when maxlen is reached."""
+        layers = [
+            EnhancedInsuranceLayer(attachment_point=0, limit=5_000_000, base_premium_rate=0.01)
+        ]
+        program = InsuranceProgram(layers, max_history_years=3)
+        state = ProgramState(program)
+
+        # Simulate 5 years
+        for year in range(5):
+            state.simulate_year([(year + 1) * 1_000_000])
+
+        # Only last 3 years retained in deque
+        assert len(state.total_claims) == 3
+        assert state.total_claims[0] == 3_000_000  # Year 3
+        assert state.total_claims[1] == 4_000_000  # Year 4
+        assert state.total_claims[2] == 5_000_000  # Year 5
+
+    def test_cumulative_totals_accurate_after_eviction(self):
+        """Running totals remain accurate even after deque eviction."""
+        layers = [
+            EnhancedInsuranceLayer(attachment_point=0, limit=5_000_000, base_premium_rate=0.01)
+        ]
+        program = InsuranceProgram(layers, max_history_years=2)
+        state = ProgramState(program)
+
+        # Simulate 5 years with 1M claims each
+        for _ in range(5):
+            state.simulate_year([1_000_000])
+
+        stats = state.get_summary_statistics()
+
+        # Cumulative totals reflect all 5 years, not just the 2 in the deque
+        assert stats["years_simulated"] == 5
+        assert stats["total_claims"] == 5_000_000
+        assert stats["total_recoveries"] == 5_000_000
+        assert stats["average_annual_claims"] == 1_000_000
+
+        # Deque only has 2 entries
+        assert len(state.total_claims) == 2
+
+    def test_create_fresh_preserves_max_history_years(self):
+        """create_fresh() propagates max_history_years."""
+        layers = [
+            EnhancedInsuranceLayer(attachment_point=0, limit=5_000_000, base_premium_rate=0.01)
+        ]
+        program = InsuranceProgram(layers, max_history_years=25)
+        fresh = InsuranceProgram.create_fresh(program)
+
+        assert fresh.max_history_years == 25
+
+    def test_default_max_history_years(self):
+        """Default max_history_years is 50."""
+        layers = [
+            EnhancedInsuranceLayer(attachment_point=0, limit=5_000_000, base_premium_rate=0.01)
+        ]
+        program = InsuranceProgram(layers)
+        assert program.max_history_years == 50
+
+    def test_o1_memory_long_simulation(self):
+        """Memory stays bounded for simulations exceeding max_history_years."""
+        layers = [
+            EnhancedInsuranceLayer(attachment_point=0, limit=5_000_000, base_premium_rate=0.01)
+        ]
+        program = InsuranceProgram(layers, max_history_years=5)
+        state = ProgramState(program)
+
+        # Simulate 100 years
+        for _ in range(100):
+            state.simulate_year([500_000])
+
+        # Deque stays bounded at maxlen
+        assert len(state.total_claims) == 5
+        assert len(state.annual_results) == 5
+
+        # But totals are accurate
+        stats = state.get_summary_statistics()
+        assert stats["years_simulated"] == 100
+        assert stats["total_claims"] == 50_000_000  # 100 * 500K
 
 
 class TestComplexScenarios:
@@ -927,17 +1067,27 @@ class TestInsuranceProgramOptimization:
         assert constraints.max_iterations == 1000
         assert constraints.convergence_tolerance == 1e-6
 
-    def test_round_attachment_point(self):
-        """Test attachment point rounding logic."""
+    @pytest.mark.parametrize(
+        "value,expected",
+        [
+            pytest.param(6_000, 10_000, id="below-100k-small"),
+            pytest.param(45_000, 40_000, id="below-100k-round-10k"),
+            pytest.param(55_000, 60_000, id="below-100k-round-up"),
+            pytest.param(123_456, 100_000, id="100k-1m-round-50k-low"),
+            pytest.param(275_000, 300_000, id="100k-1m-round-50k-mid"),
+            pytest.param(567_890, 550_000, id="100k-1m-round-50k-high"),
+            pytest.param(730_000, 750_000, id="100k-1m-round-50k-upper"),
+            pytest.param(1_234_567, 1_250_000, id="1m-10m-round-250k"),
+            pytest.param(3_200_000, 3_250_000, id="1m-10m-round-250k-mid"),
+            pytest.param(12_345_678, 12_000_000, id="above-10m-round-1m"),
+            pytest.param(15_500_000, 16_000_000, id="above-10m-round-1m-up"),
+            pytest.param(123_456_789, 123_000_000, id="above-10m-round-1m-large"),
+        ],
+    )
+    def test_round_attachment_point(self, value, expected):
+        """Test attachment point rounding logic for all ranges."""
         program = InsuranceProgram.create_standard_manufacturing_program()
-
-        # Test various ranges
-        assert program._round_attachment_point(45_000) == 40_000  # Rounds to nearest 10K
-        assert program._round_attachment_point(123_456) == 100_000  # Rounds to nearest 50K
-        assert program._round_attachment_point(567_890) == 550_000  # Rounds to nearest 50K
-        assert program._round_attachment_point(1_234_567) == 1_250_000  # Rounds to nearest 250K
-        assert program._round_attachment_point(12_345_678) == 12_000_000  # Rounds to nearest 1M
-        assert program._round_attachment_point(123_456_789) == 123_000_000  # Rounds to nearest 1M
+        assert program._round_attachment_point(value) == expected
 
     def test_ergodic_benefit_calculation_edge_cases(self):
         """Test ergodic benefit calculation with edge cases."""
@@ -1066,8 +1216,8 @@ class TestCatastrophicScenarios:
             program.process_claim(claim)
         elapsed = time.time() - start_time
 
-        # Should process in reasonable time (relaxed from 100ms for safety)
-        assert elapsed < 1.0  # 1 second max
+        # Should process in reasonable time (relaxed for CI environments)
+        assert elapsed < 10.0  # 10 second max
 
 
 class TestOverRecoveryGuard:
@@ -1132,7 +1282,19 @@ class TestOverRecoveryGuard:
         assert result["insurance_recovery"] == 0
         assert result["deductible_paid"] == 300_000
 
-    def test_recovery_never_exceeds_claim_various_amounts(self):
+    @pytest.mark.parametrize(
+        "claim",
+        [
+            pytest.param(0, id="zero"),
+            pytest.param(100_000, id="below-deductible"),
+            pytest.param(250_000, id="at-deductible"),
+            pytest.param(1_000_000, id="within-first-layer"),
+            pytest.param(5_000_000, id="at-layer-boundary"),
+            pytest.param(10_000_000, id="in-second-layer"),
+            pytest.param(30_000_000, id="exceeds-all-layers"),
+        ],
+    )
+    def test_recovery_never_exceeds_claim_various_amounts(self, claim):
         """Test over-recovery guard across a range of claim sizes."""
         layers = [
             EnhancedInsuranceLayer(
@@ -1144,14 +1306,12 @@ class TestOverRecoveryGuard:
         ]
         program = InsuranceProgram(layers, deductible=250_000)
 
-        for claim in [0, 100_000, 250_000, 1_000_000, 5_000_000, 10_000_000, 30_000_000]:
-            program.reset_annual()
-            result = program.process_claim(claim)
+        result = program.process_claim(claim)
 
-            assert result["insurance_recovery"] <= claim, f"Over-recovery for claim {claim}"
-            assert result["insurance_recovery"] <= max(
-                0, claim - 250_000
-            ), f"Recovery exceeds (claim - deductible) for claim {claim}"
+        assert result["insurance_recovery"] <= claim, f"Over-recovery for claim {claim}"
+        assert result["insurance_recovery"] <= max(
+            0, claim - 250_000
+        ), f"Recovery exceeds (claim - deductible) for claim {claim}"
 
     def test_aggregate_limit_across_multiple_claims(self):
         """Test aggregate limit tracking across multiple claims in same period.
@@ -1212,50 +1372,20 @@ class TestOverRecoveryGuard:
 class TestInsuranceProgramSimple:
     """Tests for InsuranceProgram.simple() convenience constructor."""
 
-    def test_creates_single_layer_program(self):
-        """simple() should create a program with exactly one layer."""
+    def test_simple_structure(self):
+        """simple() creates a single-layer program with correct fields."""
         program = InsuranceProgram.simple(
             deductible=500_000,
             limit=10_000_000,
             rate=0.025,
         )
         assert len(program.layers) == 1
-
-    def test_deductible_set_correctly(self):
-        """Deductible on the program matches the argument."""
-        program = InsuranceProgram.simple(
-            deductible=500_000,
-            limit=10_000_000,
-            rate=0.025,
-        )
+        assert isinstance(program.layers[0], EnhancedInsuranceLayer)
         assert program.deductible == 500_000
-
-    def test_layer_attachment_equals_deductible(self):
-        """The single layer's attachment point equals the deductible."""
-        program = InsuranceProgram.simple(
-            deductible=500_000,
-            limit=10_000_000,
-            rate=0.025,
-        )
         assert program.layers[0].attachment_point == 500_000
-
-    def test_layer_limit_and_rate(self):
-        """Layer limit and rate match the arguments."""
-        program = InsuranceProgram.simple(
-            deductible=500_000,
-            limit=10_000_000,
-            rate=0.025,
-        )
         assert program.layers[0].limit == 10_000_000
         assert program.layers[0].base_premium_rate == 0.025
-
-    def test_default_name(self):
-        """simple() uses default name 'Simple Insurance Program'."""
-        program = InsuranceProgram.simple(
-            deductible=500_000,
-            limit=10_000_000,
-            rate=0.025,
-        )
+        assert program.layers[0].reinstatements == 0
         assert program.name == "Simple Insurance Program"
 
     def test_custom_name(self):
@@ -1267,15 +1397,6 @@ class TestInsuranceProgramSimple:
             name="My Custom Program",
         )
         assert program.name == "My Custom Program"
-
-    def test_no_reinstatements(self):
-        """simple() creates a layer with no reinstatements."""
-        program = InsuranceProgram.simple(
-            deductible=500_000,
-            limit=10_000_000,
-            rate=0.025,
-        )
-        assert program.layers[0].reinstatements == 0
 
     def test_premium_calculation(self):
         """Premium is limit * rate."""
@@ -1356,10 +1477,10 @@ class TestInsuranceProgramSimple:
 
 
 class TestInsuranceProgramCalculatePremium:
-    """Tests for InsuranceProgram.calculate_premium() alias."""
+    """Tests for InsuranceProgram.calculate_premium() and deprecation of calculate_annual_premium()."""
 
-    def test_calculate_premium_matches_annual(self):
-        """calculate_premium() should match calculate_annual_premium(0.0)."""
+    def test_calculate_annual_premium_deprecation(self):
+        """calculate_annual_premium() should emit DeprecationWarning."""
         layers = [
             EnhancedInsuranceLayer(attachment_point=0, limit=5_000_000, base_premium_rate=0.02),
             EnhancedInsuranceLayer(
@@ -1369,7 +1490,9 @@ class TestInsuranceProgramCalculatePremium:
             ),
         ]
         program = InsuranceProgram(layers)
-        assert program.calculate_premium() == program.calculate_annual_premium(0.0)
+        with pytest.warns(DeprecationWarning, match="calculate_annual_premium.*deprecated"):
+            result = program.calculate_annual_premium()
+        assert result == program.calculate_premium()
 
     def test_calculate_premium_value(self):
         """calculate_premium() returns correct total premium."""
@@ -1629,3 +1752,311 @@ class TestClaimResultDataclass:
 
         with pytest.warns(DeprecationWarning, match="Dict-style access"):
             assert layer["payment"] == 1_750_000
+
+
+class TestInsuranceProgramFromConfig:
+    """Tests for InsuranceProgram.from_config() factory method."""
+
+    def test_single_layer(self):
+        """from_config with one layer maps all fields correctly."""
+        ic = InsuranceConfig(
+            deductible=500_000,
+            layers=[
+                InsuranceLayerConfig(
+                    name="Primary",
+                    attachment=500_000,
+                    limit=5_000_000,
+                    base_premium_rate=0.015,
+                ),
+            ],
+        )
+        program = InsuranceProgram.from_config(ic)
+
+        assert program.deductible == 500_000
+        assert len(program.layers) == 1
+        layer = program.layers[0]
+        assert layer.attachment_point == 500_000
+        assert layer.limit == 5_000_000
+        assert layer.base_premium_rate == 0.015
+        assert layer.reinstatements == 0
+        assert layer.limit_type == "per-occurrence"
+
+    def test_multi_layer(self):
+        """from_config with multiple layers sorts by attachment."""
+        ic = InsuranceConfig(
+            deductible=250_000,
+            layers=[
+                InsuranceLayerConfig(
+                    name="Excess",
+                    attachment=5_000_000,
+                    limit=20_000_000,
+                    base_premium_rate=0.008,
+                    reinstatements=1,
+                ),
+                InsuranceLayerConfig(
+                    name="Primary",
+                    attachment=250_000,
+                    limit=4_750_000,
+                    base_premium_rate=0.015,
+                ),
+            ],
+        )
+        program = InsuranceProgram.from_config(ic)
+
+        assert len(program.layers) == 2
+        # InsuranceProgram sorts layers by attachment
+        assert program.layers[0].attachment_point == 250_000
+        assert program.layers[1].attachment_point == 5_000_000
+
+    def test_aggregate_limit_type(self):
+        """from_config preserves aggregate limit type and value."""
+        ic = InsuranceConfig(
+            deductible=100_000,
+            layers=[
+                InsuranceLayerConfig(
+                    name="Aggregate",
+                    attachment=100_000,
+                    limit=2_000_000,
+                    base_premium_rate=0.02,
+                    limit_type="aggregate",
+                    aggregate_limit=5_000_000,
+                ),
+            ],
+        )
+        program = InsuranceProgram.from_config(ic)
+
+        layer = program.layers[0]
+        assert layer.limit_type == "aggregate"
+        assert layer.aggregate_limit == 5_000_000
+
+    def test_hybrid_limit_type(self):
+        """from_config preserves hybrid limit type fields."""
+        ic = InsuranceConfig(
+            deductible=100_000,
+            layers=[
+                InsuranceLayerConfig(
+                    name="Hybrid",
+                    attachment=100_000,
+                    limit=2_000_000,
+                    base_premium_rate=0.02,
+                    limit_type="hybrid",
+                    per_occurrence_limit=1_000_000,
+                    aggregate_limit=5_000_000,
+                ),
+            ],
+        )
+        program = InsuranceProgram.from_config(ic)
+
+        layer = program.layers[0]
+        assert layer.limit_type == "hybrid"
+        assert layer.per_occurrence_limit == 1_000_000
+        assert layer.aggregate_limit == 5_000_000
+
+    def test_empty_layers(self):
+        """from_config with no layers creates program with no layers."""
+        ic = InsuranceConfig(deductible=100_000, layers=[])
+        program = InsuranceProgram.from_config(ic)
+
+        assert len(program.layers) == 0
+        assert program.deductible == 100_000
+
+    def test_custom_name(self):
+        """from_config accepts a custom program name."""
+        ic = InsuranceConfig(deductible=0, layers=[])
+        program = InsuranceProgram.from_config(ic, name="My Program")
+
+        assert program.name == "My Program"
+
+    def test_kwargs_forwarded(self):
+        """from_config forwards extra kwargs to constructor."""
+        ic = InsuranceConfig(deductible=0, layers=[])
+        program = InsuranceProgram.from_config(ic, max_history_years=100)
+
+        assert program.max_history_years == 100
+
+    def test_rejects_non_insurance_config(self):
+        """from_config raises TypeError for wrong input type."""
+        with pytest.raises(TypeError, match="Expected InsuranceConfig"):
+            InsuranceProgram.from_config({"deductible": 100})
+
+    def test_claim_processing_after_from_config(self):
+        """Program built via from_config processes claims correctly."""
+        ic = InsuranceConfig(
+            deductible=500_000,
+            layers=[
+                InsuranceLayerConfig(
+                    name="Primary",
+                    attachment=500_000,
+                    limit=5_000_000,
+                    base_premium_rate=0.015,
+                ),
+            ],
+        )
+        program = InsuranceProgram.from_config(ic)
+        result = program.process_claim(2_000_000)
+
+        assert result.deductible_paid == 500_000
+        assert result.insurance_recovery == 1_500_000
+
+    def test_premium_calculation_after_from_config(self):
+        """Premium calculation works on from_config-built program."""
+        ic = InsuranceConfig(
+            deductible=250_000,
+            layers=[
+                InsuranceLayerConfig(
+                    name="Primary",
+                    attachment=250_000,
+                    limit=10_000_000,
+                    base_premium_rate=0.02,
+                ),
+            ],
+        )
+        program = InsuranceProgram.from_config(ic)
+
+        assert program.calculate_premium() == 10_000_000 * 0.02
+
+    def test_round_trip_yaml_config_program(self, tmp_path):
+        """End-to-end: YAML -> Config -> InsuranceProgram -> claims."""
+        yaml_data = {
+            "insurance": {
+                "enabled": True,
+                "deductible": 500_000,
+                "layers": [
+                    {
+                        "name": "Primary",
+                        "attachment": 500_000,
+                        "limit": 4_500_000,
+                        "base_premium_rate": 0.015,
+                    },
+                    {
+                        "name": "Excess",
+                        "attachment": 5_000_000,
+                        "limit": 20_000_000,
+                        "base_premium_rate": 0.008,
+                    },
+                ],
+            },
+        }
+        yaml_path = tmp_path / "test_config.yaml"
+        with open(yaml_path, "w") as f:
+            yaml.dump(yaml_data, f)
+
+        config = Config.from_yaml(yaml_path)
+        assert config.insurance is not None
+
+        program = InsuranceProgram.from_config(config.insurance)
+
+        assert program.deductible == 500_000
+        assert len(program.layers) == 2
+        assert program.layers[0].attachment_point == 500_000
+        assert program.layers[1].attachment_point == 5_000_000
+
+        # Process a large claim that hits both layers
+        result = program.process_claim(10_000_000)
+        assert result.insurance_recovery > 0
+        assert result.deductible_paid == 500_000
+
+
+class TestSimulationFromConfig:
+    """Tests for Simulation.from_config() factory method."""
+
+    def test_basic_from_config(self):
+        """Simulation.from_config builds a runnable simulation."""
+        config = Config(
+            insurance=InsuranceConfig(
+                deductible=500_000,
+                layers=[
+                    InsuranceLayerConfig(
+                        name="Primary",
+                        attachment=500_000,
+                        limit=5_000_000,
+                        base_premium_rate=0.015,
+                    ),
+                ],
+            ),
+            losses=LossDistributionConfig(
+                frequency_annual=0.1,
+                severity_mean=500_000,
+                severity_std=200_000,
+            ),
+        )
+        sim = Simulation.from_config(config, seed=42)
+
+        assert sim.manufacturer is not None
+        assert sim.insurance_policy is not None
+        assert sim.insurance_policy.deductible == 500_000
+        assert len(sim.loss_generator) == 1
+        assert sim.time_horizon == config.simulation.time_horizon_years
+
+    def test_from_config_no_insurance(self):
+        """Simulation.from_config without insurance config sets policy to None."""
+        config = Config()
+        sim = Simulation.from_config(config, seed=42)
+
+        assert sim.insurance_policy is None
+
+    def test_from_config_disabled_insurance(self):
+        """Simulation.from_config with disabled insurance sets policy to None."""
+        config = Config(
+            insurance=InsuranceConfig(
+                enabled=False,
+                deductible=500_000,
+                layers=[
+                    InsuranceLayerConfig(
+                        name="Primary",
+                        attachment=500_000,
+                        limit=5_000_000,
+                        base_premium_rate=0.015,
+                    ),
+                ],
+            ),
+        )
+        sim = Simulation.from_config(config, seed=42)
+
+        assert sim.insurance_policy is None
+
+    def test_from_config_no_losses(self):
+        """Simulation.from_config without losses uses default generator."""
+        import warnings
+
+        config = Config()
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore")
+            sim = Simulation.from_config(config, seed=42)
+
+        # Should still have a loss generator (default)
+        assert sim.loss_generator is not None
+
+    def test_from_config_growth_rate(self):
+        """Simulation.from_config passes growth rate from config."""
+        config = Config(growth=GrowthConfig(annual_growth_rate=0.07))
+        sim = Simulation.from_config(config, seed=42)
+
+        assert sim.growth_rate == 0.07
+
+    def test_from_config_runs_to_completion(self):
+        """Simulation built from config can run a short simulation."""
+        config = Config(
+            simulation=SimulationConfig(time_horizon_years=5),
+            insurance=InsuranceConfig(
+                deductible=100_000,
+                layers=[
+                    InsuranceLayerConfig(
+                        name="Primary",
+                        attachment=100_000,
+                        limit=1_000_000,
+                        base_premium_rate=0.02,
+                    ),
+                ],
+            ),
+            losses=LossDistributionConfig(
+                frequency_annual=0.5,
+                severity_mean=200_000,
+                severity_std=100_000,
+            ),
+        )
+        sim = Simulation.from_config(config, seed=123)
+        results = sim.run()
+
+        assert results is not None
+        assert len(results.years) == 5

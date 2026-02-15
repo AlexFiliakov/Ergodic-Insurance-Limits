@@ -20,11 +20,11 @@ This test file systematically covers the missing lines identified by coverage an
 - Lines 1632, 1663, 1681: Convergence interval, early stopping, default intervals
 """
 
+import logging
 from pathlib import Path
 import tempfile
 from typing import Any, Dict
 from unittest.mock import MagicMock, Mock, PropertyMock, patch
-import warnings
 
 import numpy as np
 import pytest
@@ -540,9 +540,9 @@ class TestRunParallelFallbacks:
             config=config,
         )
 
-    def test_scipy_import_failure_falls_back_to_sequential(self, parallel_engine):
+    def test_scipy_import_failure_falls_back_to_sequential(self, parallel_engine, caplog):
         """Lines 738-745: If scipy import raises an error inside _run_parallel,
-        it should fall back to _run_sequential and emit a RuntimeWarning.
+        it should fall back to _run_sequential and log a warning.
 
         The function does ``from scipy import stats`` at the top. We simulate
         a failure by making that import raise ImportError via builtins.__import__."""
@@ -555,32 +555,28 @@ class TestRunParallelFallbacks:
                 raise ImportError("Simulated scipy import failure")
             return original_import(name, *args, **kwargs)
 
+        caplog.set_level(logging.WARNING, logger="ergodic_insurance.monte_carlo")
         with patch("builtins.__import__", side_effect=patched_import):
-            with warnings.catch_warnings(record=True) as w:
-                warnings.simplefilter("always")
-                results = parallel_engine._run_parallel()
-                assert results is not None
-                assert len(results.final_assets) == 20
-                warning_messages = [str(x.message) for x in w]
-                assert any(
-                    "Scipy import failed" in msg or "Falling back" in msg
-                    for msg in warning_messages
-                )
+            results = parallel_engine._run_parallel()
+            assert results is not None
+            assert len(results.final_assets) == 20
+            assert any(
+                "Scipy import failed" in record.message or "Falling back" in record.message
+                for record in caplog.records
+            )
 
-    def test_parallel_execution_error_falls_back_to_sequential(self, parallel_engine):
+    def test_parallel_execution_error_falls_back_to_sequential(self, parallel_engine, caplog):
         """Lines 801-807: If ProcessPoolExecutor raises an error,
         _run_parallel should fall back to sequential and warn."""
+        caplog.set_level(logging.WARNING, logger="ergodic_insurance.monte_carlo")
         with patch("ergodic_insurance.monte_carlo.ProcessPoolExecutor") as mock_pool:
             mock_pool.return_value.__enter__.side_effect = RuntimeError(
                 "Pool initialization failed"
             )
-            with warnings.catch_warnings(record=True) as w:
-                warnings.simplefilter("always")
-                results = parallel_engine._run_parallel()
-                assert results is not None
-                assert len(results.final_assets) == 20
-                warning_messages = [str(x.message) for x in w]
-                assert any("Parallel execution failed" in msg for msg in warning_messages)
+            results = parallel_engine._run_parallel()
+            assert results is not None
+            assert len(results.final_assets) == 20
+            assert any("Parallel execution failed" in record.message for record in caplog.records)
 
 
 # ===========================================================================
@@ -618,25 +614,23 @@ class TestRunEnhancedParallel:
             mock_pool.return_value.__enter__.return_value.submit.side_effect = RuntimeError(
                 "Cannot start worker"
             )
-            with warnings.catch_warnings(record=True) as w:
-                warnings.simplefilter("always")
-                # _run_enhanced_parallel should catch the error and fall back
-                with patch.object(enhanced_engine, "_run_parallel") as mock_run_parallel:
-                    mock_run_parallel.return_value = MonteCarloResults(
-                        final_assets=np.ones(20) * 1_000_000,
-                        annual_losses=np.zeros((20, 2)),
-                        insurance_recoveries=np.zeros((20, 2)),
-                        retained_losses=np.zeros((20, 2)),
-                        growth_rates=np.zeros(20),
-                        ruin_probability={"2": 0.0},
-                        metrics={},
-                        convergence={},
-                        execution_time=0.1,
-                        config=enhanced_engine.config,
-                    )
-                    results = enhanced_engine._run_enhanced_parallel()
-                    mock_run_parallel.assert_called_once()
-                    assert results is not None
+            # _run_enhanced_parallel should catch the error and fall back
+            with patch.object(enhanced_engine, "_run_parallel") as mock_run_parallel:
+                mock_run_parallel.return_value = MonteCarloResults(
+                    final_assets=np.ones(20) * 1_000_000,
+                    annual_losses=np.zeros((20, 2)),
+                    insurance_recoveries=np.zeros((20, 2)),
+                    retained_losses=np.zeros((20, 2)),
+                    growth_rates=np.zeros(20),
+                    ruin_probability={"2": 0.0},
+                    metrics={},
+                    convergence={},
+                    execution_time=0.1,
+                    config=enhanced_engine.config,
+                )
+                results = enhanced_engine._run_enhanced_parallel()
+                mock_run_parallel.assert_called_once()
+                assert results is not None
 
     def test_combine_results_enhanced_with_valid_data(self, enhanced_engine):
         """Lines 845-958: Test the combine_results_enhanced closure behavior
@@ -727,13 +721,11 @@ class TestRunEnhancedParallel:
             mock_future.result.return_value = True
             mock_executor.submit.return_value = mock_future
 
-            with warnings.catch_warnings(record=True) as w:
-                warnings.simplefilter("always")
-                results = enhanced_engine._run_enhanced_parallel()
-                assert results is not None
-                assert len(results.final_assets) == 1
+            results = enhanced_engine._run_enhanced_parallel()
+            assert results is not None
+            assert len(results.final_assets) == 1
 
-    def test_combine_results_enhanced_with_zero_valid_falls_back(self, enhanced_engine):
+    def test_combine_results_enhanced_with_zero_valid_falls_back(self, enhanced_engine, caplog):
         """Lines 918-925: If no valid results, should fall back to sequential.
 
         This test also validates that a bug is fixed where a local ``import warnings``
@@ -747,6 +739,7 @@ class TestRunEnhancedParallel:
 
         enhanced_engine.parallel_executor.map_reduce = fake_map_reduce
 
+        caplog.set_level(logging.WARNING, logger="ergodic_insurance.monte_carlo")
         with patch("ergodic_insurance.monte_carlo.ProcessPoolExecutor") as mock_pool:
             mock_executor = MagicMock()
             mock_pool.return_value.__enter__.return_value = mock_executor
@@ -754,14 +747,11 @@ class TestRunEnhancedParallel:
             mock_future.result.return_value = True
             mock_executor.submit.return_value = mock_future
 
-            with warnings.catch_warnings(record=True) as w:
-                warnings.simplefilter("always")
-                # Should fall back to sequential since all results are None
-                results = enhanced_engine._run_enhanced_parallel()
-                assert results is not None
-                # Should have warned about no valid results
-                warning_messages = [str(x.message) for x in w]
-                assert any("No valid simulation results" in msg for msg in warning_messages)
+            # Should fall back to sequential since all results are None
+            results = enhanced_engine._run_enhanced_parallel()
+            assert results is not None
+            # Should have logged a warning about no valid results
+            assert any("No valid simulation results" in record.message for record in caplog.records)
 
     def test_combine_results_enhanced_with_ruin_evaluation(self, enhanced_engine):
         """Lines 927-944: Ruin evaluation data should be properly aggregated."""
@@ -1242,18 +1232,17 @@ class TestConvergenceAndBatchMethods:
         )
 
     def test_check_convergence_at_interval_with_few_iterations(self, monitoring_engine):
-        """Line 1632: When there are fewer than 500 iterations, r_hat should be inf."""
-        # Prepare some data
+        """With only 1 iteration, relative MCSE should be inf (#1353)."""
         final_assets = np.random.normal(1_000_000, 100_000, 100)
-        r_hat = monitoring_engine._check_convergence_at_interval(50, final_assets)
-        # With only 50 iterations and n_chains=min(4, 50//250)=0, should return inf
-        assert r_hat == float("inf")
+        relative_mcse = monitoring_engine._check_convergence_at_interval(1, final_assets)
+        assert relative_mcse == float("inf")
 
     def test_check_convergence_at_interval_with_enough_iterations(self, monitoring_engine):
-        """With enough iterations, r_hat should be a finite value."""
+        """With enough iterations, relative MCSE should be a finite value (#1353)."""
         final_assets = np.random.normal(1_000_000, 100_000, 2000)
-        r_hat = monitoring_engine._check_convergence_at_interval(2000, final_assets)
-        assert np.isfinite(r_hat)
+        relative_mcse = monitoring_engine._check_convergence_at_interval(2000, final_assets)
+        assert np.isfinite(relative_mcse)
+        assert relative_mcse > 0
 
     def test_run_with_progress_monitoring_default_check_intervals(
         self, loss_generator, insurance_program, manufacturer
@@ -1395,12 +1384,12 @@ class TestMonteCarloConfigExtended:
         assert config2.crn_base_seed == 12345
 
     def test_enable_ledger_pruning_config(self):
-        """enable_ledger_pruning defaults to False."""
+        """enable_ledger_pruning defaults to True (Issue #1146)."""
         config = MonteCarloConfig()
-        assert config.enable_ledger_pruning is False
+        assert config.enable_ledger_pruning is True
 
-        config2 = MonteCarloConfig(enable_ledger_pruning=True)
-        assert config2.enable_ledger_pruning is True
+        config2 = MonteCarloConfig(enable_ledger_pruning=False)
+        assert config2.enable_ledger_pruning is False
 
     def test_bootstrap_config_defaults(self):
         """Bootstrap-related config fields should have sensible defaults."""
@@ -1577,7 +1566,7 @@ class TestWorkerTestReturnsFalse:
     """Test for line 833: when _test_worker_function returns False."""
 
     def test_enhanced_parallel_falls_back_on_worker_false(
-        self, loss_generator, insurance_program, manufacturer
+        self, loss_generator, insurance_program, manufacturer, caplog
     ):
         """Line 833: When the worker test returns False (not an exception),
         RuntimeError('Worker test failed') should be raised internally and
@@ -1599,6 +1588,7 @@ class TestWorkerTestReturnsFalse:
             config=config,
         )
 
+        caplog.set_level(logging.WARNING, logger="ergodic_insurance.monte_carlo")
         with patch("ergodic_insurance.monte_carlo.ProcessPoolExecutor") as mock_pool:
             mock_executor = MagicMock()
             mock_pool.return_value.__enter__.return_value = mock_executor
@@ -1620,13 +1610,10 @@ class TestWorkerTestReturnsFalse:
                     execution_time=0.1,
                     config=config,
                 )
-                with warnings.catch_warnings(record=True) as w:
-                    warnings.simplefilter("always")
-                    results = engine._run_enhanced_parallel()
-                    mock_fallback.assert_called_once()
-                    assert results is not None
-                    warning_messages = [str(x.message) for x in w]
-                    assert any("Worker test failed" in msg for msg in warning_messages)
+                results = engine._run_enhanced_parallel()
+                mock_fallback.assert_called_once()
+                assert results is not None
+                assert any("Worker test failed" in record.message for record in caplog.records)
 
 
 class TestExportHDF5:

@@ -89,6 +89,7 @@ class SummaryStatistics:
         confidence_level: float = 0.95,
         bootstrap_iterations: int = 1000,
         seed: Optional[int] = None,
+        assume_iid: bool = True,
     ):
         """Initialize summary statistics calculator.
 
@@ -96,10 +97,17 @@ class SummaryStatistics:
             confidence_level: Confidence level for intervals
             bootstrap_iterations: Number of bootstrap iterations
             seed: Optional random seed for reproducibility
+            assume_iid: If True (default), compute stderr as std/sqrt(n),
+                assuming independent observations.  If False, estimate the
+                effective sample size (ESS) via batch means and compute
+                stderr as std(ddof=1)/sqrt(ESS).  Use False for
+                autocorrelated data such as MCMC output or time-series
+                simulations where observations are not independent.
         """
         self.confidence_level = confidence_level
         self.bootstrap_iterations = bootstrap_iterations
         self._rng = np.random.default_rng(seed)
+        self.assume_iid = assume_iid
 
     def calculate_summary(
         self, data: np.ndarray, weights: Optional[np.ndarray] = None
@@ -154,6 +162,46 @@ class SummaryStatistics:
                 return float(stats.skew(data, nan_policy="omit"))
             return float(stats.kurtosis(data, nan_policy="omit"))
 
+    @staticmethod
+    def _estimate_ess_batch_means(data: np.ndarray) -> float:
+        """Estimate effective sample size using the batch means method.
+
+        Splits *data* into floor(sqrt(n)) non-overlapping batches, computes
+        the variance of the batch means, and derives ESS as::
+
+            ESS = n * Var(chain) / (batch_size * Var(batch_means))
+
+        The result is clamped to [1, n].  For short arrays (n <= 10) the
+        method returns n (i.e. assumes IID).
+
+        Args:
+            data: 1-D array of samples (must be non-empty).
+
+        Returns:
+            Estimated effective sample size.
+        """
+        n = len(data)
+        if n <= 10:
+            return float(n)
+
+        n_batches = int(np.sqrt(n))
+        if n_batches < 2:
+            return float(n)
+
+        batch_size = n // n_batches
+        usable = n_batches * batch_size
+        batches = data[:usable].reshape(n_batches, batch_size)
+        batch_means = batches.mean(axis=1)
+
+        var_bm = np.var(batch_means, ddof=1)
+        var_chain = np.var(data[:usable], ddof=1)
+
+        if var_bm <= 0 or var_chain <= 0:
+            return float(n)
+
+        ess = usable * var_chain / (batch_size * var_bm)
+        return float(max(1.0, min(ess, n)))
+
     def _calculate_basic_stats(
         self, data: np.ndarray, weights: Optional[np.ndarray] = None
     ) -> Dict[str, float]:
@@ -185,6 +233,12 @@ class SummaryStatistics:
             }
 
         if weights is None:
+            if self.assume_iid:
+                stderr = float(np.std(data) / np.sqrt(len(data)))
+            else:
+                ess = self._estimate_ess_batch_means(data)
+                stderr = float(np.std(data, ddof=1) / np.sqrt(ess))
+
             return {
                 "count": len(data),
                 "mean": float(np.mean(data)),
@@ -198,7 +252,7 @@ class SummaryStatistics:
                 "cv": float(np.std(data) / np.mean(data)) if np.mean(data) != 0 else np.inf,
                 "skewness": float(self._safe_skew_kurtosis(data, "skew")),
                 "kurtosis": float(self._safe_skew_kurtosis(data, "kurtosis")),
-                "stderr": float(np.std(data) / np.sqrt(len(data))),
+                "stderr": stderr,
             }
 
         mean = np.average(data, weights=weights)
@@ -225,12 +279,16 @@ class SummaryStatistics:
     def _weighted_percentile(
         self, data: np.ndarray, weights: np.ndarray, percentile: float
     ) -> float:
-        """Calculate weighted percentile.
+        """Calculate weighted percentile with linear interpolation.
+
+        Uses the midpoint (weight-center) convention for cumulative weights,
+        consistent with TDigest.quantile(). Interpolates linearly between
+        adjacent order statistics for a continuous quantile function.
 
         Args:
             data: Data values
-            weights: Weights
-            percentile: Percentile to calculate
+            weights: Weights (must be non-negative)
+            percentile: Percentile to calculate (0-100)
 
         Returns:
             Weighted percentile value
@@ -242,7 +300,11 @@ class SummaryStatistics:
         cumsum = np.cumsum(sorted_weights)
         cutoff = percentile / 100.0 * cumsum[-1]
 
-        return float(sorted_data[np.searchsorted(cumsum, cutoff)])
+        # Use weight centers (midpoint convention) for interpolation,
+        # matching TDigest.quantile() convention.
+        centers = cumsum - sorted_weights / 2.0
+
+        return float(np.interp(cutoff, centers, sorted_data))
 
     def _fit_distributions(self, data: np.ndarray) -> Dict[str, Dict[str, float]]:
         """Fit various distributions to data.
@@ -283,7 +345,9 @@ class SummaryStatistics:
                 "scale": float(scale),
                 "ks_statistic": float(ks_stat),
                 "ks_pvalue": float(ks_pvalue),
-                "aic": float(self._calculate_aic(data, stats.lognorm, shape, loc, scale)),
+                "aic": float(
+                    self._calculate_aic(data, stats.lognorm, shape, loc, scale, n_free_params=2)
+                ),
             }
         except (ValueError, TypeError, RuntimeError):
             pass
@@ -301,7 +365,9 @@ class SummaryStatistics:
                 "scale": float(scale),
                 "ks_statistic": float(ks_stat),
                 "ks_pvalue": float(ks_pvalue),
-                "aic": float(self._calculate_aic(data, stats.gamma, alpha, loc, scale)),
+                "aic": float(
+                    self._calculate_aic(data, stats.gamma, alpha, loc, scale, n_free_params=2)
+                ),
             }
         except (ValueError, TypeError, RuntimeError):
             pass
@@ -315,27 +381,46 @@ class SummaryStatistics:
                 "scale": float(scale),
                 "ks_statistic": float(ks_stat),
                 "ks_pvalue": float(ks_pvalue),
-                "aic": float(self._calculate_aic(data, stats.expon, loc, scale)),
+                "aic": float(self._calculate_aic(data, stats.expon, loc, scale, n_free_params=1)),
             }
         except (ValueError, TypeError, RuntimeError):
             pass
 
         return results
 
-    def _calculate_aic(self, data: np.ndarray, distribution: stats.rv_continuous, *params) -> float:
-        """Calculate Akaike Information Criterion for distribution fit.
+    def _calculate_aic(
+        self,
+        data: np.ndarray,
+        distribution: stats.rv_continuous,
+        *params,
+        n_free_params: Optional[int] = None,
+    ) -> float:
+        """Calculate corrected Akaike Information Criterion (AICc) for distribution fit.
+
+        Uses AICc (Burnham & Anderson, 2002) which adds a finite-sample correction
+        to the standard AIC. AICc converges to AIC as n -> infinity, so there is no
+        downside to using it unconditionally.
 
         Args:
             data: Data points
             distribution: Scipy distribution object
-            params: Distribution parameters
+            params: Distribution parameters (including any fixed parameters
+                needed for evaluation)
+            n_free_params: Number of free (estimated) parameters. If None,
+                defaults to len(params). Pass explicitly when some parameters
+                are fixed during fitting (e.g., floc=0).
 
         Returns:
-            AIC value
+            AICc value
         """
         log_likelihood = np.sum(distribution.logpdf(data, *params))
-        n_params = len(params)
-        return float(2 * n_params - 2 * log_likelihood)
+        k = n_free_params if n_free_params is not None else len(params)
+        n = len(data)
+        aic = 2 * k - 2 * log_likelihood
+        # AICc correction (Burnham & Anderson, 2002; Hurvich & Tsai, 1989)
+        if n - k - 1 > 0:
+            aic += 2 * k * (k + 1) / (n - k - 1)
+        return float(aic)
 
     def _calculate_confidence_intervals(self, data: np.ndarray) -> Dict[str, Tuple[float, float]]:
         """Calculate bootstrap confidence intervals.
@@ -944,8 +1029,13 @@ class DistributionFitter:
                     data, lambda x, dist=dist, params=params: dist.cdf(x, *params)
                 )
                 log_likelihood = np.sum(dist.logpdf(data, *params))
-                aic = 2 * len(params) - 2 * log_likelihood
-                bic = len(params) * np.log(len(data)) - 2 * log_likelihood
+                k = len(params)
+                n = len(data)
+                aic = 2 * k - 2 * log_likelihood
+                # AICc correction (Burnham & Anderson, 2002)
+                if n - k - 1 > 0:
+                    aic += 2 * k * (k + 1) / (n - k - 1)
+                bic = k * np.log(n) - 2 * log_likelihood
 
                 results.append(
                     {

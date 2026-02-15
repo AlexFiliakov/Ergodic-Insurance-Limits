@@ -97,6 +97,68 @@ class TestESSCalculation:
         assert 0 < ess < n
         assert ess < n / 2  # Should show significant autocorrelation
 
+    def test_ess_no_pretruncation_at_negative_acf(self, diagnostics):
+        """Test that pair summation is NOT pre-truncated at individual negative ACF.
+
+        Regression test for #1322: the old implementation truncated the ACF at
+        the first negative individual autocorrelation before evaluating pair
+        sums.  For oscillating chains where autocorr[k] < 0 but the pair
+        (autocorr[k], autocorr[k+1]) sums to positive, the old code would
+        skip that pair entirely, leading to ESS overestimation.
+        """
+        # Mock _calculate_autocorrelation to return a controlled ACF where
+        # an individual value is negative but the pair sum is positive.
+        # autocorr = [1.0, 0.8, 0.3, -0.1, 0.2, -0.5, -0.6]
+        #   pair(1,2) = 0.8 + 0.3 = 1.1  > 0 → include
+        #   pair(3,4) = -0.1 + 0.2 = 0.1 > 0 → include (bug would skip this)
+        #   pair(5,6) = -0.5 + -0.6 = -1.1 < 0 → stop
+        # sum_autocorr = 1 + 2*(1.1) + 2*(0.1) = 1 + 2.2 + 0.2 = 3.4
+        # ESS = n / 3.4
+        fake_acf = np.array([1.0, 0.8, 0.3, -0.1, 0.2, -0.5, -0.6])
+        n = 1000
+        chain = np.zeros(n)  # content doesn't matter, ACF is mocked
+
+        with patch.object(diagnostics, "_calculate_autocorrelation", return_value=fake_acf):
+            ess = diagnostics.calculate_ess(chain)
+
+        expected_sum = 1.0 + 2 * (0.8 + 0.3) + 2 * (-0.1 + 0.2)  # = 3.4
+        expected_ess = n / expected_sum
+
+        assert abs(ess - expected_ess) < 1e-10, (
+            f"ESS should be {expected_ess:.4f} but got {ess:.4f}. "
+            f"Pair (3,4) with sum 0.1 > 0 must be included despite autocorr[3] < 0."
+        )
+
+    def test_ess_ar1_oscillating_matches_theory(self, diagnostics):
+        """Test ESS for AR(1) with negative rho (oscillating chain).
+
+        An AR(1) process with rho < 0 produces oscillating autocorrelation
+        that alternates sign.  The old pre-truncation would terminate at the
+        first negative individual ACF (lag 2), grossly overestimating ESS.
+        """
+        np.random.seed(123)
+        n = 20000
+        rho = -0.3  # Negative autocorrelation → oscillating chain
+
+        chain = np.zeros(n)
+        chain[0] = np.random.randn()
+        for i in range(1, n):
+            chain[i] = rho * chain[i - 1] + np.sqrt(1 - rho**2) * np.random.randn()
+
+        ess = diagnostics.calculate_ess(chain)
+
+        # Theoretical ESS for AR(1): N * (1 - rho) / (1 + rho)
+        theoretical_ess = n * (1 - rho) / (1 + rho)
+
+        # With negative rho, theoretical ESS > N. Implementation caps at N.
+        expected = min(theoretical_ess, n)
+
+        # Should be within 20% of expected
+        assert abs(ess - expected) / expected < 0.20, (
+            f"ESS {ess:.0f} too far from expected {expected:.0f} "
+            f"(theoretical {theoretical_ess:.0f})"
+        )
+
     def test_batch_ess_calculation(self, diagnostics):
         """Test batch ESS calculation for multiple chains."""
         np.random.seed(42)
@@ -208,7 +270,6 @@ class TestProgressMonitor:
 
         # Update some progress
         monitor.update(500)
-        time.sleep(0.05)  # Delay to ensure elapsed time > 0 even on fast systems
 
         stats = monitor.get_stats()
 
@@ -346,7 +407,7 @@ class TestMonteCarloIntegration:
             uncovered_loss=0.0,
             reinstatement_premiums=0.0,
         )
-        insurance_program.calculate_annual_premium.return_value = 100_000
+        insurance_program.calculate_premium.return_value = 100_000
 
         return loss_generator, insurance_program, manufacturer
 
@@ -392,25 +453,25 @@ class TestMonteCarloIntegration:
             config=config,
         )
 
-        # Mock convergence diagnostics to always return good R-hat
-        with patch.object(engine.convergence_diagnostics, "calculate_r_hat", return_value=1.05):
-            results = engine.run_with_progress_monitoring(
-                check_intervals=[1000],
-                convergence_threshold=1.1,
-                early_stopping=True,
-                show_progress=False,
-            )
+        # _check_convergence_at_interval now returns relative MCSE (#1353)
+        # which is naturally << 1.1 convergence_threshold, triggering early stop
+        results = engine.run_with_progress_monitoring(
+            check_intervals=[1000],
+            convergence_threshold=1.1,
+            early_stopping=True,
+            show_progress=False,
+        )
 
-            # Should stop early at 1000 iterations
-            assert results.metrics["actual_iterations"] == 1000
-            assert results.metrics["convergence_achieved"]
-            assert results.metrics["convergence_iteration"] == 1000
+        # Should stop early at 1000 iterations
+        assert results.metrics["actual_iterations"] == 1000
+        assert results.metrics["convergence_achieved"]
+        assert results.metrics["convergence_iteration"] == 1000
 
     def test_progress_monitoring_performance_impact(self, mock_components):
         """Test that progress monitoring has minimal performance impact."""
         loss_generator, insurance_program, manufacturer = mock_components
 
-        config = MonteCarloConfig(n_simulations=5000, n_years=5, progress_bar=False, parallel=False)
+        config = MonteCarloConfig(n_simulations=2000, n_years=5, progress_bar=False, parallel=False)
 
         engine = MonteCarloEngine(
             loss_generator=loss_generator,
@@ -427,7 +488,7 @@ class TestMonteCarloIntegration:
         # Run with monitoring
         start = time.perf_counter()
         results_monitor = engine.run_with_progress_monitoring(
-            check_intervals=[1000, 2500, 5000], show_progress=False
+            check_intervals=[1000, 2000], show_progress=False, early_stopping=False
         )
         time_monitor = time.perf_counter() - start
 

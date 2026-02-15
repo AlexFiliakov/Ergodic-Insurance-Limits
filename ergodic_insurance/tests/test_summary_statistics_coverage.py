@@ -785,6 +785,155 @@ class TestDistributionFitterCoverage:
 
 
 # ---------------------------------------------------------------------------
+# AICc correction (issue #1339)
+# ---------------------------------------------------------------------------
+class TestAICcCorrection:
+    """Verify AICc correction in _calculate_aic and DistributionFitter."""
+
+    @pytest.fixture
+    def calculator(self):
+        return SummaryStatistics()
+
+    def test_aicc_large_sample_converges_to_aic(self, calculator):
+        """For n=1000, k=2: AICc and AIC should differ by less than 0.02."""
+        rng = np.random.default_rng(42)
+        data = rng.normal(5, 2, size=1000)
+        mu, sigma = stats.norm.fit(data)
+
+        # Standard AIC (no correction)
+        log_likelihood = np.sum(stats.norm.logpdf(data, mu, sigma))
+        k = 2
+        aic_standard = 2 * k - 2 * log_likelihood
+
+        # AICc from our method
+        aicc = calculator._calculate_aic(data, stats.norm, mu, sigma)
+
+        # Correction term: 2*k*(k+1)/(n-k-1) = 2*2*3/(1000-2-1) = 12/997 ≈ 0.012
+        assert abs(aicc - aic_standard) < 0.02
+
+    def test_aicc_small_sample_materially_larger(self, calculator):
+        """For n=20, k=3: AICc should be materially larger than standard AIC."""
+        rng = np.random.default_rng(42)
+        data = rng.lognormal(1, 0.5, size=20)
+        shape, loc, scale = stats.lognorm.fit(data, floc=0)
+
+        # Standard AIC with k=3 (old, incorrect)
+        log_likelihood = np.sum(stats.lognorm.logpdf(data, shape, loc, scale))
+        aic_old = 2 * 3 - 2 * log_likelihood  # k=3, counting loc
+
+        # AICc with k=2 (correct: loc is fixed)
+        aicc = calculator._calculate_aic(data, stats.lognorm, shape, loc, scale, n_free_params=2)
+
+        # The old AIC overcounts parameters AND lacks correction.
+        # AICc with correct k=2 still has the correction term:
+        # 2*2*3/(20-2-1) = 12/17 ≈ 0.71
+        # But old AIC had k=3 so base was 6 - 2*LL, new is 4 - 2*LL + 0.71
+        # The correction is material for small samples
+        k_correct = 2
+        aic_correct_base = 2 * k_correct - 2 * log_likelihood
+        correction = 2 * k_correct * (k_correct + 1) / (20 - k_correct - 1)
+        expected = aic_correct_base + correction
+        assert abs(aicc - expected) < 1e-10
+
+    def test_n_free_params_overrides_len_params(self, calculator):
+        """When n_free_params is passed, it should be used instead of len(params)."""
+        rng = np.random.default_rng(42)
+        data = rng.exponential(2, size=50)
+        loc, scale = stats.expon.fit(data, floc=0)
+
+        # With n_free_params=1 (correct: loc is fixed)
+        aicc_correct = calculator._calculate_aic(data, stats.expon, loc, scale, n_free_params=1)
+        # Without n_free_params (defaults to len(params)=2, overcounts)
+        aicc_overcounted = calculator._calculate_aic(data, stats.expon, loc, scale)
+
+        # The overcounted version should be larger because k=2 > k=1
+        # increases both the base AIC and the correction term
+        assert aicc_overcounted > aicc_correct
+
+    def test_n_free_params_default_uses_len_params(self, calculator):
+        """Without n_free_params, defaults to len(params)."""
+        rng = np.random.default_rng(42)
+        data = rng.normal(5, 2, size=100)
+        mu, sigma = stats.norm.fit(data)
+
+        # For normal, all params are free, so default is correct
+        aicc = calculator._calculate_aic(data, stats.norm, mu, sigma)
+        log_likelihood = np.sum(stats.norm.logpdf(data, mu, sigma))
+        k = 2
+        n = 100
+        expected = 2 * k - 2 * log_likelihood + 2 * k * (k + 1) / (n - k - 1)
+        assert abs(aicc - expected) < 1e-10
+
+    def test_edge_case_n_equals_k_plus_2(self, calculator):
+        """When n = k + 2, correction should not cause division by zero."""
+        # n=4, k=2 => n-k-1=1, correction = 2*2*3/1 = 12
+        data = np.array([1.0, 2.0, 3.0, 4.0])
+        mu, sigma = stats.norm.fit(data)
+        aicc = calculator._calculate_aic(data, stats.norm, mu, sigma)
+        log_likelihood = np.sum(stats.norm.logpdf(data, mu, sigma))
+        expected = 2 * 2 - 2 * log_likelihood + 12.0
+        assert abs(aicc - expected) < 1e-10
+
+    def test_edge_case_n_equals_k_plus_1(self, calculator):
+        """When n = k + 1, correction is skipped (would be division by zero)."""
+        # n=3, k=2 => n-k-1=0, correction should be skipped
+        data = np.array([1.0, 2.0, 3.0])
+        mu, sigma = stats.norm.fit(data)
+        aicc = calculator._calculate_aic(data, stats.norm, mu, sigma)
+        log_likelihood = np.sum(stats.norm.logpdf(data, mu, sigma))
+        # Should just be standard AIC (no correction applied)
+        expected = 2 * 2 - 2 * log_likelihood
+        assert abs(aicc - expected) < 1e-10
+
+    def test_fit_distributions_uses_aicc(self, calculator):
+        """_fit_distributions should return AICc values, not plain AIC."""
+        rng = np.random.default_rng(42)
+        data = rng.lognormal(1, 0.5, size=50)
+        results = calculator._fit_distributions(data)
+
+        # Verify lognormal uses n_free_params=2 (not 3)
+        if "lognormal" in results:
+            shape = results["lognormal"]["shape"]
+            loc = results["lognormal"]["location"]
+            scale = results["lognormal"]["scale"]
+            log_likelihood = np.sum(stats.lognorm.logpdf(data, shape, loc, scale))
+            k = 2  # shape + scale; loc is fixed
+            n = len(data)
+            expected_aicc = 2 * k - 2 * log_likelihood + 2 * k * (k + 1) / (n - k - 1)
+            assert abs(results["lognormal"]["aic"] - expected_aicc) < 1e-10
+
+    def test_fit_distributions_exponential_free_params(self, calculator):
+        """Exponential fitted with floc=0 should count only 1 free param."""
+        rng = np.random.default_rng(42)
+        data = rng.exponential(2, size=50)
+        results = calculator._fit_distributions(data)
+
+        if "exponential" in results:
+            loc = results["exponential"]["location"]
+            scale = results["exponential"]["scale"]
+            log_likelihood = np.sum(stats.expon.logpdf(data, loc, scale))
+            k = 1  # only scale is free
+            n = len(data)
+            expected_aicc = 2 * k - 2 * log_likelihood + 2 * k * (k + 1) / (n - k - 1)
+            assert abs(results["exponential"]["aic"] - expected_aicc) < 1e-10
+
+    def test_distribution_fitter_uses_aicc(self):
+        """DistributionFitter.fit_all should use AICc correction."""
+        rng = np.random.default_rng(42)
+        data = rng.normal(5, 2, size=50)
+        fitter = DistributionFitter()
+        df = fitter.fit_all(data, distributions=["normal"])
+
+        row = df[df["distribution"] == "normal"].iloc[0]
+        params = fitter.fitted_params["normal"]
+        log_likelihood = np.sum(stats.norm.logpdf(data, *params))
+        k = len(params)
+        n = len(data)
+        expected_aicc = 2 * k - 2 * log_likelihood + 2 * k * (k + 1) / (n - k - 1)
+        assert abs(row["aic"] - expected_aicc) < 1e-10
+
+
+# ---------------------------------------------------------------------------
 # SummaryReportGenerator coverage (lines 1053, 1158-1161, 1196-1199)
 # ---------------------------------------------------------------------------
 class TestSummaryReportGeneratorCoverage:
@@ -901,3 +1050,192 @@ class TestSummaryStatisticsWeighted:
         result = ss._calculate_basic_stats(data, weights)
         # Mean is 0 so cv should be inf
         assert result["cv"] == np.inf
+
+
+# ---------------------------------------------------------------------------
+# Issue #1355 – stderr should use ESS for autocorrelated data
+# ---------------------------------------------------------------------------
+class TestStderrESS:
+    """Tests for assume_iid parameter and ESS-based stderr."""
+
+    def test_default_assume_iid_true(self):
+        """Default assume_iid=True preserves backward-compatible stderr."""
+        ss = SummaryStatistics(seed=42)
+        assert ss.assume_iid is True
+        data = np.random.default_rng(0).standard_normal(500)
+        result = ss._calculate_basic_stats(data)
+        expected = float(np.std(data) / np.sqrt(len(data)))
+        assert result["stderr"] == pytest.approx(expected, rel=1e-12)
+
+    def test_assume_iid_false_iid_data_matches_sem(self):
+        """For IID normal data with assume_iid=False, stderr ~ scipy.stats.sem."""
+        rng = np.random.default_rng(12345)
+        data = rng.standard_normal(5000)
+        ss = SummaryStatistics(seed=42, assume_iid=False)
+        result = ss._calculate_basic_stats(data)
+        expected_sem = float(stats.sem(data))  # uses ddof=1
+        # Batch means ESS for truly IID data should be close to n,
+        # so the result should be close to scipy.stats.sem.
+        assert result["stderr"] == pytest.approx(expected_sem, rel=0.15)
+
+    def test_assume_iid_false_ar1_inflates_stderr(self):
+        """For AR(1) with rho=0.9, ESS-corrected stderr >> IID stderr.
+
+        The theoretical inflation factor is sqrt((1+rho)/(1-rho)).
+        For rho=0.9 that is sqrt(19) ~ 4.36.
+        """
+        rho = 0.9
+        n = 10_000
+        rng = np.random.default_rng(999)
+        # Generate AR(1) process
+        data = np.empty(n)
+        data[0] = rng.standard_normal()
+        for i in range(1, n):
+            data[i] = rho * data[i - 1] + np.sqrt(1 - rho**2) * rng.standard_normal()
+
+        ss_iid = SummaryStatistics(seed=42, assume_iid=True)
+        ss_ess = SummaryStatistics(seed=42, assume_iid=False)
+
+        stderr_iid = ss_iid._calculate_basic_stats(data)["stderr"]
+        stderr_ess = ss_ess._calculate_basic_stats(data)["stderr"]
+
+        # ESS-corrected stderr must be materially larger
+        ratio = stderr_ess / stderr_iid
+        theoretical = np.sqrt((1 + rho) / (1 - rho))  # ~4.36
+        # Allow wide tolerance – batch means is noisy, but it should
+        # capture the right order of magnitude (ratio > 2).
+        assert ratio > 2.0, f"ratio={ratio:.2f}, expected > 2"
+        # And should be in the same ballpark as theory (within 3x)
+        assert ratio == pytest.approx(theoretical, rel=1.0)
+
+    def test_estimate_ess_batch_means_iid(self):
+        """Batch means ESS for IID data should be close to n."""
+        rng = np.random.default_rng(42)
+        data = rng.standard_normal(5000)
+        ess = SummaryStatistics._estimate_ess_batch_means(data)
+        assert ess == pytest.approx(5000, rel=0.25)
+
+    def test_estimate_ess_batch_means_short_array(self):
+        """Short arrays (n <= 10) return n directly."""
+        data = np.array([1.0, 2.0, 3.0])
+        ess = SummaryStatistics._estimate_ess_batch_means(data)
+        assert ess == 3.0
+
+    def test_estimate_ess_batch_means_constant_data(self):
+        """Constant data (zero variance) returns n."""
+        data = np.ones(100)
+        ess = SummaryStatistics._estimate_ess_batch_means(data)
+        assert ess == 100.0
+
+    def test_estimate_ess_clamped_to_n(self):
+        """ESS is clamped to [1, n]."""
+        rng = np.random.default_rng(7)
+        data = rng.standard_normal(500)
+        ess = SummaryStatistics._estimate_ess_batch_means(data)
+        assert 1.0 <= ess <= 500.0
+
+    def test_empty_data_unaffected(self):
+        """Empty data returns stderr=0.0 regardless of assume_iid."""
+        ss = SummaryStatistics(seed=42, assume_iid=False)
+        result = ss._calculate_basic_stats(np.array([]))
+        assert result["stderr"] == 0.0
+
+
+# ---------------------------------------------------------------------------
+# Issue #1309: _weighted_percentile interpolation
+# ---------------------------------------------------------------------------
+class TestWeightedPercentileInterpolation:
+    """Verify _weighted_percentile uses linear interpolation (Issue #1309)."""
+
+    @pytest.fixture
+    def ss(self):
+        return SummaryStatistics(seed=42)
+
+    def test_equal_weight_median_interpolates(self, ss):
+        """Weighted median of [1, 2] with equal weights returns 1.5, not 1."""
+        data = np.array([1.0, 2.0])
+        weights = np.array([1.0, 1.0])
+        result = ss._weighted_percentile(data, weights, 50)
+        assert result == pytest.approx(1.5)
+
+    def test_matches_numpy_percentile_uniform_weights(self, ss):
+        """With uniform weights, result matches np.percentile (Type 7)."""
+        rng = np.random.default_rng(42)
+        data = rng.normal(100, 15, size=50)
+        weights = np.ones(len(data))
+        for p in [10, 25, 50, 75, 90]:
+            weighted = ss._weighted_percentile(data, weights, p)
+            expected = np.percentile(data, p)
+            assert weighted == pytest.approx(
+                expected, rel=0.05
+            ), f"p={p}: weighted={weighted}, expected={expected}"
+
+    def test_monotonicity(self, ss):
+        """_weighted_percentile(data, w, p1) <= _weighted_percentile(data, w, p2) for p1 <= p2."""
+        rng = np.random.default_rng(123)
+        data = rng.exponential(scale=5.0, size=30)
+        weights = rng.uniform(0.5, 2.0, size=30)
+        percentiles = list(range(0, 101, 5))
+        values = [ss._weighted_percentile(data, weights, p) for p in percentiles]
+        for i in range(len(values) - 1):
+            assert values[i] <= values[i + 1], (
+                f"Non-monotonic: p={percentiles[i]} -> {values[i]} > "
+                f"p={percentiles[i+1]} -> {values[i+1]}"
+            )
+
+    def test_boundary_p0_returns_min(self, ss):
+        """Percentile 0 returns the minimum value."""
+        data = np.array([3.0, 1.0, 2.0])
+        weights = np.array([1.0, 1.0, 1.0])
+        result = ss._weighted_percentile(data, weights, 0)
+        assert result == pytest.approx(1.0)
+
+    def test_boundary_p100_returns_max(self, ss):
+        """Percentile 100 returns the maximum value."""
+        data = np.array([3.0, 1.0, 2.0])
+        weights = np.array([1.0, 1.0, 1.0])
+        result = ss._weighted_percentile(data, weights, 100)
+        assert result == pytest.approx(3.0)
+
+    def test_single_element(self, ss):
+        """Single element returns that element for any percentile."""
+        data = np.array([42.0])
+        weights = np.array([1.0])
+        for p in [0, 25, 50, 75, 100]:
+            assert ss._weighted_percentile(data, weights, p) == pytest.approx(42.0)
+
+    def test_non_uniform_weights_known_result(self, ss):
+        """Known textbook weighted percentile with non-uniform weights."""
+        # Three values with weights [1, 2, 1]. Total weight = 4.
+        # Weight centers: cumsum=[1,3,4], centers=[0.5, 2.0, 3.5]
+        # Median (cutoff=2.0) falls exactly at center of value 20 -> 20.0
+        data = np.array([10.0, 20.0, 30.0])
+        weights = np.array([1.0, 2.0, 1.0])
+        median = ss._weighted_percentile(data, weights, 50)
+        assert median == pytest.approx(20.0)
+
+    def test_heavily_skewed_weights(self, ss):
+        """Result is pulled toward heavily weighted values."""
+        data = np.array([10.0, 20.0, 30.0])
+        # Almost all weight on 30
+        weights = np.array([0.01, 0.01, 100.0])
+        median = ss._weighted_percentile(data, weights, 50)
+        assert median == pytest.approx(30.0, abs=1.0)
+
+    def test_unsorted_data_handled(self, ss):
+        """Data need not be pre-sorted."""
+        data = np.array([30.0, 10.0, 20.0])
+        weights = np.array([1.0, 1.0, 1.0])
+        result = ss._weighted_percentile(data, weights, 50)
+        assert result == pytest.approx(20.0)
+
+    def test_iqr_with_weighted_percentile(self, ss):
+        """IQR computed via _weighted_percentile converges to np.percentile for large n."""
+        rng = np.random.default_rng(99)
+        data = rng.normal(50, 10, size=200)
+        weights = np.ones(len(data))
+        q25 = ss._weighted_percentile(data, weights, 25)
+        q75 = ss._weighted_percentile(data, weights, 75)
+        iqr = q75 - q25
+        expected_iqr = np.percentile(data, 75) - np.percentile(data, 25)
+        assert iqr == pytest.approx(expected_iqr, rel=0.05)

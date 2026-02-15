@@ -56,6 +56,28 @@ def _calculate_p_value(
     return float(np.mean((bootstrap_vals - null_val) >= (observed_val - null_val)))
 
 
+def _get_vectorized_stat(
+    statistic: Callable[[np.ndarray], float],
+) -> Optional[Callable[[np.ndarray], np.ndarray]]:
+    """Return an axis=1 vectorized equivalent for known NumPy statistics.
+
+    Args:
+        statistic: A callable that computes a scalar statistic on a 1-D array.
+
+    Returns:
+        A callable that applies the statistic along axis=1 of a 2-D matrix,
+        or None if the statistic is not recognized.
+    """
+    _KNOWN: Dict[int, Callable[[np.ndarray], np.ndarray]] = {
+        id(np.mean): lambda m: m.mean(axis=1),
+        id(np.std): lambda m: m.std(axis=1),
+        id(np.median): lambda m: np.median(m, axis=1),
+        id(np.var): lambda m: m.var(axis=1),
+        id(np.sum): lambda m: m.sum(axis=1),
+    }
+    return _KNOWN.get(id(statistic))
+
+
 def _bootstrap_confidence_interval(
     data: np.ndarray,
     statistic: Callable[[np.ndarray], float],
@@ -75,12 +97,17 @@ def _bootstrap_confidence_interval(
     Returns:
         Confidence interval tuple.
     """
-    bootstrap_stats = np.zeros(n_bootstrap)
     n = len(data)
+    vec_stat = _get_vectorized_stat(statistic)
 
-    for i in range(n_bootstrap):
-        indices = rng.choice(n, size=n, replace=True)
-        bootstrap_stats[i] = statistic(data[indices])
+    if vec_stat is not None:
+        idx = rng.integers(0, n, size=(n_bootstrap, n))
+        bootstrap_stats = vec_stat(data[idx])
+    else:
+        bootstrap_stats = np.zeros(n_bootstrap)
+        for i in range(n_bootstrap):
+            indices = rng.choice(n, size=n, replace=True)
+            bootstrap_stats[i] = statistic(data[indices])
 
     percentiles = [(alpha / 2) * 100, (1 - alpha / 2) * 100]
     ci = np.percentile(bootstrap_stats, percentiles)
@@ -107,18 +134,24 @@ def _bootstrap_ratio_distribution(
         Array of valid bootstrap ratios.
     """
     n1, n2 = len(sample1), len(sample2)
-    bootstrap_ratios = []
+    vec_stat = _get_vectorized_stat(statistic)
 
+    if vec_stat is not None:
+        idx1 = rng.integers(0, n1, size=(n_bootstrap, n1))
+        idx2 = rng.integers(0, n2, size=(n_bootstrap, n2))
+        stats1 = vec_stat(sample1[idx1])
+        stats2 = vec_stat(sample2[idx2])
+        nonzero = stats2 != 0
+        return np.asarray(stats1[nonzero] / stats2[nonzero])
+
+    bootstrap_ratios = []
     for _i in range(n_bootstrap):
         idx1 = rng.choice(n1, size=n1, replace=True)
         idx2 = rng.choice(n2, size=n2, replace=True)
-
         boot_stat1 = statistic(sample1[idx1])
         boot_stat2 = statistic(sample2[idx2])
-
         if boot_stat2 != 0:
             bootstrap_ratios.append(boot_stat1 / boot_stat2)
-
     return np.array(bootstrap_ratios)
 
 
@@ -139,15 +172,12 @@ def _permutation_bootstrap(
     Returns:
         Bootstrap distribution array.
     """
-    bootstrap_diffs = np.zeros(n_bootstrap)
-
-    for i in range(n_bootstrap):
-        permuted = rng.permutation(combined)
-        perm_sample1 = permuted[:n1]
-        perm_sample2 = permuted[n1:]
-        bootstrap_diffs[i] = np.mean(perm_sample1) - np.mean(perm_sample2)
-
-    return bootstrap_diffs
+    n_total = len(combined)
+    matrix = np.broadcast_to(combined, (n_bootstrap, n_total)).copy()
+    rng.permuted(matrix, axis=1, out=matrix)
+    means1 = matrix[:, :n1].mean(axis=1)
+    means2 = matrix[:, n1:].mean(axis=1)
+    return np.asarray(means1 - means2)
 
 
 @dataclass
@@ -419,11 +449,8 @@ def paired_comparison_test(
 
     # Bootstrap distribution under null
     rng = np.random.default_rng(seed)
-    bootstrap_means = np.zeros(n_bootstrap)
-
-    for i in range(n_bootstrap):
-        indices = rng.choice(n, size=n, replace=True)
-        bootstrap_means[i] = np.mean(centered_diffs[indices])
+    idx = rng.integers(0, n, size=(n_bootstrap, n))
+    bootstrap_means = centered_diffs[idx].mean(axis=1)
 
     # Calculate p-value
     p_value = _calculate_p_value(bootstrap_means, observed_mean, alternative, null_value)
@@ -473,13 +500,16 @@ def _bootstrap_null_distribution(
         Bootstrap distribution array.
     """
     n = len(data)
-    bootstrap_stats = np.zeros(n_bootstrap)
+    vec_stat = _get_vectorized_stat(test_statistic)
 
+    if vec_stat is not None:
+        idx = rng.integers(0, n, size=(n_bootstrap, n))
+        return vec_stat(data[idx])
+
+    bootstrap_stats = np.zeros(n_bootstrap)
     for i in range(n_bootstrap):
         indices = rng.choice(n, size=n, replace=True)
-        bootstrap_sample = data[indices]
-        bootstrap_stats[i] = test_statistic(bootstrap_sample)
-
+        bootstrap_stats[i] = test_statistic(data[indices])
     return bootstrap_stats
 
 

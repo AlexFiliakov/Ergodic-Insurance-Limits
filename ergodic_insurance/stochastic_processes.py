@@ -183,12 +183,16 @@ class MeanRevertingProcess(StochasticProcess):
     def generate_shock(self, current_value: float) -> float:
         """Generate mean-reverting multiplicative shock via exponential OU.
 
-        Uses exponential Ornstein-Uhlenbeck formulation in log-space:
-            log_shock = θ*(log(μ) - log(x))*dt + σ*√dt*Z
-            shock = exp(log_shock)
+        Uses the exact discrete-time transition for the Ornstein-Uhlenbeck
+        process in log-space, which is unbiased for any time step dt:
 
-        This ensures shocks are always positive and multiplicative
-        volatility is independent of the current value.
+            log(X_{t+dt}) | log(X_t) ~ N(conditional_mean, conditional_var)
+
+        where:
+            conditional_mean = log(μ) + (log(X_t) - log(μ)) * exp(-θ*dt)
+            conditional_var  = σ² * (1 - exp(-2θ*dt)) / (2θ)
+
+        The multiplicative shock is X_{t+dt} / X_t.
 
         Args:
             current_value: Current value of the process (must be positive)
@@ -207,8 +211,23 @@ class MeanRevertingProcess(StochasticProcess):
         # Clamp current_value to a small positive floor for log safety
         safe_value = max(current_value, 1e-10)
 
-        # Exponential OU: operate in log-space for multiplicative dynamics
-        log_shock = theta * (np.log(mu) - np.log(safe_value)) * dt + sigma * np.sqrt(dt) * z
+        # Exact discrete-time solution for the OU process in log-space.
+        # Reference: Gillespie (1996), Glasserman (2003) §3.3.
+        log_current = np.log(safe_value)
+        log_mu = np.log(mu)
+
+        if theta * dt < 1e-8:
+            # For θ ≈ 0 the process reduces to pure lognormal noise (GBM-like).
+            # By L'Hôpital: (1 - exp(-2θdt)) / (2θ) → dt as θ → 0.
+            log_shock = sigma * np.sqrt(dt) * z
+        else:
+            exp_neg_theta_dt = np.exp(-theta * dt)
+            # Mean-reversion component of the log-shock
+            mean_reversion = (log_mu - log_current) * (1.0 - exp_neg_theta_dt)
+            # Conditional standard deviation from exact OU transition
+            conditional_std = sigma * np.sqrt((1.0 - np.exp(-2.0 * theta * dt)) / (2.0 * theta))
+            log_shock = mean_reversion + conditional_std * z
+
         shock = np.exp(log_shock)
 
         logger.debug(

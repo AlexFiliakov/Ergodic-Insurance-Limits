@@ -5,7 +5,53 @@ This package provides a comprehensive visualization toolkit with:
 - Executive-level and technical visualizations
 - Interactive dashboards
 - Export utilities for various formats
+
+Namespace submodules for organized access::
+
+    from ergodic_insurance.visualization import executive
+    from ergodic_insurance.visualization import technical
+    from ergodic_insurance.visualization import interactive
+    from ergodic_insurance.visualization import batch
+    from ergodic_insurance.visualization import annotations
+    from ergodic_insurance.visualization import export
+
+Or use FigureFactory as the primary entry point::
+
+    from ergodic_insurance.visualization import FigureFactory
+    factory = FigureFactory(theme="wsj")
+    fig = factory.loss_distribution(losses)
 """
+
+import sys
+
+from . import annotations
+from . import batch_plots as batch
+from . import core
+from . import executive_plots as executive
+from . import export
+from . import interactive_plots as interactive
+from . import technical_plots as technical
+
+# ---------------------------------------------------------------------------
+# Namespace submodule aliases
+# ---------------------------------------------------------------------------
+# These allow ``from ergodic_insurance.visualization import executive`` and
+# ``from ergodic_insurance.visualization.executive import plot_loss_distribution``
+# while keeping the original module names for backward compatibility.
+
+
+# Register clean namespace aliases so that
+# ``import ergodic_insurance.visualization.executive`` works via sys.modules.
+sys.modules[f"{__name__}.executive"] = executive
+sys.modules[f"{__name__}.technical"] = technical
+sys.modules[f"{__name__}.interactive"] = interactive
+sys.modules[f"{__name__}.batch"] = batch
+
+# ---------------------------------------------------------------------------
+# Backward-compatible flat imports
+# ---------------------------------------------------------------------------
+# All individual functions remain importable directly from the package:
+#   from ergodic_insurance.visualization import plot_loss_distribution
 
 # Annotation utilities
 from .annotations import (
@@ -84,21 +130,36 @@ from .technical_plots import (
     plot_trace_plots,
 )
 
+# ---------------------------------------------------------------------------
+# __all__ — organized by category with namespace modules first
+# ---------------------------------------------------------------------------
 __all__ = [
-    # Core
+    # --- Namespace submodules (use these for organized access) ---
+    "executive",
+    "technical",
+    "interactive",
+    "batch",
+    "annotations",
+    "export",
+    "core",
+    # --- Factory and style (recommended primary entry points) ---
+    "FigureFactory",
+    "StyleManager",
+    "Theme",
+    # --- Core utilities ---
     "WSJ_COLORS",
     "COLOR_SEQUENCE",
     "set_wsj_style",
     "format_currency",
     "format_percentage",
     "WSJFormatter",
-    # Executive plots
+    # --- Executive plots ---
     "plot_loss_distribution",
     "plot_return_period_curve",
     "plot_insurance_layers",
     "plot_roe_ruin_frontier",
     "plot_ruin_cliff",
-    # Technical plots
+    # --- Technical plots ---
     "plot_convergence_diagnostics",
     "plot_enhanced_convergence_diagnostics",
     "plot_ergodic_divergence",
@@ -112,18 +173,18 @@ __all__ = [
     "plot_correlation_structure",
     "plot_premium_decomposition",
     "plot_capital_efficiency_frontier_3d",
-    # Interactive plots
+    # --- Interactive plots ---
     "create_interactive_dashboard",
     "create_time_series_dashboard",
     "create_correlation_heatmap",
     "create_risk_dashboard",
-    # Batch plots
+    # --- Batch plots ---
     "plot_scenario_comparison",
     "plot_sensitivity_heatmap",
     "plot_parameter_sweep_3d",
     "plot_scenario_convergence",
     "plot_parallel_scenarios",
-    # Annotations
+    # --- Annotations ---
     "add_value_labels",
     "add_trend_annotation",
     "add_callout",
@@ -131,16 +192,12 @@ __all__ = [
     "add_shaded_region",
     "add_data_source",
     "add_footnote",
-    # Export
+    # --- Export ---
     "save_figure",
     "save_for_publication",
     "save_for_presentation",
     "save_for_web",
     "batch_export",
-    # Factory and style
-    "FigureFactory",
-    "StyleManager",
-    "Theme",
 ]
 
 # Package metadata

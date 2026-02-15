@@ -3,13 +3,11 @@
 Missing lines: 124, 126, 326, 404-428, 449, 453
 """
 
-import os
-import tempfile
-from unittest.mock import MagicMock, patch
+import logging
+from unittest.mock import patch
 import warnings
 
 import pytest
-import yaml
 
 from ergodic_insurance.insurance import InsuranceLayer, InsurancePolicy
 
@@ -94,7 +92,7 @@ class TestInsurancePolicyToEnhancedProgram:
             assert len(program.layers) == 2
             assert program.deductible == 1_000_000
 
-    def test_conversion_import_failure(self):
+    def test_conversion_import_failure(self, caplog):
         """Lines 422-428: ImportError returns None with warning."""
         with pytest.warns(DeprecationWarning, match="InsurancePolicy is deprecated"):
             policy = InsurancePolicy(
@@ -102,12 +100,11 @@ class TestInsurancePolicyToEnhancedProgram:
             )
         # Mock the import to fail — method should return None
         with patch.dict("sys.modules", {"ergodic_insurance.insurance_program": None}):
-            with warnings.catch_warnings(record=True) as w:
-                warnings.simplefilter("always")
-                result = policy.to_enhanced_program()
-                assert result is None
-                # Should have emitted a UserWarning about unavailable module
-                assert any("not available" in str(warning.message) for warning in w)
+            caplog.set_level(logging.WARNING, logger="ergodic_insurance.insurance")
+            result = policy.to_enhanced_program()
+            assert result is None
+            # Should have logged a warning about unavailable module
+            assert any("not available" in record.message for record in caplog.records)
 
 
 class TestInsurancePolicyApplyPricing:
@@ -154,36 +151,15 @@ class TestInsurancePolicyApplyPricing:
         assert policy.pricer is not None
 
 
-class TestInsurancePolicyFromYaml:
-    """Tests for from_yaml class method."""
+# TestInsurancePolicyFromYaml: REMOVED -- covered by test_insurance.py
+# TestInsurancePolicyYAML.test_load_from_yaml
 
-    def test_load_from_yaml(self, tmp_path):
-        """Load insurance policy from YAML config."""
-        config = {
-            "deductible": 500_000,
-            "layers": [
-                {"attachment_point": 500_000, "limit": 4_500_000, "rate": 0.03},
-                {"attachment_point": 5_000_000, "limit": 10_000_000, "rate": 0.02},
-            ],
-        }
-        yaml_path = tmp_path / "insurance.yaml"
-        with open(yaml_path, "w") as f:
-            yaml.dump(config, f)
-
-        with pytest.warns(DeprecationWarning, match="InsurancePolicy is deprecated"):
-            policy = InsurancePolicy.from_yaml(str(yaml_path))
-        assert len(policy.layers) == 2
-        assert policy.deductible == 500_000
+# TestInsurancePolicyGetTotalCoverage.test_empty_layers_returns_zero: REMOVED
+# -- covered by test_insurance.py TestInsurancePolicy.test_empty_policy
 
 
 class TestInsurancePolicyGetTotalCoverage:
     """Tests for get_total_coverage."""
-
-    def test_empty_layers_returns_zero(self):
-        """Empty layer list returns zero coverage."""
-        with pytest.warns(DeprecationWarning, match="InsurancePolicy is deprecated"):
-            policy = InsurancePolicy(layers=[], deductible=0)
-        assert policy.get_total_coverage() == 0.0
 
     def test_multi_layer_coverage(self):
         """Multi-layer total coverage calculation."""

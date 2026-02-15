@@ -846,3 +846,110 @@ class TestTrackingErrorRemoved:
         analyzer = ROEAnalyzer(roe)
         vol = analyzer.volatility_metrics()
         assert "tracking_error" not in vol
+
+
+# ---------------------------------------------------------------------------
+# Issue #1303: Sign convention parameter and validation
+# ---------------------------------------------------------------------------
+
+
+class TestSignConvention:
+    """Test the convention parameter and sign-convention heuristic."""
+
+    def test_default_convention_is_loss(self):
+        """Default convention is 'loss' and stored on instance."""
+        losses = np.array([100, 200, 300])
+        rm = RiskMetrics(losses)
+        assert rm.convention == "loss"
+
+    def test_return_convention_negates_internally(self):
+        """convention='return' negates data so VaR is computed on losses."""
+        returns = np.array([0.05, 0.08, -0.02, 0.10, 0.03])
+        rm = RiskMetrics(returns, convention="return")
+        assert rm.convention == "return"
+        # Internally stored losses should be the negation of the returns
+        np.testing.assert_array_almost_equal(rm.losses, -returns)
+
+    def test_invalid_convention_raises(self):
+        """Invalid convention value raises ValueError."""
+        with pytest.raises(ValueError, match="convention must be"):
+            RiskMetrics(np.array([1, 2, 3]), convention="invalid")  # type: ignore[arg-type]
+
+    def test_warning_when_mostly_negative_loss_convention(self):
+        """Warn when >80% of values are negative under loss convention."""
+        # 90% negative values with loss convention should warn
+        data = np.array([-1, -2, -3, -4, -5, -6, -7, -8, -9, 1.0])
+        with pytest.warns(UserWarning, match="negative.*RiskMetrics expects losses"):
+            RiskMetrics(data, convention="loss")
+
+    def test_no_warning_when_return_convention(self):
+        """No warning when convention='return' even if mostly negative."""
+        data = np.array([-1, -2, -3, -4, -5, -6, -7, -8, -9, 1.0])
+        # Should NOT warn when convention is explicitly 'return'
+        with warnings.catch_warnings():
+            warnings.simplefilter("error", UserWarning)
+            RiskMetrics(data, convention="return")
+
+    def test_no_warning_when_mostly_positive(self):
+        """No warning when most values are positive under loss convention."""
+        data = np.array([1, 2, 3, 4, 5, 6, 7, 8, 9, -1.0])
+        with warnings.catch_warnings():
+            warnings.simplefilter("error", UserWarning)
+            RiskMetrics(data, convention="loss")
+
+    def test_return_convention_var_matches_negated_loss(self):
+        """VaR with convention='return' equals VaR on negated data."""
+        returns = np.array([0.05, 0.08, -0.02, 0.10, 0.03, -0.01, 0.07, 0.04, 0.06, 0.09])
+        rm_return = RiskMetrics(returns, convention="return")
+        rm_loss = RiskMetrics(-returns, convention="loss")
+        assert rm_return.var(0.95) == pytest.approx(rm_loss.var(0.95))
+        assert rm_return.tvar(0.95) == pytest.approx(rm_loss.tvar(0.95))
+
+    def test_return_convention_risk_adjusted_metrics(self):
+        """risk_adjusted_metrics recovers original returns with convention='return'."""
+        returns = np.array([0.05, 0.08, -0.02, 0.10, 0.03])
+        rm = RiskMetrics(returns, convention="return")
+        metrics = rm.risk_adjusted_metrics(risk_free_rate=0.02)
+        # Mean return should match original returns, not losses
+        expected_mean = np.mean(returns)
+        assert metrics["mean_return"] == pytest.approx(expected_mean)
+
+    def test_return_convention_pml(self):
+        """PML with convention='return' matches negated loss convention."""
+        returns = np.random.default_rng(42).normal(0.05, 0.10, 1000)
+        rm_return = RiskMetrics(returns, convention="return")
+        rm_loss = RiskMetrics(-returns, convention="loss")
+        assert rm_return.pml(100) == pytest.approx(rm_loss.pml(100))
+
+    def test_return_convention_economic_capital(self):
+        """Economic capital consistent between conventions."""
+        returns = np.random.default_rng(42).normal(0.05, 0.10, 1000)
+        rm_return = RiskMetrics(returns, convention="return")
+        rm_loss = RiskMetrics(-returns, convention="loss")
+        assert rm_return.economic_capital(0.999) == pytest.approx(rm_loss.economic_capital(0.999))
+
+    def test_return_convention_with_weights(self):
+        """convention='return' works with importance weights."""
+        returns = np.array([0.05, 0.08, -0.02, 0.10, 0.03])
+        weights = np.array([0.2, 0.2, 0.2, 0.2, 0.2])
+        rm = RiskMetrics(returns, weights=weights, convention="return")
+        assert rm.convention == "return"
+        np.testing.assert_array_almost_equal(rm.losses, -returns)
+
+    def test_backward_compatibility_default(self):
+        """Existing code using default convention is unaffected."""
+        np.random.seed(42)
+        losses = np.random.lognormal(7, 1, 1000)
+        rm = RiskMetrics(losses)
+        # VaR, TVaR should be the same as before (loss convention)
+        assert rm.var(0.95) > 0
+        assert rm.tvar(0.95) >= rm.var(0.95)
+
+    def test_coherence_test_with_return_convention(self):
+        """coherence_test works with return convention."""
+        np.random.seed(42)
+        returns = np.random.normal(0.05, 0.10, 1000)
+        rm = RiskMetrics(returns, convention="return")
+        coherence = rm.coherence_test()
+        assert coherence["tvar_positive_homogeneity"]
+        assert coherence["tvar_translation_invariance"]

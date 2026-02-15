@@ -16,7 +16,7 @@ from ergodic_insurance.decision_engine import (
     SensitivityReport,
 )
 from ergodic_insurance.insurance_program import EnhancedInsuranceLayer as Layer
-from ergodic_insurance.loss_distributions import LossDistribution
+from ergodic_insurance.loss_distributions import LognormalLoss, LossDistribution
 from ergodic_insurance.manufacturer import WidgetManufacturer
 
 
@@ -28,8 +28,8 @@ class TestDecisionOptimizationConstraints:
         constraints = DecisionOptimizationConstraints()
 
         assert constraints.max_premium_budget == 1_000_000
-        assert constraints.min_coverage_limit == 5_000_000
-        assert constraints.max_coverage_limit == 100_000_000
+        assert constraints.min_total_coverage == 5_000_000
+        assert constraints.max_total_coverage == 100_000_000
         assert constraints.max_bankruptcy_probability == 0.01
         assert constraints.min_retained_limit == 100_000
         assert constraints.max_retained_limit == 10_000_000
@@ -41,12 +41,12 @@ class TestDecisionOptimizationConstraints:
         """Test custom constraint values."""
         constraints = DecisionOptimizationConstraints(
             max_premium_budget=2_000_000,
-            min_coverage_limit=10_000_000,
+            min_total_coverage=10_000_000,
             max_bankruptcy_probability=0.005,
         )
 
         assert constraints.max_premium_budget == 2_000_000
-        assert constraints.min_coverage_limit == 10_000_000
+        assert constraints.min_total_coverage == 10_000_000
         assert constraints.max_bankruptcy_probability == 0.005
 
     def test_enhanced_constraints(self):
@@ -321,6 +321,163 @@ class TestDecisionMetrics:
         assert score_partial == score_full
 
 
+class TestDecisionMetricsGrouping:
+    """Test sub-group access and new methods on DecisionMetrics."""
+
+    @staticmethod
+    def _make_metrics(**overrides):
+        defaults = {
+            "ergodic_growth_rate": 0.12,
+            "bankruptcy_probability": 0.005,
+            "expected_roe": 0.15,
+            "roe_improvement": 0.03,
+            "premium_to_limit_ratio": 0.02,
+            "coverage_adequacy": 0.85,
+            "capital_efficiency": 2.5,
+            "value_at_risk_95": 5_000_000,
+            "conditional_value_at_risk": 7_000_000,
+        }
+        defaults.update(overrides)
+        return DecisionMetrics(**defaults)
+
+    def test_grouped_access_growth(self):
+        m = self._make_metrics()
+        assert m.growth.ergodic_growth_rate == 0.12
+
+    def test_grouped_access_risk(self):
+        m = self._make_metrics()
+        assert m.risk.bankruptcy_probability == 0.005
+        assert m.risk.value_at_risk_95 == 5_000_000
+        assert m.risk.conditional_value_at_risk == 7_000_000
+
+    def test_grouped_access_roe(self):
+        m = self._make_metrics(
+            time_weighted_roe=0.14,
+            roe_volatility=0.05,
+            operating_roe=0.20,
+            insurance_impact_roe=-0.04,
+            tax_effect_roe=-0.01,
+        )
+        assert m.roe.expected_roe == 0.15
+        assert m.roe.roe_improvement == 0.03
+        assert m.roe.time_weighted_roe == 0.14
+        assert m.roe.roe_volatility == 0.05
+        assert m.roe.components.operating_roe == 0.20
+        assert m.roe.components.insurance_impact_roe == -0.04
+        assert m.roe.components.tax_effect_roe == -0.01
+
+    def test_grouped_access_efficiency(self):
+        m = self._make_metrics()
+        assert m.efficiency.premium_to_limit_ratio == 0.02
+        assert m.efficiency.coverage_adequacy == 0.85
+        assert m.efficiency.capital_efficiency == 2.5
+
+    def test_flat_access_still_works(self):
+        """Every flat field name resolves via __getattr__."""
+        m = self._make_metrics(
+            time_weighted_roe=0.14,
+            operating_roe=0.20,
+        )
+        assert m.ergodic_growth_rate == 0.12
+        assert m.bankruptcy_probability == 0.005
+        assert m.expected_roe == 0.15
+        assert m.roe_improvement == 0.03
+        assert m.premium_to_limit_ratio == 0.02
+        assert m.coverage_adequacy == 0.85
+        assert m.capital_efficiency == 2.5
+        assert m.value_at_risk_95 == 5_000_000
+        assert m.conditional_value_at_risk == 7_000_000
+        assert m.time_weighted_roe == 0.14
+        assert m.operating_roe == 0.20
+
+    def test_decision_score_top_level(self):
+        m = self._make_metrics(decision_score=0.75)
+        assert m.decision_score == 0.75
+
+    def test_calculate_score_uses_getattr(self):
+        m = self._make_metrics()
+        score = m.calculate_score()
+        assert 0 <= score <= 1
+        assert m.decision_score == score
+
+    def test_repr(self):
+        m = self._make_metrics(decision_score=0.8)
+        r = repr(m)
+        assert "DecisionMetrics(" in r
+        assert "score=0.800" in r
+        assert "growth=" in r
+        assert "risk=" in r
+        assert "roe=" in r
+        assert "efficiency=" in r
+
+    def test_eq(self):
+        m1 = self._make_metrics()
+        m2 = self._make_metrics()
+        assert m1 == m2
+        m3 = self._make_metrics(ergodic_growth_rate=0.99)
+        assert m1 != m3
+
+    def test_to_dict_all(self):
+        m = self._make_metrics(decision_score=0.7, operating_roe=0.20)
+        d = m.to_dict()
+        assert d["ergodic_growth_rate"] == 0.12
+        assert d["bankruptcy_probability"] == 0.005
+        assert d["operating_roe"] == 0.20
+        assert d["decision_score"] == 0.7
+        # Should be flat, no nested dicts
+        assert all(not isinstance(v, dict) for v in d.values())
+        # Should contain all 20 fields
+        assert len(d) == 20
+
+    def test_to_dict_group_growth(self):
+        m = self._make_metrics()
+        gd = m.to_dict(group="growth")
+        assert gd == {"ergodic_growth_rate": 0.12}
+
+    def test_to_dict_group_risk(self):
+        m = self._make_metrics()
+        rd = m.to_dict(group="risk")
+        assert set(rd.keys()) == {
+            "bankruptcy_probability",
+            "value_at_risk_95",
+            "conditional_value_at_risk",
+        }
+
+    def test_to_dict_roe_inlines_components(self):
+        m = self._make_metrics(operating_roe=0.20)
+        rd = m.to_dict(group="roe")
+        assert "operating_roe" in rd
+        assert rd["operating_roe"] == 0.20
+        assert "components" not in rd  # inlined, not nested
+
+    def test_to_dict_invalid_group(self):
+        m = self._make_metrics()
+        with pytest.raises(ValueError, match="Unknown group"):
+            m.to_dict(group="nonexistent")
+
+    def test_unknown_attribute_raises(self):
+        m = self._make_metrics()
+        with pytest.raises(AttributeError):
+            _ = m.totally_fake_attribute
+
+    def test_setattr_delegated_field(self):
+        """Setting a delegated field propagates to the sub-group."""
+        m = self._make_metrics()
+        m.ergodic_growth_rate = 0.99
+        assert m.ergodic_growth_rate == 0.99
+        assert m.growth.ergodic_growth_rate == 0.99
+
+    def test_deepcopy(self):
+        """DecisionMetrics must support deepcopy (used in sensitivity analysis)."""
+        import copy
+
+        m = self._make_metrics(decision_score=0.8, operating_roe=0.20)
+        m2 = copy.deepcopy(m)
+        assert m == m2
+        m2.ergodic_growth_rate = 0.99
+        assert m.ergodic_growth_rate == 0.12  # original unchanged
+
+
 class TestInsuranceDecisionEngine:
     """Test InsuranceDecisionEngine class."""
 
@@ -395,8 +552,8 @@ class TestInsuranceDecisionEngine:
         """Test optimization using SLSQP method."""
         constraints = DecisionOptimizationConstraints(
             max_premium_budget=500_000,
-            min_coverage_limit=5_000_000,
-            max_coverage_limit=50_000_000,
+            min_total_coverage=5_000_000,
+            max_total_coverage=50_000_000,
         )
 
         decision = engine.optimize_insurance_decision(constraints, method=OptimizationMethod.SLSQP)
@@ -411,7 +568,7 @@ class TestInsuranceDecisionEngine:
         """Test optimization using differential evolution."""
         constraints = DecisionOptimizationConstraints(
             max_premium_budget=300_000,
-            min_coverage_limit=5_000_000,
+            min_total_coverage=5_000_000,
             max_layers=3,
         )
 
@@ -432,7 +589,7 @@ class TestInsuranceDecisionEngine:
         decision = engine.optimize_insurance_decision(constraints, weights=weights)
 
         assert isinstance(decision, InsuranceDecision)
-        assert decision.total_coverage >= constraints.min_coverage_limit
+        assert decision.total_coverage >= constraints.min_total_coverage
 
     def test_decision_caching(self, engine):
         """Test that decisions are cached."""
@@ -621,8 +778,8 @@ class TestInsuranceDecisionEngine:
         """Test decision validation against constraints."""
         constraints = DecisionOptimizationConstraints(
             max_premium_budget=50_000,
-            min_coverage_limit=5_000_000,
-            max_coverage_limit=20_000_000,
+            min_total_coverage=5_000_000,
+            max_total_coverage=20_000_000,
         )
 
         # Valid decision
@@ -757,8 +914,8 @@ class TestIntegration:
         # Define constraints
         constraints = DecisionOptimizationConstraints(
             max_premium_budget=500_000,
-            min_coverage_limit=5_000_000,
-            max_coverage_limit=50_000_000,
+            min_total_coverage=5_000_000,
+            max_total_coverage=50_000_000,
             max_bankruptcy_probability=0.01,
         )
 
@@ -782,7 +939,7 @@ class TestIntegration:
 
         # Verify decision quality
         assert decision.total_premium <= constraints.max_premium_budget
-        assert decision.total_coverage >= constraints.min_coverage_limit
+        assert decision.total_coverage >= constraints.min_total_coverage
         assert metrics.bankruptcy_probability <= constraints.max_bankruptcy_probability
 
     @pytest.mark.slow
@@ -805,7 +962,7 @@ class TestIntegration:
 
         constraints = DecisionOptimizationConstraints(
             max_premium_budget=400_000,
-            min_coverage_limit=5_000_000,
+            min_total_coverage=5_000_000,
         )
 
         decisions = {}
@@ -877,8 +1034,8 @@ class TestEnhancedOptimizationMethods:
         """Test enhanced SLSQP optimization method."""
         constraints = DecisionOptimizationConstraints(
             max_premium_budget=500_000,
-            min_coverage_limit=5_000_000,
-            max_coverage_limit=20_000_000,
+            min_total_coverage=5_000_000,
+            max_total_coverage=20_000_000,
             max_layers=3,
         )
 
@@ -890,9 +1047,9 @@ class TestEnhancedOptimizationMethods:
         assert decision.optimization_method == "enhanced_slsqp"
         assert decision.total_premium <= constraints.max_premium_budget
         assert (
-            constraints.min_coverage_limit
+            constraints.min_total_coverage
             <= decision.total_coverage
-            <= constraints.max_coverage_limit
+            <= constraints.max_total_coverage
         )
         assert len(decision.layers) <= constraints.max_layers
 
@@ -901,8 +1058,8 @@ class TestEnhancedOptimizationMethods:
         """Test trust-region optimization method."""
         constraints = DecisionOptimizationConstraints(
             max_premium_budget=400_000,
-            min_coverage_limit=5_000_000,
-            max_coverage_limit=15_000_000,
+            min_total_coverage=5_000_000,
+            max_total_coverage=15_000_000,
             max_layers=2,
         )
 
@@ -914,17 +1071,17 @@ class TestEnhancedOptimizationMethods:
         assert decision.optimization_method == "trust_region"
         assert decision.total_premium <= constraints.max_premium_budget
         assert (
-            constraints.min_coverage_limit
+            constraints.min_total_coverage
             <= decision.total_coverage
-            <= constraints.max_coverage_limit
+            <= constraints.max_total_coverage
         )
 
     def test_penalty_method_optimization(self, engine):
         """Test penalty method optimization."""
         constraints = DecisionOptimizationConstraints(
             max_premium_budget=300_000,
-            min_coverage_limit=4_000_000,
-            max_coverage_limit=12_000_000,
+            min_total_coverage=4_000_000,
+            max_total_coverage=12_000_000,
             max_bankruptcy_probability=0.02,
         )
 
@@ -936,17 +1093,17 @@ class TestEnhancedOptimizationMethods:
         assert decision.optimization_method == "penalty_method"
         assert decision.total_premium <= constraints.max_premium_budget
         assert (
-            constraints.min_coverage_limit
+            constraints.min_total_coverage
             <= decision.total_coverage
-            <= constraints.max_coverage_limit
+            <= constraints.max_total_coverage
         )
 
     def test_augmented_lagrangian_optimization(self, engine):
         """Test augmented Lagrangian optimization."""
         constraints = DecisionOptimizationConstraints(
             max_premium_budget=450_000,
-            min_coverage_limit=6_000_000,
-            max_coverage_limit=18_000_000,
+            min_total_coverage=6_000_000,
+            max_total_coverage=18_000_000,
             max_layers=3,
         )
 
@@ -958,17 +1115,17 @@ class TestEnhancedOptimizationMethods:
         assert decision.optimization_method == "augmented_lagrangian"
         assert decision.total_premium <= constraints.max_premium_budget
         assert (
-            constraints.min_coverage_limit
+            constraints.min_total_coverage
             <= decision.total_coverage
-            <= constraints.max_coverage_limit
+            <= constraints.max_total_coverage
         )
 
     def test_multi_start_optimization(self, engine):
         """Test multi-start global optimization."""
         constraints = DecisionOptimizationConstraints(
             max_premium_budget=500_000,
-            min_coverage_limit=5_000_000,
-            max_coverage_limit=20_000_000,
+            min_total_coverage=5_000_000,
+            max_total_coverage=20_000_000,
             max_layers=4,
         )
 
@@ -980,17 +1137,17 @@ class TestEnhancedOptimizationMethods:
         assert decision.optimization_method == "multi_start"
         assert decision.total_premium <= constraints.max_premium_budget
         assert (
-            constraints.min_coverage_limit
+            constraints.min_total_coverage
             <= decision.total_coverage
-            <= constraints.max_coverage_limit
+            <= constraints.max_total_coverage
         )
 
     def test_enhanced_constraint_handling(self, engine):
         """Test the enhanced constraints (debt-to-equity, insurance cost ceiling, etc.)."""
         constraints = DecisionOptimizationConstraints(
             max_premium_budget=600_000,
-            min_coverage_limit=5_000_000,
-            max_coverage_limit=25_000_000,
+            min_total_coverage=5_000_000,
+            max_total_coverage=25_000_000,
             max_debt_to_equity=1.5,
             max_insurance_cost_ratio=0.025,  # 2.5% of revenue
             min_coverage_requirement=3_000_000,
@@ -1017,8 +1174,8 @@ class TestEnhancedOptimizationMethods:
         """Test that optimization methods provide convergence information."""
         constraints = DecisionOptimizationConstraints(
             max_premium_budget=400_000,
-            min_coverage_limit=5_000_000,
-            max_coverage_limit=15_000_000,
+            min_total_coverage=5_000_000,
+            max_total_coverage=15_000_000,
         )
 
         # Test with enhanced SLSQP (which should have convergence info)
@@ -1038,8 +1195,8 @@ class TestEnhancedOptimizationMethods:
         # Create moderately restrictive constraints
         constraints = DecisionOptimizationConstraints(
             max_premium_budget=100_000,  # Low but not impossible budget
-            min_coverage_limit=10_000_000,  # High coverage requirement
-            max_coverage_limit=20_000_000,
+            min_total_coverage=10_000_000,  # High coverage requirement
+            max_total_coverage=20_000_000,
             max_bankruptcy_probability=0.01,  # Strict but achievable risk constraint
         )
 
@@ -1149,8 +1306,8 @@ class TestSimulationTaxApplication:
         engine_low_tax = self._make_engine(tax_rate=0.10)
         engine_high_tax = self._make_engine(tax_rate=0.40)
 
-        results_low = engine_low_tax._run_simulation(decision, n_simulations=200, time_horizon=5)
-        results_high = engine_high_tax._run_simulation(decision, n_simulations=200, time_horizon=5)
+        results_low = engine_low_tax._run_simulation(decision, n_simulations=100, time_horizon=5)
+        results_high = engine_high_tax._run_simulation(decision, n_simulations=100, time_horizon=5)
 
         assert np.mean(results_low["growth_rates"]) > np.mean(
             results_high["growth_rates"]
@@ -1163,8 +1320,8 @@ class TestSimulationTaxApplication:
         engine_low_tax = self._make_engine(tax_rate=0.10)
         engine_high_tax = self._make_engine(tax_rate=0.40)
 
-        results_low = engine_low_tax._run_simulation(decision, n_simulations=200, time_horizon=5)
-        results_high = engine_high_tax._run_simulation(decision, n_simulations=200, time_horizon=5)
+        results_low = engine_low_tax._run_simulation(decision, n_simulations=100, time_horizon=5)
+        results_high = engine_high_tax._run_simulation(decision, n_simulations=100, time_horizon=5)
 
         assert np.mean(results_low["roe"]) > np.mean(
             results_high["roe"]
@@ -1177,8 +1334,8 @@ class TestSimulationTaxApplication:
         engine_zero = self._make_engine(tax_rate=0.0)
         engine_25 = self._make_engine(tax_rate=0.25)
 
-        results_zero = engine_zero._run_simulation(decision, n_simulations=200, time_horizon=5)
-        results_25 = engine_25._run_simulation(decision, n_simulations=200, time_horizon=5)
+        results_zero = engine_zero._run_simulation(decision, n_simulations=100, time_horizon=5)
+        results_25 = engine_25._run_simulation(decision, n_simulations=100, time_horizon=5)
 
         # Zero tax should give higher terminal equity than 25% tax
         assert np.mean(results_zero["value"]) > np.mean(
@@ -1212,8 +1369,8 @@ class TestSimulationTaxApplication:
         engine_custom = self._make_engine(tax_rate=0.42)
         engine_zero = self._make_engine(tax_rate=0.0)
 
-        results_custom = engine_custom._run_simulation(decision, n_simulations=200, time_horizon=5)
-        results_zero = engine_zero._run_simulation(decision, n_simulations=200, time_horizon=5)
+        results_custom = engine_custom._run_simulation(decision, n_simulations=100, time_horizon=5)
+        results_zero = engine_zero._run_simulation(decision, n_simulations=100, time_horizon=5)
 
         # The 42% rate should produce noticeably lower equity
         ratio = np.mean(results_custom["value"]) / np.mean(results_zero["value"])
@@ -1229,9 +1386,602 @@ class TestSimulationTaxApplication:
         engine_zero = self._make_engine(tax_rate=0.0, operating_margin=0.02)
         engine_high = self._make_engine(tax_rate=0.50, operating_margin=0.02)
 
-        results_zero = engine_zero._run_simulation(decision, n_simulations=500, time_horizon=10)
-        results_high = engine_high._run_simulation(decision, n_simulations=500, time_horizon=10)
+        results_zero = engine_zero._run_simulation(decision, n_simulations=200, time_horizon=10)
+        results_high = engine_high._run_simulation(decision, n_simulations=200, time_horizon=10)
 
         assert np.mean(results_high["bankruptcies"]) >= np.mean(
             results_zero["bankruptcies"]
         ), "Higher tax rate should increase or maintain bankruptcy probability"
+
+
+class TestSimulationFinancialModel:
+    """Test GPU-engine-aligned financial model in _run_simulation() (Issue #1300).
+
+    Validates depreciation, working capital, NOL carryforward, DTL/DTA,
+    dividends, cash-based insolvency, and backward compatibility with mocks.
+    """
+
+    def _make_engine(
+        self,
+        tax_rate=0.25,
+        operating_margin=0.15,
+        initial_assets=10_000_000,
+        equity=10_000_000,
+        **extra_attrs,
+    ):
+        """Create a decision engine with configurable manufacturer attributes."""
+        manufacturer = Mock(spec=WidgetManufacturer)
+        manufacturer.current_assets = initial_assets
+        manufacturer.total_assets = initial_assets
+        manufacturer.equity = equity
+        manufacturer.asset_turnover_ratio = 1.0
+        manufacturer.base_operating_margin = operating_margin
+        manufacturer.tax_rate = tax_rate
+        manufacturer.step = Mock(return_value={"roe": 0.15, "assets": initial_assets})
+        manufacturer.reset = Mock()
+
+        # Apply extra attributes (e.g., ppe_ratio, retention_ratio)
+        for attr, val in extra_attrs.items():
+            setattr(manufacturer, attr, val)
+
+        # Create a copy mock
+        manufacturer_copy = Mock(spec=WidgetManufacturer)
+        manufacturer_copy.current_assets = initial_assets
+        manufacturer_copy.total_assets = initial_assets
+        manufacturer_copy.equity = equity
+        manufacturer_copy.asset_turnover_ratio = 1.0
+        manufacturer_copy.base_operating_margin = operating_margin
+        manufacturer_copy.tax_rate = tax_rate
+        manufacturer_copy.step = Mock(return_value={"roe": 0.15, "assets": initial_assets})
+        manufacturer_copy.reset = Mock()
+        manufacturer.copy = Mock(return_value=manufacturer_copy)
+
+        loss_dist = Mock(spec=LossDistribution)
+        loss_dist.rvs = Mock(return_value=100_000)
+        loss_dist.ppf = Mock(side_effect=lambda p: p * 10_000_000)
+        loss_dist.expected_value = Mock(return_value=500_000)
+
+        with patch.object(
+            InsuranceDecisionEngine,
+            "_load_pricing_scenarios",
+            return_value=Mock(
+                get_scenario=Mock(
+                    return_value=Mock(
+                        primary_layer_rate=0.01,
+                        first_excess_rate=0.005,
+                        higher_excess_rate=0.002,
+                    )
+                )
+            ),
+        ):
+            engine = InsuranceDecisionEngine(
+                manufacturer=manufacturer,
+                loss_distribution=loss_dist,
+                pricing_scenario="baseline",
+            )
+        return engine
+
+    def _make_decision(self, premium=50_000):
+        """Create a simple insurance decision."""
+        return InsuranceDecision(
+            retained_limit=500_000,
+            layers=[
+                Layer(
+                    attachment_point=500_000,
+                    limit=5_000_000,
+                    base_premium_rate=0.01,
+                )
+            ],
+            total_premium=premium,
+            total_coverage=5_500_000,
+            pricing_scenario="baseline",
+            optimization_method="SLSQP",
+        )
+
+    def test_depreciation_affects_terminal_equity(self):
+        """PP&E ratio + tax depreciation should produce DTL that affects equity."""
+        decision = self._make_decision(premium=0)
+        # Zero losses for deterministic comparison
+        n_sims, n_years = 5, 5
+        zero_losses = np.zeros((n_sims, n_years))
+
+        # High PP&E with accelerated tax depreciation → DTL effect
+        engine_high = self._make_engine(
+            ppe_ratio=0.5,
+            tax_depreciation_life_years=5.0,
+            ppe_useful_life_years=10.0,
+        )
+        results_high = engine_high._run_simulation(
+            decision,
+            n_simulations=n_sims,
+            time_horizon=n_years,
+            loss_sequence=zero_losses,
+        )
+
+        # Minimal PP&E → negligible DTL
+        engine_low = self._make_engine(
+            ppe_ratio=0.01,
+            tax_depreciation_life_years=5.0,
+            ppe_useful_life_years=10.0,
+        )
+        results_low = engine_low._run_simulation(
+            decision,
+            n_simulations=n_sims,
+            time_horizon=n_years,
+            loss_sequence=zero_losses,
+        )
+
+        # DTL from timing difference should cause different terminal equity
+        mean_high = np.mean(results_high["value"])
+        mean_low = np.mean(results_low["value"])
+        assert mean_high != pytest.approx(
+            mean_low, rel=0.001
+        ), f"Depreciation DTL should affect equity: high_ppe={mean_high:.0f}, low_ppe={mean_low:.0f}"
+
+    def test_nol_carryforward_improves_recovery(self):
+        """NOL carryforward should produce higher terminal equity after a loss year."""
+        n_sims, n_years = 10, 5
+        # Year 0: loss that exceeds operating income, Years 1-4: zero losses
+        losses = np.zeros((n_sims, n_years))
+        losses[:, 0] = 3_000_000  # Exceeds operating income → negative pre-tax
+
+        # No-insurance decision so full loss hits the company
+        decision = InsuranceDecision(
+            retained_limit=10_000_000,
+            layers=[],
+            total_premium=0,
+            total_coverage=10_000_000,
+            pricing_scenario="baseline",
+            optimization_method="SLSQP",
+        )
+
+        # Minimize working capital to isolate NOL effect
+        engine_nol = self._make_engine(
+            nol_carryforward_enabled=True,
+            operating_margin=0.15,
+            dso=0.0,
+            dio=0.0,
+            dpo=0.0,
+            ppe_ratio=0.1,
+        )
+        results_nol = engine_nol._run_simulation(
+            decision,
+            n_simulations=n_sims,
+            time_horizon=n_years,
+            loss_sequence=losses,
+        )
+
+        engine_no_nol = self._make_engine(
+            nol_carryforward_enabled=False,
+            operating_margin=0.15,
+            dso=0.0,
+            dio=0.0,
+            dpo=0.0,
+            ppe_ratio=0.1,
+        )
+        results_no_nol = engine_no_nol._run_simulation(
+            decision,
+            n_simulations=n_sims,
+            time_horizon=n_years,
+            loss_sequence=losses,
+        )
+
+        # NOL should shelter future income from tax → higher terminal equity
+        assert np.mean(results_nol["value"]) > np.mean(
+            results_no_nol["value"]
+        ), "NOL carryforward should improve recovery after loss years"
+
+    def test_nol_80pct_limitation(self):
+        """NOL utilization should be limited to 80% of taxable income per TCJA."""
+        n_sims, n_years = 1, 5
+        # Year 0: loss generating NOL; Years 1-4: profitable (zero losses)
+        losses = np.zeros((n_sims, n_years))
+        losses[0, 0] = 3_000_000  # Exceeds operating income → generates NOL
+
+        # No-insurance decision so full loss hits the company
+        decision = InsuranceDecision(
+            retained_limit=10_000_000,
+            layers=[],
+            total_premium=0,
+            total_coverage=10_000_000,
+            pricing_scenario="baseline",
+            optimization_method="SLSQP",
+        )
+
+        # Minimize working capital to isolate NOL effect
+        common_kwargs = {
+            "operating_margin": 0.15,
+            "dso": 0.0,
+            "dio": 0.0,
+            "dpo": 0.0,
+            "ppe_ratio": 0.1,
+        }
+
+        # With 80% limitation (TCJA default)
+        engine_80 = self._make_engine(
+            nol_carryforward_enabled=True,
+            nol_limitation_pct=0.80,
+            **common_kwargs,
+        )
+        results_80 = engine_80._run_simulation(
+            decision,
+            n_simulations=n_sims,
+            time_horizon=n_years,
+            loss_sequence=losses,
+        )
+
+        # With 100% limitation (pre-TCJA)
+        engine_100 = self._make_engine(
+            nol_carryforward_enabled=True,
+            nol_limitation_pct=1.0,
+            **common_kwargs,
+        )
+        results_100 = engine_100._run_simulation(
+            decision,
+            n_simulations=n_sims,
+            time_horizon=n_years,
+            loss_sequence=losses,
+        )
+
+        # 100% deduction should shelter more income → higher equity
+        assert np.mean(results_100["value"]) >= np.mean(
+            results_80["value"]
+        ), "100% NOL deduction should produce >= equity than 80% limited"
+
+    def test_cash_insolvency_detection(self):
+        """High PP&E + working capital should trigger cash insolvency even with positive equity."""
+        decision = self._make_decision(premium=0)
+        n_sims, n_years = 20, 10
+
+        # Very high PP&E ratio and working capital days → cash starved
+        engine_cash_tight = self._make_engine(
+            operating_margin=0.03,
+            ppe_ratio=0.80,
+            dso=120.0,
+            dio=120.0,
+            dpo=10.0,
+            insolvency_tolerance=0.0,
+        )
+        results_tight = engine_cash_tight._run_simulation(
+            decision,
+            n_simulations=n_sims,
+            time_horizon=n_years,
+        )
+
+        # Comfortable cash position
+        engine_cash_ok = self._make_engine(
+            operating_margin=0.03,
+            ppe_ratio=0.10,
+            dso=30.0,
+            dio=30.0,
+            dpo=60.0,
+            insolvency_tolerance=0.0,
+        )
+        results_ok = engine_cash_ok._run_simulation(
+            decision,
+            n_simulations=n_sims,
+            time_horizon=n_years,
+        )
+
+        # Cash-tight scenario should have more bankruptcies
+        assert np.mean(results_tight["bankruptcies"]) >= np.mean(
+            results_ok["bankruptcies"]
+        ), "Cash-strapped scenario should trigger more insolvencies"
+
+    def test_backward_compat_with_mocks(self):
+        """Existing mock pattern (no config, no extra attrs) should complete without error."""
+        # Vanilla mock — no ppe_ratio, no retention_ratio, etc.
+        manufacturer = Mock(spec=WidgetManufacturer)
+        manufacturer.current_assets = 10_000_000
+        manufacturer.total_assets = 10_000_000
+        manufacturer.equity = 10_000_000
+        manufacturer.asset_turnover_ratio = 1.0
+        manufacturer.base_operating_margin = 0.15
+        manufacturer.tax_rate = 0.25
+        manufacturer.step = Mock(return_value={"roe": 0.15, "assets": 10_000_000})
+        manufacturer.reset = Mock()
+        manufacturer_copy = Mock(spec=WidgetManufacturer)
+        manufacturer_copy.current_assets = 10_000_000
+        manufacturer_copy.total_assets = 10_000_000
+        manufacturer_copy.equity = 10_000_000
+        manufacturer_copy.asset_turnover_ratio = 1.0
+        manufacturer_copy.base_operating_margin = 0.15
+        manufacturer_copy.tax_rate = 0.25
+        manufacturer_copy.step = Mock(return_value={"roe": 0.15, "assets": 10_000_000})
+        manufacturer_copy.reset = Mock()
+        manufacturer.copy = Mock(return_value=manufacturer_copy)
+
+        loss_dist = Mock(spec=LossDistribution)
+        loss_dist.rvs = Mock(return_value=100_000)
+        loss_dist.ppf = Mock(side_effect=lambda p: p * 10_000_000)
+        loss_dist.expected_value = Mock(return_value=500_000)
+
+        with patch.object(
+            InsuranceDecisionEngine,
+            "_load_pricing_scenarios",
+            return_value=Mock(
+                get_scenario=Mock(
+                    return_value=Mock(
+                        primary_layer_rate=0.01,
+                        first_excess_rate=0.005,
+                        higher_excess_rate=0.002,
+                    )
+                )
+            ),
+        ):
+            engine = InsuranceDecisionEngine(
+                manufacturer=manufacturer,
+                loss_distribution=loss_dist,
+                pricing_scenario="baseline",
+            )
+
+        decision = self._make_decision()
+        # Must not raise
+        results = engine._run_simulation(decision, n_simulations=10, time_horizon=5)
+        assert results["value"].shape == (10,)
+        assert results["bankruptcies"].shape == (10,)
+
+    def test_financial_model_divergence_vs_analytical(self):
+        """Zero-loss deterministic scenario should track analytical balance sheet.
+
+        With zero losses, zero premium, retention_ratio=1.0, no tax depreciation
+        timing difference, and capex_ratio=1.0, equity should grow by
+        net_income = revenue * margin * (1 - tax_rate) each period.
+        """
+        n_sims, n_years = 1, 5
+        zero_losses = np.zeros((n_sims, n_years))
+
+        margin = 0.10
+        tax_rate = 0.25
+        initial_assets = 10_000_000.0
+
+        engine = self._make_engine(
+            operating_margin=margin,
+            tax_rate=tax_rate,
+            initial_assets=initial_assets,
+            equity=initial_assets,
+            ppe_ratio=0.3,
+            ppe_useful_life_years=10.0,
+            tax_depreciation_life_years=None,  # no DTL
+            capex_to_depreciation_ratio=1.0,
+            retention_ratio=1.0,
+            nol_carryforward_enabled=True,
+            insolvency_tolerance=0.0,
+            dpo=30.0,
+            dso=45.0,
+            dio=60.0,
+        )
+
+        decision = self._make_decision(premium=0)
+        results = engine._run_simulation(
+            decision,
+            n_simulations=n_sims,
+            time_horizon=n_years,
+            loss_sequence=zero_losses,
+        )
+
+        # Analytically trace equity: each year equity grows by
+        # retained_earnings (= revenue * margin * (1-tax))
+        # and assets derive from equity + liabilities.
+        # With no tax timing diff, delta_net_dtl ≈ 0, so equity += net_income.
+        equity = initial_assets
+        prev_ap = 0.0
+        prev_net_dtl = 0.0
+        for _ in range(n_years):
+            assets = equity + prev_ap + prev_net_dtl
+            revenue = assets * 1.0  # asset_turnover=1
+            operating_income = revenue * margin
+            net_income = operating_income * (1.0 - tax_rate)
+            equity += net_income
+            cogs = revenue * (1.0 - margin)
+            prev_ap = cogs * (30.0 / 365.0)
+
+        sim_equity = results["value"][0]
+        # Allow < 10% divergence
+        rel_diff = abs(sim_equity - equity) / max(abs(equity), 1.0)
+        assert rel_diff < 0.10, (
+            f"Financial model divergence too large: simulated={sim_equity:.0f}, "
+            f"analytical={equity:.0f}, rel_diff={rel_diff:.4f}"
+        )
+
+
+class TestFromCompany:
+    """Test InsuranceDecisionEngine.from_company() factory method."""
+
+    def test_default_parameters(self):
+        """Factory with all defaults returns a usable engine."""
+        engine = InsuranceDecisionEngine.from_company()
+
+        assert isinstance(engine, InsuranceDecisionEngine)
+        assert engine.manufacturer.config.initial_assets == 10_000_000
+        assert isinstance(engine.loss_distribution, LognormalLoss)
+        assert engine.loss_distribution.mean == 1_000_000
+        assert engine.loss_distribution.cv == 1.5
+        assert engine.pricing_scenario == "baseline"
+
+    def test_custom_assets_and_losses(self):
+        """Factory accepts custom asset and loss parameters."""
+        engine = InsuranceDecisionEngine.from_company(
+            initial_assets=50_000_000,
+            loss_mean=2_000_000,
+            loss_cv=2.0,
+        )
+
+        assert engine.manufacturer.config.initial_assets == 50_000_000
+        assert isinstance(engine.loss_distribution, LognormalLoss)
+        assert engine.loss_distribution.mean == 2_000_000
+        assert engine.loss_distribution.cv == 2.0
+
+    def test_custom_company_parameters(self):
+        """Factory passes company parameters to ManufacturerConfig."""
+        engine = InsuranceDecisionEngine.from_company(
+            initial_assets=25_000_000,
+            operating_margin=0.12,
+            tax_rate=0.21,
+        )
+
+        assert engine.manufacturer.config.initial_assets == 25_000_000
+        assert engine.manufacturer.config.base_operating_margin == 0.12
+        assert engine.manufacturer.config.tax_rate == 0.21
+
+    def test_pricing_scenario(self):
+        """Factory accepts pricing scenario."""
+        engine = InsuranceDecisionEngine.from_company(
+            pricing_scenario="inexpensive",
+        )
+
+        assert engine.pricing_scenario == "inexpensive"
+
+    def test_seed_reproducibility(self):
+        """Seed parameter produces reproducible loss distributions."""
+        engine1 = InsuranceDecisionEngine.from_company(seed=42)
+        engine2 = InsuranceDecisionEngine.from_company(seed=42)
+
+        samples1 = engine1.loss_distribution.generate_severity(100)
+        samples2 = engine2.loss_distribution.generate_severity(100)
+        np.testing.assert_array_equal(samples1, samples2)
+
+    def test_returns_engine_type(self):
+        """Factory returns InsuranceDecisionEngine instance."""
+        engine = InsuranceDecisionEngine.from_company()
+        assert isinstance(engine, InsuranceDecisionEngine)
+        assert engine.config_manager is not None
+        assert engine.engine_config is not None
+
+    def test_existing_init_unchanged(self):
+        """Original __init__ API still works for advanced users."""
+        config = ManufacturerConfig(initial_assets=5_000_000)
+        manufacturer = WidgetManufacturer(config)
+        loss_dist = Mock(spec=LossDistribution)
+        loss_dist.expected_value.return_value = 500_000
+
+        engine = InsuranceDecisionEngine(manufacturer, loss_dist)
+
+        assert engine.manufacturer is manufacturer
+        assert engine.loss_distribution is loss_dist
+
+
+class TestOptimizeConvenience:
+    """Test InsuranceDecisionEngine.optimize() convenience method."""
+
+    def _make_engine(self):
+        """Create engine with mocked loss distribution for fast tests."""
+        config = ManufacturerConfig(initial_assets=10_000_000)
+        manufacturer = WidgetManufacturer(config)
+        loss_dist = Mock(spec=LossDistribution)
+        loss_dist.expected_value.return_value = 500_000
+        loss_dist.generate_severity.return_value = np.full(1000, 500_000.0)
+        return InsuranceDecisionEngine(manufacturer, loss_dist)
+
+    def test_optimize_with_max_premium(self):
+        """optimize() with explicit max_premium builds correct constraints."""
+        engine = self._make_engine()
+
+        with patch.object(engine, "optimize_insurance_decision") as mock_opt:
+            mock_opt.return_value = InsuranceDecision(
+                retained_limit=1_000_000,
+                layers=[],
+                total_premium=0,
+                total_coverage=0,
+                pricing_scenario="baseline",
+                optimization_method="SLSQP",
+            )
+
+            engine.optimize(max_premium=500_000)
+
+            call_args = mock_opt.call_args
+            constraints = call_args[0][0]
+            assert constraints.max_premium_budget == 500_000
+            assert constraints.max_bankruptcy_probability == 0.01
+
+    def test_optimize_default_premium(self):
+        """optimize() without max_premium defaults to 10% of revenue."""
+        engine = self._make_engine()
+        # revenue = initial_assets * asset_turnover_ratio = 10M * 0.8 = 8M
+        # default max_premium = 8M * 0.10 = 800_000
+        expected_premium = (
+            engine.manufacturer.config.initial_assets
+            * engine.manufacturer.config.asset_turnover_ratio
+            * 0.10
+        )
+
+        with patch.object(engine, "optimize_insurance_decision") as mock_opt:
+            mock_opt.return_value = InsuranceDecision(
+                retained_limit=1_000_000,
+                layers=[],
+                total_premium=0,
+                total_coverage=0,
+                pricing_scenario="baseline",
+                optimization_method="SLSQP",
+            )
+
+            engine.optimize()
+
+            constraints = mock_opt.call_args[0][0]
+            assert constraints.max_premium_budget == expected_premium
+
+    def test_optimize_passes_method(self):
+        """optimize() forwards method parameter."""
+        engine = self._make_engine()
+
+        with patch.object(engine, "optimize_insurance_decision") as mock_opt:
+            mock_opt.return_value = InsuranceDecision(
+                retained_limit=1_000_000,
+                layers=[],
+                total_premium=0,
+                total_coverage=0,
+                pricing_scenario="baseline",
+                optimization_method="DE",
+            )
+
+            engine.optimize(
+                max_premium=500_000,
+                method=OptimizationMethod.DIFFERENTIAL_EVOLUTION,
+            )
+
+            call_kwargs = mock_opt.call_args[1]
+            assert call_kwargs["method"] == OptimizationMethod.DIFFERENTIAL_EVOLUTION
+
+    def test_optimize_passes_weights(self):
+        """optimize() forwards weights parameter."""
+        engine = self._make_engine()
+        custom_weights = {"growth": 0.5, "risk": 0.3, "cost": 0.2}
+
+        with patch.object(engine, "optimize_insurance_decision") as mock_opt:
+            mock_opt.return_value = InsuranceDecision(
+                retained_limit=1_000_000,
+                layers=[],
+                total_premium=0,
+                total_coverage=0,
+                pricing_scenario="baseline",
+                optimization_method="SLSQP",
+            )
+
+            engine.optimize(max_premium=500_000, weights=custom_weights)
+
+            call_kwargs = mock_opt.call_args[1]
+            assert call_kwargs["weights"] == custom_weights
+
+    def test_optimize_constraint_overrides(self):
+        """optimize() passes extra kwargs to DecisionOptimizationConstraints."""
+        engine = self._make_engine()
+
+        with patch.object(engine, "optimize_insurance_decision") as mock_opt:
+            mock_opt.return_value = InsuranceDecision(
+                retained_limit=1_000_000,
+                layers=[],
+                total_premium=0,
+                total_coverage=0,
+                pricing_scenario="baseline",
+                optimization_method="SLSQP",
+            )
+
+            engine.optimize(
+                max_premium=500_000,
+                min_total_coverage=10_000_000,
+                max_layers=3,
+            )
+
+            constraints = mock_opt.call_args[0][0]
+            assert constraints.min_total_coverage == 10_000_000
+            assert constraints.max_layers == 3

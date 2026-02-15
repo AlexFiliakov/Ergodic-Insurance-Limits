@@ -106,8 +106,16 @@ class ClaimLiability:
 
     # Reserve re-estimation fields (Issue #470, ASC 944-40-25)
     true_ultimate: Optional[Decimal] = None
-    _total_paid: Decimal = field(default=ZERO, repr=False)
+    _total_paid: Decimal = field(default_factory=lambda: to_decimal(0), repr=False)
     _noise_std: float = field(default=0.0, repr=False)
+
+    def __post_init__(self) -> None:
+        """Convert amounts to mode-appropriate numeric type (Issue #1142)."""
+        # Ensure amounts are compatible with current float/Decimal mode
+        self.original_amount = to_decimal(self.original_amount)
+        self.remaining_amount = to_decimal(self.remaining_amount)
+        if self.true_ultimate is not None:
+            self.true_ultimate = to_decimal(self.true_ultimate)
 
     @property
     def payment_schedule(self) -> List[float]:
@@ -227,7 +235,7 @@ class ClaimLiability:
             Decimal: Change in remaining amount (positive=adverse, negative=favorable).
         """
         if self.true_ultimate is None or self.remaining_amount <= ZERO:
-            return ZERO
+            return to_decimal(0)
 
         # Calculate maturity as fraction of development pattern length
         years_elapsed = current_year - self.year_incurred
@@ -235,7 +243,7 @@ class ClaimLiability:
         maturity = min(max(years_elapsed / pattern_length, 0.0), 1.0)
 
         # True residual: what's actually left to pay
-        true_residual = max(self.true_ultimate - self._total_paid, ZERO)
+        true_residual = max(self.true_ultimate - self._total_paid, to_decimal(0))
 
         # Noise shrinks to zero at full maturity
         noise_std = (1.0 - maturity) * self._noise_std

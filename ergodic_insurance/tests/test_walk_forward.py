@@ -103,6 +103,7 @@ class TestValidationMetrics:
 
     def test_metric_calculator(self):
         """Test MetricCalculator functionality."""
+        np.random.seed(42)
         calculator = MetricCalculator(risk_free_rate=0.02)
 
         returns = np.random.normal(0.08, 0.02, 1000)
@@ -242,6 +243,7 @@ class TestStrategyBacktester:
     def test_strategy_backtester(self, mock_mc_engine):
         """Test StrategyBacktester."""
         # Mock Monte Carlo engine
+        np.random.seed(42)
         mock_results = MonteCarloResults(
             final_assets=np.random.lognormal(16, 1, 100),
             annual_losses=np.random.exponential(100000, (100, 5)),
@@ -278,6 +280,7 @@ class TestStrategyBacktester:
     def test_multiple_strategies_comparison(self, mock_mc_engine):
         """Test comparing multiple strategies."""
         # Mock results
+        np.random.seed(42)
         mock_results = MonteCarloResults(
             final_assets=np.random.lognormal(16, 1, 100),
             annual_losses=np.random.exponential(100000, (100, 5)),
@@ -1127,6 +1130,7 @@ class TestIntegration:
     def test_end_to_end_validation(self, mock_mc_engine):
         """Test complete validation workflow."""
         # Setup mock results
+        np.random.seed(42)
         mock_results = MonteCarloResults(
             final_assets=np.random.lognormal(16, 1, 100),
             annual_losses=np.random.exponential(100000, (100, 5)),

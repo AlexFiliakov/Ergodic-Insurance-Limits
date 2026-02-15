@@ -145,10 +145,10 @@ class TaxHandler:
 
     tax_rate: float
     accrual_manager: "AccrualManager"
-    nol_carryforward: Decimal = field(default_factory=lambda: Decimal("0"))
+    nol_carryforward: Decimal = field(default_factory=lambda: to_decimal(0))
     nol_limitation_pct: float = 0.80
     apply_tcja_limitation: bool = True
-    tax_accumulated_depreciation: Decimal = field(default_factory=lambda: Decimal("0"))
+    tax_accumulated_depreciation: Decimal = field(default_factory=lambda: to_decimal(0))
     consecutive_loss_years: int = 0
 
     # Valuation allowance thresholds per ASC 740-10-30-5 (Issue #464)
@@ -157,7 +157,7 @@ class TaxHandler:
 
     def __post_init__(self) -> None:
         """Initialize graduated valuation allowance rate schedule."""
-        self._VA_RATES = {3: Decimal("0.50"), 4: Decimal("0.75")}
+        self._VA_RATES = {3: to_decimal("0.50"), 4: to_decimal("0.75")}
         # 5+ years: 100% (handled by default in valuation_allowance_rate)
 
     @property
@@ -180,7 +180,7 @@ class TaxHandler:
         - 5+ years: 100% (full allowance, sustained losses)
         """
         if self.consecutive_loss_years < self._VA_THRESHOLD:
-            return ZERO
+            return to_decimal(0)
         rate: Decimal = self._VA_RATES.get(self.consecutive_loss_years, to_decimal("1.00"))
         return rate
 
@@ -201,14 +201,16 @@ class TaxHandler:
         """
         return self.deferred_tax_asset - self.valuation_allowance
 
-    def calculate_tax_liability(
+    def estimate_tax_liability(
         self, income_before_tax: Union[Decimal, float]
     ) -> tuple[Decimal, Decimal]:
-        """Calculate tax liability with NOL carryforward per IRC §172.
+        """Estimate tax liability without mutating NOL state (pure query).
 
-        For negative income: accumulates the loss into nol_carryforward (no tax due).
-        For positive income: applies available NOL carryforward subject to the
-        80% limitation per IRC §172(a)(2) before computing tax.
+        This is the read-only counterpart to :meth:`calculate_tax_liability`.
+        It computes the same tax liability and NOL utilization values but does
+        NOT modify ``nol_carryforward`` or ``consecutive_loss_years``, making
+        it safe to call from metrics, decision-engine estimation, or any other
+        context where tax state must not change (Issue #1331).
 
         Args:
             income_before_tax: Pre-tax income (may be negative).
@@ -221,22 +223,14 @@ class TaxHandler:
         income = to_decimal(income_before_tax)
 
         if income <= ZERO:
-            # Loss year: accumulate NOL per IRC §172(b)(1)(A)(ii)
-            self.nol_carryforward += abs(income)
-            # Track consecutive loss years for valuation allowance (Issue #464)
-            self.consecutive_loss_years += 1
-            return ZERO, ZERO
-
-        # Profit year: reset consecutive loss counter (Issue #464)
-        self.consecutive_loss_years = 0
+            # Loss year — no tax due, no NOL utilization
+            return to_decimal(0), to_decimal(0)
 
         if self.nol_carryforward <= ZERO:
             # No NOL available — standard tax
-            return max(ZERO, income * to_decimal(self.tax_rate)), ZERO
+            return max(to_decimal(0), income * to_decimal(self.tax_rate)), to_decimal(0)
 
-        # Apply NOL deduction limitation per IRC §172(a)(2):
-        # Post-TCJA (apply_tcja_limitation=True): limited to nol_limitation_pct (80%)
-        # Pre-TCJA (apply_tcja_limitation=False): 100% of taxable income (no limit)
+        # Apply NOL deduction limitation per IRC §172(a)(2)
         if self.apply_tcja_limitation:
             max_nol_deduction = income * to_decimal(self.nol_limitation_pct)
         else:
@@ -244,9 +238,48 @@ class TaxHandler:
         nol_utilized = min(self.nol_carryforward, max_nol_deduction)
 
         taxable_income = income - nol_utilized
-        self.nol_carryforward -= nol_utilized
+        tax = max(to_decimal(0), taxable_income * to_decimal(self.tax_rate))
+        return tax, nol_utilized
 
-        tax = max(ZERO, taxable_income * to_decimal(self.tax_rate))
+    def calculate_tax_liability(
+        self, income_before_tax: Union[Decimal, float]
+    ) -> tuple[Decimal, Decimal]:
+        """Calculate tax liability with NOL carryforward per IRC §172.
+
+        For negative income: accumulates the loss into nol_carryforward (no tax due).
+        For positive income: applies available NOL carryforward subject to the
+        80% limitation per IRC §172(a)(2) before computing tax.
+
+        Unlike :meth:`estimate_tax_liability`, this method **mutates** the
+        ``nol_carryforward`` and ``consecutive_loss_years`` state.  Use this
+        only in the authoritative tax-commit path (i.e., inside
+        :meth:`calculate_and_accrue_tax` during ``step()``).
+
+        Args:
+            income_before_tax: Pre-tax income (may be negative).
+
+        Returns:
+            Tuple of (tax_liability, nol_utilized):
+            - tax_liability: Tax due after NOL offset (>= 0).
+            - nol_utilized: Amount of NOL consumed this period.
+        """
+        income = to_decimal(income_before_tax)
+
+        # Compute pure result first
+        tax, nol_utilized = self.estimate_tax_liability(income_before_tax)
+
+        # Apply state mutations
+        if income <= ZERO:
+            # Loss year: accumulate NOL per IRC §172(b)(1)(A)(ii)
+            self.nol_carryforward += abs(income)
+            # Track consecutive loss years for valuation allowance (Issue #464)
+            self.consecutive_loss_years += 1
+        else:
+            # Profit year: reset consecutive loss counter (Issue #464)
+            self.consecutive_loss_years = 0
+            # Consume the NOL utilized
+            self.nol_carryforward -= nol_utilized
+
         return tax, nol_utilized
 
     def apply_limited_liability_cap(
@@ -269,7 +302,7 @@ class TaxHandler:
         tax = to_decimal(tax_amount)
         equity = to_decimal(current_equity)
         if equity <= ZERO:
-            return ZERO, tax > ZERO
+            return to_decimal(0), tax > ZERO
 
         capped_amount = min(tax, equity)
         was_capped = capped_amount < tax
@@ -376,7 +409,7 @@ class TaxHandler:
             )
 
         if theoretical_tax <= ZERO:
-            return ZERO, False, nol_utilized
+            return to_decimal(0), False, nol_utilized
 
         # Step 2: Determine if this period should accrue taxes
         should_accrue = False

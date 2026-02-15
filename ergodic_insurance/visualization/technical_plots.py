@@ -7,6 +7,22 @@ and Monte Carlo convergence analysis.
 
 # pylint: disable=too-many-lines
 
+__all__ = [
+    "plot_convergence_diagnostics",
+    "plot_enhanced_convergence_diagnostics",
+    "plot_ergodic_divergence",
+    "plot_trace_plots",
+    "plot_loss_distribution_validation",
+    "plot_monte_carlo_convergence",
+    "plot_pareto_frontier_2d",
+    "plot_pareto_frontier_3d",
+    "plot_path_dependent_wealth",
+    "create_interactive_pareto_frontier",
+    "plot_correlation_structure",
+    "plot_premium_decomposition",
+    "plot_capital_efficiency_frontier_3d",
+]
+
 from typing import Any, Dict, List, Optional, Tuple, Union
 import warnings
 

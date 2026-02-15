@@ -1,6 +1,7 @@
 """Tests for the run_analysis quick-start factory function."""
 
 import logging
+import warnings
 
 import numpy as np
 import pandas as pd
@@ -103,7 +104,7 @@ class TestRunAnalysis:
             loss_severity_mean=500_000,
             loss_severity_std=200_000,
             deductible=100_000,
-            coverage_limit=5_000_000,
+            limit=5_000_000,
             premium_rate=0.03,
             n_simulations=3,
             time_horizon=5,
@@ -166,7 +167,7 @@ class TestRunAnalysis:
     def test_insurance_policy_preserved(self):
         results = run_analysis(
             deductible=250_000,
-            coverage_limit=8_000_000,
+            limit=8_000_000,
             premium_rate=0.02,
             n_simulations=2,
             time_horizon=3,
@@ -212,6 +213,87 @@ class TestSummary:
         s1 = sample_results.summary()
         s2 = sample_results.summary()
         assert s1 is s2  # same object, not just equal
+
+    def test_summary_no_deprecation_warnings(self):
+        """summary() must not emit DeprecationWarnings from library code (#1305)."""
+        results = run_analysis(
+            n_simulations=5,
+            time_horizon=5,
+            seed=42,
+            compare_uninsured=True,
+        )
+        # Clear any cached summary so the code path actually runs
+        results._summary_cache = None
+        with warnings.catch_warnings(record=True) as caught:
+            warnings.simplefilter("always")
+            results.summary()
+        deprecations = [w for w in caught if issubclass(w.category, DeprecationWarning)]
+        assert (
+            deprecations == []
+        ), f"summary() emitted {len(deprecations)} DeprecationWarning(s): " + "; ".join(
+            str(w.message) for w in deprecations
+        )
+
+    def test_summary_without_comparison(self):
+        """summary() works when compare_uninsured=False (comparison is None)."""
+        results = run_analysis(
+            n_simulations=3,
+            time_horizon=3,
+            seed=0,
+            compare_uninsured=False,
+        )
+        s = results.summary()
+        assert isinstance(s, str)
+        assert "Insured Scenario" in s
+        assert "Ergodic Advantage" not in s
+
+
+class TestRepr:
+    """Tests for AnalysisResults __repr__, __str__, and convenience properties (#1307)."""
+
+    def test_repr_with_comparison(self, sample_results):
+        r = repr(sample_results)
+        assert "AnalysisResults(" in r
+        assert "n_simulations=10" in r
+        assert "survival_rate=" in r
+        assert "ergodic_advantage=" in r
+
+    def test_repr_without_comparison(self):
+        results = run_analysis(
+            n_simulations=3,
+            time_horizon=3,
+            seed=0,
+            compare_uninsured=False,
+        )
+        r = repr(results)
+        assert "AnalysisResults(" in r
+        assert "ergodic_advantage=" not in r
+
+    def test_str_delegates_to_summary(self, sample_results):
+        assert str(sample_results) == sample_results.summary()
+
+    def test_survival_rate_property(self, sample_results):
+        sr = sample_results.survival_rate
+        assert 0.0 <= sr <= 1.0
+
+    def test_ergodic_advantage_gain_property(self, sample_results):
+        gain = sample_results.ergodic_advantage_gain
+        assert isinstance(gain, float)
+
+    def test_ergodic_advantage_gain_none_without_comparison(self):
+        results = run_analysis(
+            n_simulations=3,
+            time_horizon=3,
+            seed=0,
+            compare_uninsured=False,
+        )
+        assert results.ergodic_advantage_gain is None
+
+    def test_repr_html(self, sample_results):
+        html = sample_results._repr_html_()
+        assert "<div" in html
+        assert "AnalysisResults" in html
+        assert "Survival Rate" in html
 
 
 class TestToDataFrame:
@@ -319,7 +401,7 @@ class TestEdgeCases:
     def test_zero_deductible(self):
         results = run_analysis(
             deductible=0,
-            coverage_limit=10_000_000,
+            limit=10_000_000,
             n_simulations=2,
             time_horizon=3,
             seed=0,
@@ -340,7 +422,7 @@ class TestEdgeCases:
             loss_frequency=2.5,
             loss_severity_mean=1_000_000,
             deductible=500_000,
-            coverage_limit=10_000_000,
+            limit=10_000_000,
             premium_rate=0.025,
             n_simulations=5,
             time_horizon=5,
@@ -497,7 +579,7 @@ class TestRunAnalysisWithInsuranceProgram:
         results = run_analysis(
             insurance_program=program,
             deductible=999,
-            coverage_limit=999,
+            limit=999,
             premium_rate=0.99,
             n_simulations=2,
             time_horizon=3,
@@ -536,7 +618,7 @@ class TestBackwardCompatibility:
             initial_assets=10_000_000,
             operating_margin=0.08,
             deductible=500_000,
-            coverage_limit=10_000_000,
+            limit=10_000_000,
             premium_rate=0.025,
             growth_rate=0.05,
             tax_rate=0.25,
@@ -547,3 +629,55 @@ class TestBackwardCompatibility:
         )
         for a, b in zip(r1.insured_results, r2.insured_results):
             np.testing.assert_array_equal(a.equity, b.equity)
+
+
+class TestDeprecatedCoverageLimit:
+    """Tests for the deprecated coverage_limit parameter (#1296)."""
+
+    def test_coverage_limit_emits_deprecation_warning(self):
+        """Using coverage_limit= should emit a DeprecationWarning."""
+        with warnings.catch_warnings(record=True) as caught:
+            warnings.simplefilter("always")
+            run_analysis(
+                coverage_limit=10_000_000,
+                n_simulations=2,
+                time_horizon=3,
+                seed=0,
+                compare_uninsured=False,
+            )
+        deprecations = [
+            w
+            for w in caught
+            if issubclass(w.category, DeprecationWarning)
+            and "coverage_limit" in str(w.message)
+            and "deprecated" in str(w.message).lower()
+        ]
+        assert len(deprecations) == 1, (
+            f"Expected exactly 1 DeprecationWarning mentioning 'coverage_limit', "
+            f"got {len(deprecations)}: {[str(w.message) for w in caught]}"
+        )
+
+    def test_coverage_limit_still_works(self):
+        """coverage_limit= is deprecated but still functional."""
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore", DeprecationWarning)
+            results = run_analysis(
+                coverage_limit=10_000_000,
+                n_simulations=2,
+                time_horizon=3,
+                seed=0,
+                compare_uninsured=False,
+            )
+        assert results.insurance_program.layers[0].limit == 10_000_000
+
+    def test_both_limit_and_coverage_limit_raises(self):
+        """Passing both limit= and coverage_limit= raises TypeError."""
+        with pytest.raises(TypeError, match="Cannot specify both"):
+            run_analysis(
+                limit=5_000_000,
+                coverage_limit=10_000_000,
+                n_simulations=2,
+                time_horizon=3,
+                seed=0,
+                compare_uninsured=False,
+            )

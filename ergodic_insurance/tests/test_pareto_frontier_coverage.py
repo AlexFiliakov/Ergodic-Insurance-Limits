@@ -288,16 +288,16 @@ class TestNdHypervolumeMonteCarlo:
 
 
 class TestGetKneePoints:
-    """Tests for get_knee_points (lines 620, 623, 635)."""
+    """Tests for get_knee_points knee-detection methods."""
 
     def test_empty_frontier_returns_empty(self, frontier):
-        """Line 620: Empty frontier returns empty list."""
+        """Empty frontier returns empty list."""
         frontier.frontier_points = []
         knees = frontier.get_knee_points()
         assert knees == []
 
     def test_fewer_points_than_knees(self, frontier):
-        """Line 623: Fewer points than requested knees returns all points."""
+        """Fewer points than requested knees returns all points."""
         frontier.frontier_points = [
             ParetoPoint(
                 objectives={"return": 5.0, "risk": 1.0},
@@ -308,7 +308,7 @@ class TestGetKneePoints:
         assert len(knees) == 1
 
     def test_knee_points_with_minimize_objective(self):
-        """Line 635: Knee calculation handles MINIMIZE objectives."""
+        """Knee calculation handles MINIMIZE objectives."""
         objs = [
             Objective(name="risk", type=ObjectiveType.MINIMIZE),
             Objective(name="cost", type=ObjectiveType.MINIMIZE),
@@ -325,6 +325,192 @@ class TestGetKneePoints:
             ParetoPoint(objectives={"risk": 8.0, "cost": 2.0}, decision_variables=np.array([8.0])),
         ]
         knees = frontier.get_knee_points(n_knees=1)
+        assert len(knees) == 1
+
+    def test_invalid_method_raises(self, frontier):
+        """Invalid method name raises ValueError."""
+        frontier.frontier_points = [
+            ParetoPoint(
+                objectives={"return": 1.0, "risk": 1.0}, decision_variables=np.array([1.0])
+            ),
+            ParetoPoint(
+                objectives={"return": 2.0, "risk": 2.0}, decision_variables=np.array([2.0])
+            ),
+            ParetoPoint(
+                objectives={"return": 3.0, "risk": 3.0}, decision_variables=np.array([3.0])
+            ),
+        ]
+        with pytest.raises(ValueError, match="method must be one of"):
+            frontier.get_knee_points(method="invalid")
+
+    def test_topsis_returns_closest_to_ideal(self):
+        """TOPSIS method returns the point closest to the ideal point."""
+        objs = [
+            Objective(name="f1", type=ObjectiveType.MAXIMIZE),
+            Objective(name="f2", type=ObjectiveType.MAXIMIZE),
+        ]
+        frontier = ParetoFrontier(
+            objectives=objs,
+            objective_function=lambda x: {"f1": x[0], "f2": 1 - x[0]},
+            bounds=[(0, 1)],
+            seed=42,
+        )
+        # Asymmetric frontier: first four points are collinear near
+        # the f1-axis, then a jump to f2-dominant territory.
+        frontier.frontier_points = [
+            ParetoPoint(objectives={"f1": 10.0, "f2": 1.0}, decision_variables=np.array([1.0])),
+            ParetoPoint(objectives={"f1": 9.0, "f2": 2.0}, decision_variables=np.array([2.0])),
+            ParetoPoint(objectives={"f1": 8.0, "f2": 3.0}, decision_variables=np.array([3.0])),
+            ParetoPoint(objectives={"f1": 7.0, "f2": 4.0}, decision_variables=np.array([4.0])),
+            ParetoPoint(objectives={"f1": 3.0, "f2": 9.0}, decision_variables=np.array([5.0])),
+            ParetoPoint(objectives={"f1": 1.0, "f2": 10.0}, decision_variables=np.array([6.0])),
+        ]
+        knees = frontier.get_knee_points(n_knees=1, method="topsis")
+        # (7,4) is closest to ideal in normalized space
+        assert knees[0].objectives["f1"] == 7.0
+        assert knees[0].objectives["f2"] == 4.0
+
+    def test_perpendicular_distance_known_knee(self):
+        """Perpendicular distance method finds the geometric knee.
+
+        On a convex quarter-circle frontier the midpoint at 45 degrees
+        has the maximum perpendicular distance from the line connecting
+        the two extreme points.
+        """
+        objs = [
+            Objective(name="f1", type=ObjectiveType.MAXIMIZE),
+            Objective(name="f2", type=ObjectiveType.MAXIMIZE),
+        ]
+        frontier = ParetoFrontier(
+            objectives=objs,
+            objective_function=lambda x: {"f1": x[0], "f2": 1 - x[0]},
+            bounds=[(0, 1)],
+            seed=42,
+        )
+        # Quarter-circle: x² + y² = 1
+        import math
+
+        frontier.frontier_points = [
+            ParetoPoint(
+                objectives={"f1": math.cos(a), "f2": math.sin(a)},
+                decision_variables=np.array([a]),
+            )
+            for a in [0, math.pi / 6, math.pi / 4, math.pi / 3, math.pi / 2]
+        ]
+        knees = frontier.get_knee_points(n_knees=1, method="perpendicular_distance")
+        # The 45-degree point (cos π/4, sin π/4) has the largest
+        # perpendicular distance from the line (1,0)–(0,1).
+        assert abs(knees[0].objectives["f1"] - math.cos(math.pi / 4)) < 1e-9
+        assert abs(knees[0].objectives["f2"] - math.sin(math.pi / 4)) < 1e-9
+
+    def test_perpendicular_distance_differs_from_topsis(self):
+        """Perpendicular distance and TOPSIS identify different knees
+        on an asymmetric frontier.
+        """
+        objs = [
+            Objective(name="f1", type=ObjectiveType.MAXIMIZE),
+            Objective(name="f2", type=ObjectiveType.MAXIMIZE),
+        ]
+        frontier = ParetoFrontier(
+            objectives=objs,
+            objective_function=lambda x: {"f1": x[0], "f2": 1 - x[0]},
+            bounds=[(0, 1)],
+            seed=42,
+        )
+        # Collinear segment near f1-axis, then a single outlier near f2.
+        frontier.frontier_points = [
+            ParetoPoint(objectives={"f1": 10.0, "f2": 1.0}, decision_variables=np.array([1.0])),
+            ParetoPoint(objectives={"f1": 9.0, "f2": 2.0}, decision_variables=np.array([2.0])),
+            ParetoPoint(objectives={"f1": 8.0, "f2": 3.0}, decision_variables=np.array([3.0])),
+            ParetoPoint(objectives={"f1": 7.0, "f2": 4.0}, decision_variables=np.array([4.0])),
+            ParetoPoint(objectives={"f1": 3.0, "f2": 9.0}, decision_variables=np.array([5.0])),
+            ParetoPoint(objectives={"f1": 1.0, "f2": 10.0}, decision_variables=np.array([6.0])),
+        ]
+
+        knee_pd = frontier.get_knee_points(n_knees=1, method="perpendicular_distance")
+        knee_tp = frontier.get_knee_points(n_knees=1, method="topsis")
+
+        # Perpendicular distance finds (3,9) — farthest from the
+        # extreme-to-extreme line.  TOPSIS finds (7,4) — closest to
+        # ideal.  They must differ.
+        assert knee_pd[0].objectives["f1"] == 3.0
+        assert knee_pd[0].objectives["f2"] == 9.0
+        assert knee_tp[0].objectives["f1"] == 7.0
+        assert knee_tp[0].objectives["f2"] == 4.0
+
+    def test_angle_method_known_knee(self):
+        """Angle method finds the sharpest bend on an L-shaped frontier."""
+        objs = [
+            Objective(name="f1", type=ObjectiveType.MAXIMIZE),
+            Objective(name="f2", type=ObjectiveType.MAXIMIZE),
+        ]
+        frontier = ParetoFrontier(
+            objectives=objs,
+            objective_function=lambda x: {"f1": x[0], "f2": 1 - x[0]},
+            bounds=[(0, 1)],
+            seed=42,
+        )
+        # L-shaped frontier: nearly flat along f1, sharp bend at (7,6),
+        # then nearly flat along f2.
+        frontier.frontier_points = [
+            ParetoPoint(objectives={"f1": 10.0, "f2": 1.0}, decision_variables=np.array([1.0])),
+            ParetoPoint(objectives={"f1": 9.0, "f2": 1.5}, decision_variables=np.array([2.0])),
+            ParetoPoint(objectives={"f1": 8.0, "f2": 2.0}, decision_variables=np.array([3.0])),
+            ParetoPoint(objectives={"f1": 7.0, "f2": 6.0}, decision_variables=np.array([4.0])),
+            ParetoPoint(objectives={"f1": 2.0, "f2": 8.0}, decision_variables=np.array([5.0])),
+            ParetoPoint(objectives={"f1": 1.5, "f2": 9.0}, decision_variables=np.array([6.0])),
+            ParetoPoint(objectives={"f1": 1.0, "f2": 10.0}, decision_variables=np.array([7.0])),
+        ]
+        knees = frontier.get_knee_points(n_knees=1, method="angle")
+        # The sharpest bend is at (7,6)
+        assert knees[0].objectives["f1"] == 7.0
+        assert knees[0].objectives["f2"] == 6.0
+
+    def test_multiple_knees(self):
+        """Requesting n_knees > 1 returns multiple distinct knee points."""
+        objs = [
+            Objective(name="f1", type=ObjectiveType.MAXIMIZE),
+            Objective(name="f2", type=ObjectiveType.MAXIMIZE),
+        ]
+        frontier = ParetoFrontier(
+            objectives=objs,
+            objective_function=lambda x: {"f1": x[0], "f2": 1 - x[0]},
+            bounds=[(0, 1)],
+            seed=42,
+        )
+        frontier.frontier_points = [
+            ParetoPoint(objectives={"f1": 10.0, "f2": 1.0}, decision_variables=np.array([1.0])),
+            ParetoPoint(objectives={"f1": 9.0, "f2": 1.5}, decision_variables=np.array([2.0])),
+            ParetoPoint(objectives={"f1": 8.0, "f2": 2.0}, decision_variables=np.array([3.0])),
+            ParetoPoint(objectives={"f1": 7.0, "f2": 6.0}, decision_variables=np.array([4.0])),
+            ParetoPoint(objectives={"f1": 2.0, "f2": 8.0}, decision_variables=np.array([5.0])),
+            ParetoPoint(objectives={"f1": 1.5, "f2": 9.0}, decision_variables=np.array([6.0])),
+            ParetoPoint(objectives={"f1": 1.0, "f2": 10.0}, decision_variables=np.array([7.0])),
+        ]
+        knees = frontier.get_knee_points(n_knees=3, method="perpendicular_distance")
+        assert len(knees) == 3
+        assert len(set(id(k) for k in knees)) == 3  # all distinct
+
+    def test_angle_method_two_points(self):
+        """Angle method with only 2 points (no interior) returns one point."""
+        objs = [
+            Objective(name="f1", type=ObjectiveType.MAXIMIZE),
+            Objective(name="f2", type=ObjectiveType.MAXIMIZE),
+        ]
+        frontier = ParetoFrontier(
+            objectives=objs,
+            objective_function=lambda x: {"f1": x[0], "f2": 1 - x[0]},
+            bounds=[(0, 1)],
+            seed=42,
+        )
+        frontier.frontier_points = [
+            ParetoPoint(objectives={"f1": 10.0, "f2": 1.0}, decision_variables=np.array([1.0])),
+            ParetoPoint(objectives={"f1": 1.0, "f2": 10.0}, decision_variables=np.array([2.0])),
+            ParetoPoint(objectives={"f1": 5.0, "f2": 5.0}, decision_variables=np.array([3.0])),
+        ]
+        # n_knees=1 but only 2 interior points after sorting; angle
+        # method should still return exactly 1 knee.
+        knees = frontier.get_knee_points(n_knees=1, method="angle")
         assert len(knees) == 1
 
 

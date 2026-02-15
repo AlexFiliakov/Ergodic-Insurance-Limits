@@ -548,7 +548,8 @@ class TestTableGenerator:
             "Series B": pd.Series([4.0, 5.0, 6.0], index=["x", "y", "z"]),
         }
         result = gen.generate_comparison_table(data)
-        assert "Series A" in result or "series" in result.lower() or isinstance(result, str)
+        assert isinstance(result, str)
+        assert "Series A" in result or "series" in result.lower()
 
     def test_to_dataframe_list(self):
         """Line 238: _to_dataframe with list input."""

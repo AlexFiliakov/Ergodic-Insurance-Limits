@@ -7,16 +7,22 @@ loss allocation for manufacturing risk transfer optimization.
 
 from __future__ import annotations
 
+from collections import deque
 from dataclasses import dataclass, field
 from enum import Enum
+import logging
 from typing import TYPE_CHECKING, Any, Dict, List, Optional, Tuple
 
 import numpy as np
 import yaml
 
+from ._warnings import ErgodicInsuranceDeprecationWarning
 from .ergodic_types import ClaimResult, LayerPayment
 
+logger = logging.getLogger(__name__)
+
 if TYPE_CHECKING:
+    from .config.insurance import InsuranceConfig
     from .exposure_base import ExposureBase
     from .insurance_pricing import InsurancePricer, MarketCycle
     from .loss_distributions import LossEvent, ManufacturingLossGenerator
@@ -113,11 +119,9 @@ class EnhancedInsuranceLayer:
             # For per-occurrence, the limit field is the per-occurrence limit
             # No aggregate limit should be set (will be ignored if set)
             if self.reinstatements > 0:
-                import warnings
-
-                warnings.warn(
-                    f"Reinstatements parameter ({self.reinstatements}) is not used for per-occurrence limits.",
-                    UserWarning,
+                logger.warning(
+                    "Reinstatements parameter (%s) is not used for per-occurrence limits.",
+                    self.reinstatements,
                 )
         elif self.limit_type == "aggregate":
             # For aggregate, the limit field is the aggregate limit
@@ -509,6 +513,7 @@ class InsuranceProgram:
         name: str = "Manufacturing Insurance Program",
         pricing_enabled: bool = False,
         pricer: Optional["InsurancePricer"] = None,
+        max_history_years: int = 50,
     ):
         """Initialize insurance program.
 
@@ -518,6 +523,9 @@ class InsuranceProgram:
             name: Program identifier.
             pricing_enabled: Whether to use dynamic pricing.
             pricer: Optional InsurancePricer for dynamic pricing.
+            max_history_years: Maximum years of detailed history to retain in
+                :class:`ProgramState` deques. Older entries are automatically
+                discarded. Passed through by :meth:`create_fresh`.
         """
         self.layers = sorted(layers, key=lambda x: x.attachment_point)
         self.deductible = deductible
@@ -528,6 +536,7 @@ class InsuranceProgram:
         self.pricing_enabled = pricing_enabled
         self.pricer = pricer
         self.pricing_results: List[Any] = []
+        self.max_history_years = max_history_years
 
     @classmethod
     def create_fresh(cls, source: "InsuranceProgram") -> "InsuranceProgram":
@@ -554,6 +563,82 @@ class InsuranceProgram:
             name=source.name,
             pricing_enabled=source.pricing_enabled,
             pricer=source.pricer,
+            max_history_years=source.max_history_years,
+        )
+
+    @classmethod
+    def from_config(
+        cls,
+        insurance_config: "InsuranceConfig",
+        name: str = "Insurance Program",
+        **kwargs,
+    ) -> "InsuranceProgram":
+        """Create an insurance program from an :class:`InsuranceConfig` object.
+
+        Bridges the config system (Pydantic models loaded from YAML/profiles)
+        to the runtime simulation by converting each
+        :class:`InsuranceLayerConfig` into an :class:`EnhancedInsuranceLayer`.
+
+        Args:
+            insurance_config: Validated insurance configuration, typically
+                obtained via ``Config.from_yaml(...).insurance``.
+            name: Program identifier.
+            **kwargs: Additional keyword arguments forwarded to the
+                ``InsuranceProgram`` constructor (e.g. ``pricing_enabled``).
+
+        Returns:
+            Configured InsuranceProgram ready for simulation.
+
+        Raises:
+            TypeError: If *insurance_config* is not an ``InsuranceConfig``.
+
+        Examples:
+            From a YAML file::
+
+                config = Config.from_yaml(Path("my_config.yaml"))
+                program = InsuranceProgram.from_config(config.insurance)
+
+            Inline config::
+
+                from ergodic_insurance.config.insurance import (
+                    InsuranceConfig, InsuranceLayerConfig,
+                )
+                ic = InsuranceConfig(
+                    deductible=500_000,
+                    layers=[
+                        InsuranceLayerConfig(
+                            name="Primary",
+                            attachment=500_000,
+                            limit=5_000_000,
+                            base_premium_rate=0.015,
+                        ),
+                    ],
+                )
+                program = InsuranceProgram.from_config(ic)
+        """
+        from .config.insurance import InsuranceConfig
+
+        if not isinstance(insurance_config, InsuranceConfig):
+            raise TypeError(f"Expected InsuranceConfig, got {type(insurance_config).__name__}")
+
+        layers: List[EnhancedInsuranceLayer] = []
+        for lc in insurance_config.layers:
+            layer = EnhancedInsuranceLayer(
+                attachment_point=lc.attachment,
+                limit=lc.limit,
+                base_premium_rate=lc.base_premium_rate,
+                reinstatements=lc.reinstatements,
+                aggregate_limit=lc.aggregate_limit,
+                limit_type=lc.limit_type,
+                per_occurrence_limit=lc.per_occurrence_limit,
+            )
+            layers.append(layer)
+
+        return cls(
+            layers=layers,
+            deductible=insurance_config.deductible,
+            name=name,
+            **kwargs,
         )
 
     @classmethod
@@ -597,17 +682,7 @@ class InsuranceProgram:
         )
         return cls(layers=[layer], deductible=deductible, name=name, **kwargs)
 
-    def calculate_premium(self) -> float:
-        """Calculate total annual premium across all layers.
-
-        Convenience alias for ``calculate_annual_premium(0.0)``.
-
-        Returns:
-            Total annual premium in dollars.
-        """
-        return self.calculate_annual_premium(0.0)
-
-    def calculate_annual_premium(self, time: float = 0.0) -> float:
+    def calculate_premium(self, time: float = 0.0) -> float:
         """Calculate total annual premium for the program.
 
         Args:
@@ -617,6 +692,28 @@ class InsuranceProgram:
             Total base premium across all layers.
         """
         return sum(layer.calculate_base_premium(time) for layer in self.layers)
+
+    def calculate_annual_premium(self, time: float = 0.0) -> float:
+        """Calculate total annual premium for the program.
+
+        .. deprecated::
+            Use :meth:`calculate_premium` instead. This method will be
+            removed in a future release.
+
+        Args:
+            time: Time in years for exposure calculation (default 0.0).
+
+        Returns:
+            Total base premium across all layers.
+        """
+        import warnings
+
+        warnings.warn(
+            "calculate_annual_premium() is deprecated, use calculate_premium() instead",
+            ErgodicInsuranceDeprecationWarning,
+            stacklevel=2,
+        )
+        return self.calculate_premium(time)
 
     def process_claim(self, claim_amount: float, timing_factor: float = 1.0) -> ClaimResult:
         """Process a single claim through the insurance structure.
@@ -717,7 +814,7 @@ class InsuranceProgram:
             "total_recovery": 0.0,
             "total_uncovered": 0.0,
             "total_reinstatement_premiums": 0.0,
-            "base_premium": self.calculate_annual_premium(0.0),
+            "base_premium": self.calculate_premium(0.0),
             "claim_details": [],
             "layer_summaries": [],
         }
@@ -772,7 +869,7 @@ class InsuranceProgram:
             "deductible": self.deductible,
             "num_layers": len(self.layers),
             "total_coverage": self.get_total_coverage(),
-            "annual_base_premium": self.calculate_annual_premium(0.0),
+            "annual_base_premium": self.calculate_premium(0.0),
             "total_claims_processed": self.total_claims,
             "total_premiums_paid": self.total_premiums_paid,
             "layers": [
@@ -1177,7 +1274,7 @@ class InsuranceProgram:
                 best_structure = OptimalStructure(
                     layers=layers,
                     deductible=deductible,
-                    total_premium=test_program.calculate_annual_premium(0.0),
+                    total_premium=test_program.calculate_premium(0.0),
                     total_coverage=test_program.get_total_coverage(),
                     ergodic_benefit=best_ergodic_benefit,
                     roe_improvement=roe_improvement,
@@ -1201,7 +1298,7 @@ class InsuranceProgram:
             best_structure = OptimalStructure(
                 layers=basic_layers,
                 deductible=250_000,
-                total_premium=basic_program.calculate_annual_premium(0.0),
+                total_premium=basic_program.calculate_premium(0.0),
                 total_coverage=5_000_000,
                 ergodic_benefit=0.0,
                 roe_improvement=0.0,
@@ -1353,7 +1450,7 @@ class InsuranceProgram:
         summary: Dict[str, Any] = {
             "program_name": self.name,
             "pricing_enabled": self.pricing_enabled,
-            "total_premium": self.calculate_annual_premium(0.0),
+            "total_premium": self.calculate_premium(0.0),
             "layers": [],
         }
 
@@ -1443,14 +1540,33 @@ class ProgramState:
 
     Maintains historical data and statistics across multiple
     policy periods for long-term analysis.
+
+    History lists use bounded :class:`collections.deque` instances to
+    prevent unbounded memory growth during long simulations.  Running
+    totals maintain accurate lifetime statistics regardless of the
+    history window size.
     """
 
     program: InsuranceProgram
+    max_history_years: Optional[int] = None
     years_simulated: int = 0
-    total_claims: List[float] = field(default_factory=list)
-    total_recoveries: List[float] = field(default_factory=list)
-    total_premiums: List[float] = field(default_factory=list)
-    annual_results: List[Dict] = field(default_factory=list)
+    total_claims: deque = field(default_factory=deque)
+    total_recoveries: deque = field(default_factory=deque)
+    total_premiums: deque = field(default_factory=deque)
+    annual_results: deque = field(default_factory=deque)
+    _cumulative_claims: float = field(default=0.0, init=False, repr=False)
+    _cumulative_recoveries: float = field(default=0.0, init=False, repr=False)
+    _cumulative_premiums: float = field(default=0.0, init=False, repr=False)
+
+    def __post_init__(self):
+        """Re-initialise history deques with the configured *maxlen*."""
+        maxlen = self.max_history_years
+        if maxlen is None:
+            maxlen = getattr(self.program, "max_history_years", 50)
+        self.total_claims = deque(self.total_claims, maxlen=maxlen)
+        self.total_recoveries = deque(self.total_recoveries, maxlen=maxlen)
+        self.total_premiums = deque(self.total_premiums, maxlen=maxlen)
+        self.annual_results = deque(self.annual_results, maxlen=maxlen)
 
     def simulate_year(
         self, annual_claims: List[float], claim_times: Optional[List[float]] = None
@@ -1472,15 +1588,27 @@ class ProgramState:
 
         # Track statistics
         self.years_simulated += 1
-        self.total_claims.append(sum(annual_claims))
-        self.total_recoveries.append(results["total_recovery"])
-        self.total_premiums.append(results["total_premium_paid"])
+        annual_claim_total = sum(annual_claims)
+        annual_recovery = results["total_recovery"]
+        annual_premium = results["total_premium_paid"]
+
+        self.total_claims.append(annual_claim_total)
+        self.total_recoveries.append(annual_recovery)
+        self.total_premiums.append(annual_premium)
         self.annual_results.append(results)
+
+        # Maintain running totals for accurate lifetime statistics
+        self._cumulative_claims += annual_claim_total
+        self._cumulative_recoveries += annual_recovery
+        self._cumulative_premiums += annual_premium
 
         return results
 
     def get_summary_statistics(self) -> Dict[str, Any]:
         """Calculate summary statistics across all simulated years.
+
+        Uses running totals so that results remain accurate even after
+        older entries have been evicted from the bounded history deques.
 
         Returns:
             Dictionary with multi-year statistics.
@@ -1490,21 +1618,21 @@ class ProgramState:
 
         return {
             "years_simulated": self.years_simulated,
-            "average_annual_claims": float(np.mean(self.total_claims)),
-            "average_annual_recovery": float(np.mean(self.total_recoveries)),
-            "average_annual_premium": float(np.mean(self.total_premiums)),
-            "total_claims": sum(self.total_claims),
-            "total_recoveries": sum(self.total_recoveries),
-            "total_premiums": sum(self.total_premiums),
-            "net_benefit": sum(self.total_recoveries) - sum(self.total_premiums),
+            "average_annual_claims": self._cumulative_claims / self.years_simulated,
+            "average_annual_recovery": self._cumulative_recoveries / self.years_simulated,
+            "average_annual_premium": self._cumulative_premiums / self.years_simulated,
+            "total_claims": self._cumulative_claims,
+            "total_recoveries": self._cumulative_recoveries,
+            "total_premiums": self._cumulative_premiums,
+            "net_benefit": self._cumulative_recoveries - self._cumulative_premiums,
             "recovery_ratio": (
-                sum(self.total_recoveries) / sum(self.total_claims)
-                if sum(self.total_claims) > 0
+                self._cumulative_recoveries / self._cumulative_claims
+                if self._cumulative_claims > 0
                 else 0
             ),
             "loss_ratio": (
-                sum(self.total_recoveries) / sum(self.total_premiums)
-                if sum(self.total_premiums) > 0
+                self._cumulative_recoveries / self._cumulative_premiums
+                if self._cumulative_premiums > 0
                 else 0
             ),
         }

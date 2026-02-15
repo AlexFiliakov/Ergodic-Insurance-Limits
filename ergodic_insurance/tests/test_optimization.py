@@ -1,5 +1,6 @@
 """Tests for advanced optimization algorithms."""
 
+import logging
 from typing import List
 
 import numpy as np
@@ -282,6 +283,67 @@ class TestPenaltyMethodOptimizer:
         )
 
 
+class TestExactPenalty:
+    """Test exact (L1) penalty vs quadratic (L2) penalty (#1318).
+
+    Uses the canonical problem: min x^2 s.t. x >= 1.
+    Optimal solution: x* = 1.0, f* = 1.0.
+    """
+
+    @staticmethod
+    def _make_problem():
+        """Return (objective, constraints, bounds) for min x^2 s.t. x >= 1."""
+
+        def objective(x):
+            return x[0] ** 2
+
+        constraints = [{"type": "ineq", "fun": lambda x: x[0] - 1.0}]  # x >= 1
+        bounds = Bounds([0.0], [10.0])
+        return objective, constraints, bounds
+
+    def test_quadratic_penalty_bias(self):
+        """Quadratic penalty systematically underestimates the constraint boundary."""
+        objective, constraints, bounds = self._make_problem()
+        optimizer = PenaltyMethodOptimizer(objective, constraints, bounds, exact_penalty=False)
+        result = optimizer.optimize(np.array([0.5]), max_outer_iter=100)
+
+        # Quadratic penalty: solution is interior — x < 1 (or barely at 1)
+        # The bias is O(1/penalty), so with finite penalty x should be < 1.
+        # We accept x <= 1.0 + small tolerance; the key property is it's
+        # systematically biased toward the infeasible side.
+        assert result.x[0] < 1.0 + 1e-3, f"Quadratic penalty should not overshoot: x={result.x[0]}"
+
+    def test_exact_penalty_feasibility(self):
+        """Exact (L1) penalty achieves feasibility for finite penalty."""
+        objective, constraints, bounds = self._make_problem()
+        optimizer = PenaltyMethodOptimizer(objective, constraints, bounds, exact_penalty=True)
+        result = optimizer.optimize(np.array([0.5]), max_outer_iter=100)
+
+        # Exact penalty: for sufficiently large penalty, x >= 1.0 exactly
+        assert result.x[0] >= 1.0 - 1e-6, f"Exact penalty should satisfy x >= 1: x={result.x[0]}"
+
+    def test_exact_penalty_matches_optimal_value(self):
+        """Exact penalty solution should be close to true optimum f* = 1.0."""
+        objective, constraints, bounds = self._make_problem()
+        optimizer = PenaltyMethodOptimizer(objective, constraints, bounds, exact_penalty=True)
+        result = optimizer.optimize(np.array([0.5]), max_outer_iter=100)
+
+        assert abs(result.fun - 1.0) < 1e-2, f"Exact penalty should find f* ≈ 1.0: f={result.fun}"
+
+    def test_constraint_violation_warning(self, caplog):
+        """Warning is emitted when converged solution has violation > 1e-8."""
+        objective, constraints, bounds = self._make_problem()
+        optimizer = PenaltyMethodOptimizer(objective, constraints, bounds, exact_penalty=False)
+        # Use few iterations so the solution is likely still infeasible
+        optimizer.penalty_params.constraint_tolerance = 1.0  # accept easily
+        with caplog.at_level(logging.WARNING, logger="ergodic_insurance.optimization"):
+            optimizer.optimize(np.array([0.5]), max_outer_iter=3)
+
+        assert any(
+            "constraint violation" in r.message.lower() for r in caplog.records
+        ), "Expected a warning about constraint violation"
+
+
 class TestAugmentedLagrangianOptimizer:
     """Test AugmentedLagrangianOptimizer class."""
 
@@ -472,14 +534,15 @@ class TestAugmentedLagrangianOptimizer:
         # Now: history has exactly 1 entry.  The fix should default to True.
         should_increase = True
         if len(optimizer.convergence_monitor.constraint_violation_history) > 1:
+            # Bertsekas & Tsitsiklis (1997, p. 319): factor 0.25
             should_increase = (
                 constraint_violation
-                > 0.5 * optimizer.convergence_monitor.constraint_violation_history[-2]
+                > 0.25 * optimizer.convergence_monitor.constraint_violation_history[-2]
             )
         assert should_increase, "Penalty should increase on first iteration"
 
     def test_penalty_update_precedence_subsequent_improving(self):
-        """Issue #385: On later iterations, penalty does NOT increase when violation improves by >50%."""
+        """Issue #385: On later iterations, penalty does NOT increase when violation improves by >75%."""
 
         def objective(x):
             return x[0] ** 2
@@ -489,21 +552,22 @@ class TestAugmentedLagrangianOptimizer:
 
         # Simulate two iterations with improving constraint violation
         optimizer.convergence_monitor.update(0.0, 10.0)  # first: violation = 10
-        optimizer.convergence_monitor.update(0.0, 3.0)  # second: violation = 3 (< 0.5 * 10)
+        optimizer.convergence_monitor.update(0.0, 2.0)  # second: violation = 2 (< 0.25 * 10)
 
-        constraint_violation = 3.0
+        constraint_violation = 2.0
         should_increase = True
         if len(optimizer.convergence_monitor.constraint_violation_history) > 1:
+            # Bertsekas & Tsitsiklis (1997, p. 319): factor 0.25
             should_increase = (
                 constraint_violation
-                > 0.5 * optimizer.convergence_monitor.constraint_violation_history[-2]
+                > 0.25 * optimizer.convergence_monitor.constraint_violation_history[-2]
             )
         assert (
             not should_increase
-        ), "Penalty should NOT increase when violation improved by more than 50%"
+        ), "Penalty should NOT increase when violation improved by more than 75%"
 
     def test_penalty_update_precedence_subsequent_not_improving(self):
-        """Issue #385: On later iterations, penalty increases when violation hasn't improved by 50%."""
+        """Issue #385: On later iterations, penalty increases when violation hasn't improved by 75%."""
 
         def objective(x):
             return x[0] ** 2
@@ -513,16 +577,17 @@ class TestAugmentedLagrangianOptimizer:
 
         # Simulate two iterations with insufficient improvement
         optimizer.convergence_monitor.update(0.0, 10.0)  # first: violation = 10
-        optimizer.convergence_monitor.update(0.0, 8.0)  # second: violation = 8 (> 0.5 * 10)
+        optimizer.convergence_monitor.update(0.0, 8.0)  # second: violation = 8 (> 0.25 * 10)
 
         constraint_violation = 8.0
         should_increase = True
         if len(optimizer.convergence_monitor.constraint_violation_history) > 1:
+            # Bertsekas & Tsitsiklis (1997, p. 319): factor 0.25
             should_increase = (
                 constraint_violation
-                > 0.5 * optimizer.convergence_monitor.constraint_violation_history[-2]
+                > 0.25 * optimizer.convergence_monitor.constraint_violation_history[-2]
             )
-        assert should_increase, "Penalty should increase when violation did not improve by 50%"
+        assert should_increase, "Penalty should increase when violation did not improve by 75%"
 
     def test_rho_stable_when_constraints_immediately_satisfied(self):
         """Issue #385 acceptance criterion 3: rho stays at rho_init when constraints are immediately satisfied."""
@@ -549,6 +614,83 @@ class TestAugmentedLagrangianOptimizer:
             f"Expected convergence in <= 3 iterations for trivially satisfied constraint, "
             f"got {result.nit}"
         )
+
+    def test_constrained_quadratic_multiplier_trajectory(self):
+        """Issue #1313: Verify multiplier trajectory on a 2D constrained quadratic.
+
+        Problem: minimize x1^2 + x2^2  subject to  x1 + x2 >= 1
+        KKT solution: x* = (0.5, 0.5), lambda* = 1.0, f* = 0.5
+
+        This test manually iterates the ALM loop to capture the full
+        multiplier trajectory and verify:
+          1. x converges to the constrained optimum
+          2. lambda converges to the correct KKT dual value
+          3. Multiplier trajectory is non-oscillatory (monotonically
+             approaches lambda* from below when starting at lambda=0)
+        """
+        from scipy.optimize import minimize
+
+        def objective(x):
+            return x[0] ** 2 + x[1] ** 2
+
+        constraints = [{"type": "ineq", "fun": lambda x: x[0] + x[1] - 1}]
+        bounds = Bounds([-5.0, -5.0], [5.0, 5.0])
+        optimizer = AugmentedLagrangianOptimizer(objective, constraints, bounds)
+
+        x_current = np.array([0.0, 0.0])
+        lambdas = np.zeros(1)
+        rho = 1.0
+        rho_max = 1e4
+        tol = 1e-6
+
+        lambda_history = [lambdas[0]]
+        x_history = [x_current.copy()]
+
+        for _ in range(50):
+            # Inner solve with current (lambda, rho)
+            def aug_lag_fn(x, _lambdas=lambdas.copy(), _rho=rho):
+                return optimizer._augmented_lagrangian(x, _lambdas, np.array([]), _rho)
+
+            result = minimize(
+                aug_lag_fn,
+                x_current,
+                method="L-BFGS-B",
+                bounds=bounds,
+            )
+            x_current = result.x
+
+            # Multiplier update with the SAME rho used in inner solve
+            g = x_current[0] + x_current[1] - 1
+            lambdas[0] = max(0, lambdas[0] - rho * g)
+
+            lambda_history.append(lambdas[0])
+            x_history.append(x_current.copy())
+
+            constraint_violation = max(0, -g)
+            if constraint_violation < tol:
+                break
+
+            # Penalty update AFTER multiplier update
+            # (Bertsekas & Tsitsiklis, 1997, p. 319)
+            rho = min(rho * 2, rho_max)
+
+        # 1. x converges to constrained optimum (0.5, 0.5)
+        assert np.allclose(
+            x_current, [0.5, 0.5], atol=1e-2
+        ), f"Expected x ~ (0.5, 0.5), got ({x_current[0]:.4f}, {x_current[1]:.4f})"
+
+        # 2. lambda converges to KKT dual value (1.0)
+        assert np.allclose(
+            lambdas[0], 1.0, atol=0.5
+        ), f"Expected lambda ~ 1.0, got {lambdas[0]:.4f}"
+
+        # 3. Multiplier trajectory is non-oscillatory: lambda should
+        #    increase monotonically from 0 toward lambda* (no sign reversals)
+        for i in range(1, len(lambda_history)):
+            assert lambda_history[i] >= lambda_history[i - 1] - 1e-10, (
+                f"Multiplier decreased at step {i}: "
+                f"{lambda_history[i-1]:.6f} -> {lambda_history[i]:.6f}"
+            )
 
 
 class TestMultiStartOptimizer:

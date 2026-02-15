@@ -5,12 +5,16 @@ and ruin probabilities in insurance scenarios.
 """
 
 from concurrent.futures import ProcessPoolExecutor, as_completed
+import copy as copy_module
 from dataclasses import dataclass, field
 import time
 from typing import Any, Dict, List, Optional, Tuple
 
 import numpy as np
 from tqdm import tqdm
+
+from .decimal_utils import disable_float_mode, enable_float_mode
+from .manufacturer import WidgetManufacturer
 
 
 @dataclass
@@ -459,11 +463,15 @@ class RuinProbabilityAnalyzer:
         revenue = manufacturer.calculate_revenue()
         events, _ = self.loss_generator.generate_losses(duration=1.0, revenue=revenue)
 
-        # Calculate and apply insurance
-        total_loss = sum(event.amount for event in events)
-        claim_result = self.insurance_program.process_claim(total_loss)
-        recovery = claim_result.insurance_recovery
-        retained = total_loss - recovery
+        # Process each loss event individually through the insurance program
+        # so that per-occurrence deductibles and layer attachments apply correctly
+        total_loss = 0.0
+        total_recovery = 0.0
+        for event in events:
+            total_loss += event.amount
+            claim_result = self.insurance_program.process_claim(event.amount)
+            total_recovery += claim_result.insurance_recovery
+        retained = total_loss - total_recovery
 
         # Apply retained loss using proper claim processing to enforce limited liability
         # This ensures cash never goes negative and equity is properly floored at $0
@@ -486,7 +494,29 @@ class RuinProbabilityAnalyzer:
         Tracks multiple bankruptcy conditions with early stopping.
         Also tracks mid-year ruin events (Issue #279).
         """
-        manufacturer = self.manufacturer.copy()
+        enable_float_mode()
+        try:
+            return self._run_single_ruin_simulation_impl(sim_id, max_horizon, config)
+        finally:
+            disable_float_mode()
+
+    def _run_single_ruin_simulation_impl(
+        self,
+        sim_id: int,
+        max_horizon: int,
+        config: RuinProbabilityConfig,
+    ) -> Dict[str, Any]:
+        """Inner implementation of _run_single_ruin_simulation (always runs in float mode)."""
+        manufacturer = WidgetManufacturer.create_fresh(
+            self.manufacturer.config,
+            stochastic_process=(
+                copy_module.deepcopy(self.manufacturer.stochastic_process)
+                if self.manufacturer.stochastic_process
+                else None
+            ),
+            use_float=True,
+            simulation_mode=True,
+        )
         causes = {
             "asset_threshold": np.zeros(max_horizon, dtype=bool),
             "equity_threshold": np.zeros(max_horizon, dtype=bool),

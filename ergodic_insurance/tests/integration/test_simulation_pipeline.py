@@ -718,27 +718,15 @@ class TestSimulationPipeline:
         - Invalid configurations are caught
         - Recovery from errors works
         """
-        # Test empty simulation
-        # Create config that disables advanced aggregation to avoid empty array issues
-        config = MonteCarloConfig(
-            n_simulations=0,
-            n_years=10,
-            seed=42,
-            enable_advanced_aggregation=False,
-            use_enhanced_parallel=False,  # Disable enhanced parallel for empty case
-        )
-        engine = MonteCarloEngine(
-            loss_generator=manufacturing_loss_generator,
-            insurance_program=enhanced_insurance_program,
-            manufacturer=base_manufacturer,
-            config=config,
-        )
-
-        # Should handle gracefully - expect empty results
-        results = engine.run()
-        assert results is not None
-        assert results.final_assets is not None
-        assert len(results.final_assets) == 0
+        # Test that zero simulations is rejected at config level
+        with pytest.raises(ValueError, match="n_simulations must be positive"):
+            MonteCarloConfig(
+                n_simulations=0,
+                n_years=10,
+                seed=42,
+                enable_advanced_aggregation=False,
+                use_enhanced_parallel=False,
+            )
 
         # Test single simulation
         engine = MonteCarloEngine(

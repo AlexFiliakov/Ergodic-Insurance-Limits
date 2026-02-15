@@ -5,6 +5,7 @@ from typing import Any, Dict, List, Optional, Tuple, Union
 
 import numpy as np
 
+from .decimal_utils import disable_float_mode, enable_float_mode
 from .insurance_program import InsuranceProgram
 from .loss_distributions import ManufacturingLossGenerator
 from .manufacturer import WidgetManufacturer
@@ -32,6 +33,24 @@ def run_chunk_standalone(
     Returns:
         Dictionary with simulation results for the chunk
     """
+    # Issue #1142: Use float arithmetic in MC hot path for ~10x speedup.
+    # Wrapped in try/finally to ensure cleanup — in production the subprocess
+    # exits anyway, but test runners reuse the thread.
+    enable_float_mode()
+    try:
+        return _run_chunk_impl(chunk, loss_generator, insurance_program, manufacturer, config_dict)
+    finally:
+        disable_float_mode()
+
+
+def _run_chunk_impl(
+    chunk: Tuple[int, int, Optional[int]],
+    loss_generator: ManufacturingLossGenerator,
+    insurance_program: InsuranceProgram,
+    manufacturer: WidgetManufacturer,
+    config_dict: Dict[str, Any],
+) -> Dict[str, Union[np.ndarray, List[Dict[int, bool]]]]:
+    """Inner implementation of run_chunk_standalone (always runs in float mode)."""
     start_idx, end_idx, seed = chunk
     n_sims = end_idx - start_idx
     n_years = config_dict["n_years"]
@@ -71,6 +90,8 @@ def run_chunk_standalone(
             stochastic_process=(
                 copy.deepcopy(manufacturer.stochastic_process) if _has_stochastic else None
             ),
+            use_float=True,
+            simulation_mode=True,
         )
 
         # Create a fresh insurance program from config instead of deep-copying
@@ -153,7 +174,7 @@ def run_chunk_standalone(
                 manufacturer.config.initial_assets * manufacturer.config.asset_turnover_ratio
             )
             revenue_multiplier = float(revenue) / base_revenue if base_revenue > 0 else 1.0
-            base_premium = sim_insurance_program.calculate_annual_premium()
+            base_premium = sim_insurance_program.calculate_premium()
             annual_premium = base_premium * revenue_multiplier
 
             # Record the insurance premium for accounting purposes

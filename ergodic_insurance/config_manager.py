@@ -283,21 +283,19 @@ class ConfigManager:
         # Apply includes (modules)
         if config.profile and config.profile.includes:
             for module_name in config.profile.includes:
-                self._apply_module(config, module_name)
+                config = self._apply_module(config, module_name)
 
         # Apply presets
         if config.profile and config.profile.presets:
             for preset_type, preset_name in config.profile.presets.items():
-                self._apply_preset(config, preset_type, preset_name)
+                config = self._apply_preset(config, preset_type, preset_name)
 
         # Apply runtime overrides
         if overrides:
             config = config.with_overrides(overrides)
 
-        # Validate completeness
-        issues = config.validate_completeness()
-        if issues:
-            warnings.warn(f"Configuration issues: {', '.join(issues)}")
+        # Validate configuration
+        config.validate_config()
 
         # Cache the result
         if use_cache:
@@ -357,58 +355,37 @@ class ConfigManager:
 
         return Config(**data)
 
-    def _apply_module(self, config: Config, module_name: str) -> None:
-        """Apply a configuration module to a config.
+    def _apply_module(self, config: Config, module_name: str) -> Config:
+        """Apply a configuration module, returning a new Config.
 
         Args:
-            config: Configuration to modify.
+            config: Base configuration (not mutated).
             module_name: Name of the module to apply.
+
+        Returns:
+            New Config with the module applied, or the original config
+            unchanged if the module file is not found.
         """
         self._validate_name(module_name)
         module_path = self.modules_dir / f"{module_name}.yaml"
         self._validate_path_containment(module_path, self.modules_dir)
         if not module_path.exists():
             warnings.warn(f"Module '{module_name}' not found")
-            return
+            return config
 
-        with open(module_path, "r") as f:
-            module_data = yaml.safe_load(f)
+        return config.with_module(module_path)
 
-        # Apply module data to config
-        for key, value in module_data.items():
-            if hasattr(config, key):
-                if isinstance(value, dict):
-                    current = getattr(config, key)
-                    if current is None:
-                        # Create new instance if field is None
-                        from ergodic_insurance.config import InsuranceConfig, LossDistributionConfig
-
-                        # Map key names to config classes
-                        field_mapping = {
-                            "insurance": InsuranceConfig,
-                            "losses": LossDistributionConfig,
-                        }
-
-                        if key in field_mapping:
-                            field_class = field_mapping[key]
-                            setattr(config, key, field_class(**value))
-                    elif hasattr(current, "model_dump"):
-                        # Update Pydantic model
-                        updated = current.model_dump()
-                        updated = self._deep_merge(updated, value)
-                        setattr(config, key, type(current)(**updated))
-                    else:
-                        setattr(config, key, value)
-                else:
-                    setattr(config, key, value)
-
-    def _apply_preset(self, config: Config, preset_type: str, preset_name: str) -> None:
-        """Apply a preset to a configuration.
+    def _apply_preset(self, config: Config, preset_type: str, preset_name: str) -> Config:
+        """Apply a preset, returning a new Config.
 
         Args:
-            config: Configuration to modify.
+            config: Base configuration (not mutated).
             preset_type: Type of preset (e.g., 'market', 'layers').
             preset_name: Name of the specific preset.
+
+        Returns:
+            New Config with the preset applied, or the original config
+            unchanged if the preset library/name is not found.
         """
         self._validate_name(preset_type)
 
@@ -424,7 +401,7 @@ class ConfigManager:
 
             if not preset_file.exists():
                 warnings.warn(f"Preset library '{preset_type}' not found")
-                return
+                return config
 
             with open(preset_file, "r") as f:
                 library_data = yaml.safe_load(f)
@@ -439,31 +416,25 @@ class ConfigManager:
                 f"Preset '{preset_name}' not found in {preset_type}. "
                 f"Available: {', '.join(available)}"
             )
-            return
+            return config
 
         preset_data = library_data[preset_name]
 
-        # Apply preset data
-        config.apply_preset(f"{preset_type}:{preset_name}", preset_data)
+        # Apply preset data — return new instance
+        return config.with_preset(f"{preset_type}:{preset_name}", preset_data)
 
     def with_preset(self, config: Config, preset_type: str, preset_name: str) -> Config:
         """Create a new configuration with a preset applied.
 
         Args:
-            config: Base configuration.
+            config: Base configuration (not mutated).
             preset_type: Type of preset.
             preset_name: Name of the preset.
 
         Returns:
             New Config instance with preset applied.
         """
-        # Create a copy
-        new_config = Config(**config.model_dump())
-
-        # Apply the preset
-        self._apply_preset(new_config, preset_type, preset_name)
-
-        return new_config
+        return self._apply_preset(config, preset_type, preset_name)
 
     def with_overrides(self, config: Config, overrides: Dict[str, Any]) -> Config:
         """Create a new configuration with runtime overrides.
@@ -481,26 +452,36 @@ class ConfigManager:
     def validate(self, config: Config) -> List[str]:
         """Validate a configuration for completeness and consistency.
 
+        Calls :meth:`Config.validate_config` for critical issues (which raises
+        :class:`~ergodic_insurance.config.exceptions.ConfigurationError`),
+        then returns a list of additional advisory warnings.
+
         Args:
             config: Configuration to validate.
 
         Returns:
-            List of validation issues, empty if valid.
-        """
-        issues: List[str] = config.validate_completeness()
+            List of advisory warnings (empty if none).
 
-        # Additional validation logic
+        Raises:
+            ConfigurationError: If critical configuration issues are found.
+        """
+        # Critical issues — let the exception propagate
+        config.validate_config()
+
+        # Advisory warnings (non-critical)
+        warnings_list: List[str] = []
+
         if config.simulation.time_horizon_years > 1000:
-            issues.append(
+            warnings_list.append(
                 f"Time horizon {config.simulation.time_horizon_years} years may be too long"
             )
 
         if config.manufacturer.base_operating_margin > 0.5:
-            issues.append(
+            warnings_list.append(
                 f"Base operating margin {config.manufacturer.base_operating_margin} seems unrealistic"
             )
 
-        return issues
+        return warnings_list
 
     def list_profiles(self) -> List[str]:
         """List all available configuration profiles.

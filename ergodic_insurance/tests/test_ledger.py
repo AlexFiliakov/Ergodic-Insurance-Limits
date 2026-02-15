@@ -10,7 +10,7 @@ Tests cover:
 """
 
 from decimal import Decimal
-import warnings
+import logging
 
 import pytest
 
@@ -1153,29 +1153,29 @@ class TestPrunedLedgerWarningsAndVerification:
         ledger.prune_entries(before_date=3)
         return ledger
 
-    def test_get_balance_warns_before_prune_cutoff(self, pruned_ledger):
+    def test_get_balance_warns_before_prune_cutoff(self, pruned_ledger, caplog):
         """get_balance warns when as_of_date < prune_cutoff."""
-        with warnings.catch_warnings(record=True) as w:
-            warnings.simplefilter("always")
-            pruned_ledger.get_balance("cash", as_of_date=1)
-            assert len(w) == 1
-            assert "prune cutoff" in str(w[0].message)
+        caplog.set_level(logging.WARNING, logger="ergodic_insurance.ledger")
+        pruned_ledger.get_balance("cash", as_of_date=1)
+        warning_records = [r for r in caplog.records if r.levelno == logging.WARNING]
+        assert len(warning_records) == 1
+        assert "prune cutoff" in warning_records[0].message
 
-    def test_get_balance_no_warning_at_cutoff(self, pruned_ledger):
+    def test_get_balance_no_warning_at_cutoff(self, pruned_ledger, caplog):
         """get_balance does not warn when as_of_date >= prune_cutoff."""
-        with warnings.catch_warnings(record=True) as w:
-            warnings.simplefilter("always")
-            pruned_ledger.get_balance("cash", as_of_date=3)
-            assert len(w) == 0
+        caplog.set_level(logging.WARNING, logger="ergodic_insurance.ledger")
+        pruned_ledger.get_balance("cash", as_of_date=3)
+        warning_records = [r for r in caplog.records if r.levelno == logging.WARNING]
+        assert len(warning_records) == 0
 
-    def test_get_balance_no_warning_after_cutoff(self, pruned_ledger):
+    def test_get_balance_no_warning_after_cutoff(self, pruned_ledger, caplog):
         """get_balance does not warn when as_of_date > prune_cutoff."""
-        with warnings.catch_warnings(record=True) as w:
-            warnings.simplefilter("always")
-            pruned_ledger.get_balance("cash", as_of_date=5)
-            assert len(w) == 0
+        caplog.set_level(logging.WARNING, logger="ergodic_insurance.ledger")
+        pruned_ledger.get_balance("cash", as_of_date=5)
+        warning_records = [r for r in caplog.records if r.levelno == logging.WARNING]
+        assert len(warning_records) == 0
 
-    def test_get_balance_no_warning_without_pruning(self):
+    def test_get_balance_no_warning_without_pruning(self, caplog):
         """get_balance never warns on an unpruned ledger."""
         ledger = Ledger()
         ledger.record_double_entry(
@@ -1185,25 +1185,25 @@ class TestPrunedLedgerWarningsAndVerification:
             amount=1000,
             transaction_type=TransactionType.REVENUE,
         )
-        with warnings.catch_warnings(record=True) as w:
-            warnings.simplefilter("always")
-            ledger.get_balance("cash", as_of_date=1)
-            assert len(w) == 0
+        caplog.set_level(logging.WARNING, logger="ergodic_insurance.ledger")
+        ledger.get_balance("cash", as_of_date=1)
+        warning_records = [r for r in caplog.records if r.levelno == logging.WARNING]
+        assert len(warning_records) == 0
 
-    def test_get_trial_balance_warns_before_prune_cutoff(self, pruned_ledger):
+    def test_get_trial_balance_warns_before_prune_cutoff(self, pruned_ledger, caplog):
         """get_trial_balance warns when as_of_date < prune_cutoff."""
-        with warnings.catch_warnings(record=True) as w:
-            warnings.simplefilter("always")
-            pruned_ledger.get_trial_balance(as_of_date=2)
-            assert len(w) == 1
-            assert "prune cutoff" in str(w[0].message)
+        caplog.set_level(logging.WARNING, logger="ergodic_insurance.ledger")
+        pruned_ledger.get_trial_balance(as_of_date=2)
+        warning_records = [r for r in caplog.records if r.levelno == logging.WARNING]
+        assert len(warning_records) == 1
+        assert "prune cutoff" in warning_records[0].message
 
-    def test_get_trial_balance_no_warning_at_cutoff(self, pruned_ledger):
+    def test_get_trial_balance_no_warning_at_cutoff(self, pruned_ledger, caplog):
         """get_trial_balance does not warn at prune_cutoff."""
-        with warnings.catch_warnings(record=True) as w:
-            warnings.simplefilter("always")
-            pruned_ledger.get_trial_balance(as_of_date=3)
-            assert len(w) == 0
+        caplog.set_level(logging.WARNING, logger="ergodic_insurance.ledger")
+        pruned_ledger.get_trial_balance(as_of_date=3)
+        warning_records = [r for r in caplog.records if r.levelno == logging.WARNING]
+        assert len(warning_records) == 0
 
     def test_verify_balance_correct_after_pruning(self, pruned_ledger):
         """verify_balance returns balanced after pruning."""

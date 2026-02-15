@@ -30,12 +30,15 @@ Attributes:
 
 from concurrent.futures import ProcessPoolExecutor
 from dataclasses import dataclass
+import logging
 from typing import Any, Callable, Dict, List, Optional, Tuple, Union
 import warnings
 
 import numpy as np
 from scipy import stats
 from tqdm import tqdm
+
+logger = logging.getLogger(__name__)
 
 
 def _bootstrap_worker(args: Tuple[np.ndarray, Any, int, int, Optional[int]]) -> List[float]:
@@ -233,8 +236,7 @@ class BootstrapAnalyzer:
                 bootstrap_dist = self._parallel_bootstrap(data, statistic)
             except (ValueError, RuntimeError, TypeError) as e:
                 # Fall back to sequential if parallel fails
-                if self.show_progress:
-                    print(f"Parallel bootstrap failed: {e}. Falling back to sequential.")
+                logger.warning("Parallel bootstrap failed: %s. Falling back to sequential.", e)
                 bootstrap_dist = self._sequential_bootstrap(data, statistic)
         else:
             bootstrap_dist = self._sequential_bootstrap(data, statistic)

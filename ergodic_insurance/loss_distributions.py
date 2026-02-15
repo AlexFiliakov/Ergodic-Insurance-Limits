@@ -511,8 +511,8 @@ class LossData:
             total_recoveries += recovery
 
         # Calculate total premiums
-        if hasattr(program, "calculate_annual_premium"):
-            total_premiums = program.calculate_annual_premium()
+        if hasattr(program, "calculate_premium"):
+            total_premiums = program.calculate_premium()
 
         # Update metadata
         recovery_metadata.update(

@@ -57,6 +57,27 @@ class SolvencyMixin:
     # Declare ruin_month type to match WidgetManufacturer.__init__ (Optional[int])
     ruin_month: Optional[int]
 
+    @property
+    def solvency_equity(self) -> Decimal:
+        """Operational equity used for all solvency and going-concern assessments.
+
+        Returns book equity with the DTA valuation allowance added back.
+        The valuation allowance (ASC 740-10-30-5) is a non-cash accounting
+        adjustment that reduces the deferred tax asset when realization is
+        uncertain. It does not impair the company's ability to continue
+        operations, so it is excluded from solvency determinations.
+
+        Per ASC 205-40-50-7, going concern assessment must use a single,
+        consistent equity definition throughout. This property is the single
+        source of truth for equity in check_solvency(), compute_z_prime_score(),
+        _assess_going_concern_indicators(), and calculate_metrics() (Issue #1311).
+
+        Returns:
+            Decimal: Operational equity (book equity + valuation allowance).
+        """
+        va = getattr(self, "dta_valuation_allowance", to_decimal(0))
+        return self.equity + va
+
     def handle_insolvency(self) -> None:
         """Handle insolvency by enforcing zero equity floor and freezing operations.
 
@@ -112,15 +133,19 @@ class SolvencyMixin:
         revenue = self.calculate_revenue()
 
         # 1. Current Ratio = Current Assets / Current Liabilities
-        reported_cash = max(self.cash, ZERO)
+        reported_cash = max(self.cash, to_decimal(0))
         current_assets = (
-            reported_cash + self.accounts_receivable + self.inventory + self.prepaid_insurance
+            reported_cash
+            + self.accounts_receivable
+            + self.inventory
+            + self.prepaid_insurance
+            + self.insurance_receivables  # Issue #1316: ASC 210-10-45
         )
         # Current liabilities = total_liabilities - long-term claims - DTL
         claim_total = sum(
-            (liability.remaining_amount for liability in self.claim_liabilities), ZERO
+            (liability.remaining_amount for liability in self.claim_liabilities), to_decimal(0)
         )
-        dtl = getattr(self, "deferred_tax_liability", ZERO)
+        dtl = getattr(self, "deferred_tax_liability", to_decimal(0))
         current_liabilities = self.total_liabilities - claim_total - dtl
         if current_liabilities > ZERO:
             current_ratio = current_assets / current_liabilities
@@ -145,7 +170,7 @@ class SolvencyMixin:
             )
 
         # 2. DSCR = Operating Income / Debt Service (current year claim payments)
-        current_year_payments: Decimal = ZERO
+        current_year_payments: Decimal = to_decimal(0)
         for claim_item in self.claim_liabilities:
             years_since = self.current_year - claim_item.year_incurred
             current_year_payments += claim_item.get_payment(years_since)
@@ -175,11 +200,9 @@ class SolvencyMixin:
                 }
             )
 
-        # 3. Equity Ratio = Operational Equity / Total Assets
-        va = getattr(self, "dta_valuation_allowance", ZERO)
-        operational_equity = self.equity + va
+        # 3. Equity Ratio = Solvency Equity / Total Assets (Issue #1311)
         if self.total_assets > ZERO:
-            equity_ratio = operational_equity / self.total_assets
+            equity_ratio = self.solvency_equity / self.total_assets
             threshold = to_decimal(self.config.going_concern_min_equity_ratio)
             indicators.append(
                 {
@@ -234,9 +257,9 @@ class SolvencyMixin:
 
         Where:
             X1 = Working Capital / Total Assets
-            X2 = Retained Earnings / Total Assets (equity used as proxy)
+            X2 = Solvency Equity / Total Assets (retained earnings proxy, Issue #1311)
             X3 = EBIT / Total Assets
-            X4 = Book Equity / Total Liabilities
+            X4 = Solvency Equity / Total Liabilities (Issue #1311)
             X5 = Sales / Total Assets
 
         Returns:
@@ -244,29 +267,35 @@ class SolvencyMixin:
         """
         total_assets = self.total_assets
         if total_assets <= ZERO:
-            return ZERO
+            return to_decimal(0)
 
         total_liabilities = self.total_liabilities
         revenue = self.calculate_revenue()
 
         # Current assets and current liabilities for working capital
-        reported_cash = max(self.cash, ZERO)
+        reported_cash = max(self.cash, to_decimal(0))
         current_assets = (
-            reported_cash + self.accounts_receivable + self.inventory + self.prepaid_insurance
+            reported_cash
+            + self.accounts_receivable
+            + self.inventory
+            + self.prepaid_insurance
+            + self.insurance_receivables  # Issue #1316: ASC 210-10-45
         )
         claim_total = sum(
-            (liability.remaining_amount for liability in self.claim_liabilities), ZERO
+            (liability.remaining_amount for liability in self.claim_liabilities), to_decimal(0)
         )
-        dtl = getattr(self, "deferred_tax_liability", ZERO)
+        dtl = getattr(self, "deferred_tax_liability", to_decimal(0))
         current_liabilities = total_liabilities - claim_total - dtl
 
         working_capital = current_assets - current_liabilities
         ebit = revenue * to_decimal(self.base_operating_margin)
 
         x1 = working_capital / total_assets
-        x2 = self.equity / total_assets  # Retained earnings proxy
+        x2 = self.solvency_equity / total_assets  # Retained earnings proxy (Issue #1311)
         x3 = ebit / total_assets
-        x4 = self.equity / total_liabilities if total_liabilities > ZERO else to_decimal(10)
+        x4 = (
+            self.solvency_equity / total_liabilities if total_liabilities > ZERO else to_decimal(10)
+        )  # Issue #1311
         x5 = revenue / total_assets
 
         z_prime = (
@@ -298,21 +327,42 @@ class SolvencyMixin:
         """
         # Per ASC 470-10 (Issue #496), negative cash represents a draw on the
         # working capital facility and is reclassified as short-term borrowings.
-        # It is NOT an insolvency signal — solvency is determined by equity below.
+        facility_limit = getattr(self.config, "working_capital_facility_limit", None)
         if self.cash < ZERO:
-            logger.info(
-                f"Working capital facility in use: cash balance ${self.cash:,.2f}. "
-                f"Reclassified as ${-self.cash:,.2f} short-term borrowings (ASC 470-10)."
-            )
+            if facility_limit is not None:
+                facility_limit_d = to_decimal(facility_limit)
+                logger.info(
+                    f"Working capital facility in use: cash ${self.cash:,.2f}, "
+                    f"facility limit ${facility_limit_d:,.2f}, "
+                    f"remaining capacity ${facility_limit_d + self.cash:,.2f} (ASC 470-10)."
+                )
+            else:
+                logger.info(
+                    f"Working capital facility in use: cash balance ${self.cash:,.2f}. "
+                    f"Reclassified as ${-self.cash:,.2f} short-term borrowings (ASC 470-10)."
+                )
 
         # --- Tier 1: Hard stops (non-configurable) ---
 
-        # Use operational equity for solvency — add back valuation allowance
-        # since it's a non-cash accounting adjustment that doesn't affect the
-        # company's ability to continue operations (Issue #464)
-        va = getattr(self, "dta_valuation_allowance", ZERO)
-        operational_equity = self.equity + va
-        if operational_equity <= ZERO:
+        # Tier 1a: Working capital facility breach (Issue #1337, ASC 205-40-50-12)
+        # When a facility limit is configured, cash below -(limit) means the
+        # company has exhausted its credit facility and cannot meet obligations.
+        if facility_limit is not None:
+            facility_limit_d = to_decimal(facility_limit)
+            if self.cash < -facility_limit_d:
+                logger.warning(
+                    f"LIQUIDITY INSOLVENCY: Cash ${self.cash:,.2f} breaches "
+                    f"working capital facility limit of ${facility_limit_d:,.2f} "
+                    f"(overdraft ${-self.cash:,.2f} > facility ${facility_limit_d:,.2f}). "
+                    f"Company cannot meet obligations (ASC 205-40-50-12, Issue #1337)."
+                )
+                self.handle_insolvency()
+                return False
+
+        # Tier 1b: Balance sheet insolvency — operational equity <= 0
+        # Use solvency_equity (operational equity) — see property docstring
+        # for GAAP justification (ASC 205-40-50-7, Issue #464, #1311)
+        if self.solvency_equity <= ZERO:
             self.handle_insolvency()
             return False
 
@@ -385,7 +435,7 @@ class SolvencyMixin:
         revenue_pattern = getattr(self.config, "revenue_pattern", "uniform")
 
         annual_revenue = self.calculate_revenue()
-        annual_premium = getattr(self, "period_insurance_premiums", ZERO)
+        annual_premium = getattr(self, "period_insurance_premiums", to_decimal(0))
 
         operating_margin = to_decimal(self.base_operating_margin)
         estimated_annual_income = annual_revenue * operating_margin
@@ -403,7 +453,7 @@ class SolvencyMixin:
             nol_deduction = min(tax_handler.nol_carryforward, max_nol_deduction)
             taxable_income = estimated_annual_income - nol_deduction
         else:
-            taxable_income = max(ZERO, estimated_annual_income)
+            taxable_income = max(to_decimal(0), estimated_annual_income)
 
         annual_tax = taxable_income * to_decimal(self.tax_rate)
         quarterly_tax = annual_tax / to_decimal(4)

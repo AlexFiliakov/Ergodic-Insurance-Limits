@@ -6,6 +6,14 @@ including loss distributions, return period curves, and insurance layer diagrams
 
 # pylint: disable=too-many-lines
 
+__all__ = [
+    "plot_loss_distribution",
+    "plot_return_period_curve",
+    "plot_insurance_layers",
+    "plot_roe_ruin_frontier",
+    "plot_ruin_cliff",
+]
+
 from typing import Any, Dict, List, Optional, Tuple, Union, cast
 
 from matplotlib.figure import Figure

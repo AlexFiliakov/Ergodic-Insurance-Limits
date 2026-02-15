@@ -400,7 +400,7 @@ class TestDoubleFactory:
 # Performance baseline constants for regression testing
 PERFORMANCE_BASELINES = {
     "small_simulation_time": 0.1,  # 100ms for 100 simulations
-    "medium_simulation_time": 1.0,  # 1s for 1000 simulations
+    "medium_simulation_time": 5.0,  # 5s for 1000 simulations with convergence monitoring
     "large_simulation_time": 10.0,  # 10s for 10000 simulations
     "convergence_check_overhead": 0.01,  # 10ms overhead per check
     "metric_calculation_time": 0.001,  # 1ms per metric

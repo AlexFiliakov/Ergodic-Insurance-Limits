@@ -383,3 +383,160 @@ class TestDTLMonthly:
 
         dtl = mfg.deferred_tax_liability
         assert dtl > ZERO, "DTL should be positive after 12 monthly steps"
+
+
+# ============================================================================
+# Issue #1321: Vintage cohort DTL fix
+# ============================================================================
+
+
+class TestDTLVintageCohorts:
+    """Test that DTL uses per-cohort tax depreciation (Issue #1321)."""
+
+    def test_dtl_stabilizes_with_ongoing_capex(self):
+        """DTL should NOT grow unboundedly when old cohorts are fully tax-depreciated.
+
+        With 5-year tax life and ongoing capex, after year 5 the initial cohort
+        is fully tax-depreciated and should contribute zero.  The DTL should
+        stabilize rather than continuing to grow.
+        """
+        config = ManufacturerConfig(
+            initial_assets=10_000_000,
+            tax_rate=0.25,
+            nol_carryforward_enabled=True,
+            capex_to_depreciation_ratio=1.0,
+            tax_depreciation_life_years=5.0,
+        )
+        mfg = WidgetManufacturer(config)
+
+        dtl_values = []
+        for _ in range(15):
+            mfg.step(growth_rate=0.0, time_resolution="annual")
+            dtl_values.append(float(mfg.deferred_tax_liability))
+
+        # After tax life (5 years), DTL should stop growing monotonically.
+        # The DTL at year 10+ should not exceed the DTL at year 5 by much
+        # (small increases from capex cohorts are acceptable, but unbounded
+        # growth from the pool bug is not).
+        dtl_at_year5 = dtl_values[4]
+        dtl_at_year10 = dtl_values[9]
+        dtl_at_year14 = dtl_values[14]
+        assert dtl_at_year5 > 0, "DTL should be positive by year 5"
+        # DTL should stabilize: year 14 should not be dramatically more than year 10
+        assert dtl_at_year14 < dtl_at_year10 * 1.5, (
+            f"DTL grew too much: year 10={dtl_at_year10:.0f}, " f"year 14={dtl_at_year14:.0f}"
+        )
+
+    def test_fully_depreciated_cohort_contributes_zero_tax_depr(self):
+        """A cohort that is fully tax-depreciated should not generate more depr."""
+        config = ManufacturerConfig(
+            initial_assets=10_000_000,
+            tax_rate=0.25,
+            capex_to_depreciation_ratio=0.0,  # No new capex
+            tax_depreciation_life_years=3.0,
+        )
+        mfg = WidgetManufacturer(config)
+
+        # Run enough years to fully tax-depreciate (3-year life)
+        for _ in range(4):
+            mfg.step(growth_rate=0.0, time_resolution="annual")
+
+        tax_accum_after_full = mfg.tax_handler.tax_accumulated_depreciation
+
+        # Run one more year — tax depreciation should not increase
+        mfg.step(growth_rate=0.0, time_resolution="annual")
+        tax_accum_after_extra = mfg.tax_handler.tax_accumulated_depreciation
+
+        assert tax_accum_after_extra == tax_accum_after_full, (
+            "Tax accumulated depreciation should not increase after cohort "
+            f"is fully depreciated: {tax_accum_after_full} -> {tax_accum_after_extra}"
+        )
+
+    def test_cohort_tax_accum_capped_at_cost(self):
+        """Each cohort's tax accumulated depreciation should never exceed its cost."""
+        config = ManufacturerConfig(
+            initial_assets=10_000_000,
+            tax_rate=0.25,
+            capex_to_depreciation_ratio=1.0,
+            tax_depreciation_life_years=5.0,
+        )
+        mfg = WidgetManufacturer(config)
+
+        for _ in range(12):
+            mfg.step(growth_rate=0.0, time_resolution="annual")
+
+        for i, cohort in enumerate(mfg._ppe_cohorts):
+            assert cohort.tax_accumulated_depreciation <= cohort.amount, (
+                f"Cohort {i}: tax_accum={cohort.tax_accumulated_depreciation} "
+                f"> cost={cohort.amount}"
+            )
+
+    def test_tax_handler_stays_in_sync_with_cohorts(self):
+        """tax_handler.tax_accumulated_depreciation == sum of cohort values."""
+        config = ManufacturerConfig(
+            initial_assets=10_000_000,
+            tax_rate=0.25,
+            capex_to_depreciation_ratio=1.0,
+            tax_depreciation_life_years=5.0,
+        )
+        mfg = WidgetManufacturer(config)
+
+        for _ in range(8):
+            mfg.step(growth_rate=0.0, time_resolution="annual")
+
+        cohort_total = sum(c.tax_accumulated_depreciation for c in mfg._ppe_cohorts)
+        assert mfg.tax_handler.tax_accumulated_depreciation == cohort_total
+
+    def test_capex_creates_new_cohort(self):
+        """Each capex event should create a new PPE cohort."""
+        config = ManufacturerConfig(
+            initial_assets=10_000_000,
+            tax_rate=0.25,
+            capex_to_depreciation_ratio=1.0,
+            tax_depreciation_life_years=5.0,
+        )
+        mfg = WidgetManufacturer(config)
+
+        initial_cohorts = len(mfg._ppe_cohorts)
+        assert initial_cohorts == 1, "Should start with 1 cohort (initial PPE)"
+
+        mfg.step(growth_rate=0.0, time_resolution="annual")
+        assert len(mfg._ppe_cohorts) > initial_cohorts, "Capex should create new cohort"
+
+    def test_book_life_parameterized(self):
+        """Book useful life should come from config, not hardcoded 10."""
+        config = ManufacturerConfig(
+            initial_assets=10_000_000,
+            ppe_useful_life_years=20,
+            tax_depreciation_life_years=5.0,
+            tax_rate=0.25,
+            capex_to_depreciation_ratio=0.0,
+        )
+        mfg = WidgetManufacturer(config)
+        mfg.step(growth_rate=0.0, time_resolution="annual")
+
+        # With 20-year book life and 5-year tax life, DTL should exist
+        dtl = mfg.deferred_tax_liability
+        assert dtl > ZERO
+
+        # Book depreciation should be half what it would be with 10-year life
+        gross_ppe = float(mfg.gross_ppe)
+        book_depr = float(mfg.accumulated_depreciation)
+        expected_depr = gross_ppe / 20.0
+        assert book_depr == pytest.approx(expected_depr, rel=0.01)
+
+    def test_accounting_equation_with_cohorts(self):
+        """Accounting equation must hold with per-cohort DTL over many years."""
+        config = ManufacturerConfig(
+            initial_assets=10_000_000,
+            tax_rate=0.25,
+            capex_to_depreciation_ratio=1.5,
+            tax_depreciation_life_years=5.0,
+        )
+        mfg = WidgetManufacturer(config)
+
+        for _ in range(15):
+            mfg.step(growth_rate=0.0, time_resolution="annual")
+
+        is_balanced, difference = mfg.ledger.verify_balance()
+        assert is_balanced, f"Accounting equation violated: difference = {difference}"

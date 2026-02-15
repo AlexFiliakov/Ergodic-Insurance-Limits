@@ -13,14 +13,29 @@ from typing import Dict, Union
 
 try:
     from ergodic_insurance.decimal_utils import ONE, ZERO, quantize_currency, to_decimal
-    from ergodic_insurance.ledger import AccountName, TransactionType
+    from ergodic_insurance.ledger import (
+        CHART_OF_ACCOUNTS,
+        AccountName,
+        AccountType,
+        TransactionType,
+    )
 except ImportError:
     try:
         from .decimal_utils import ONE, ZERO, quantize_currency, to_decimal
-        from .ledger import AccountName, TransactionType
+        from .ledger import (
+            CHART_OF_ACCOUNTS,
+            AccountName,
+            AccountType,
+            TransactionType,
+        )
     except ImportError:
         from decimal_utils import ONE, ZERO, quantize_currency, to_decimal  # type: ignore[no-redef]
-        from ledger import AccountName, TransactionType  # type: ignore[no-redef]
+        from ledger import (  # type: ignore[no-redef]
+            CHART_OF_ACCOUNTS,
+            AccountName,
+            AccountType,
+            TransactionType,
+        )
 
 logger = logging.getLogger(__name__)
 
@@ -70,7 +85,7 @@ class BalanceSheetMixin:
             Total short-term borrowings as a non-negative Decimal.
         """
         explicit = self.ledger.get_balance(AccountName.SHORT_TERM_BORROWINGS)
-        overdraft = max(-self.cash, ZERO)
+        overdraft = max(-self.cash, to_decimal(0))
         return explicit + overdraft
 
     @property
@@ -208,7 +223,7 @@ class BalanceSheetMixin:
             position is a liability.
         """
         gross_dta = self.deferred_tax_asset - self.dta_valuation_allowance
-        return max(gross_dta - self.deferred_tax_liability, ZERO)
+        return max(gross_dta - self.deferred_tax_liability, to_decimal(0))
 
     @property
     def net_deferred_tax_liability(self) -> Decimal:
@@ -223,7 +238,7 @@ class BalanceSheetMixin:
             position is an asset.
         """
         gross_dta = self.deferred_tax_asset - self.dta_valuation_allowance
-        return max(self.deferred_tax_liability - gross_dta, ZERO)
+        return max(self.deferred_tax_liability - gross_dta, to_decimal(0))
 
     @property
     def total_assets(self) -> Decimal:
@@ -237,7 +252,7 @@ class BalanceSheetMixin:
         """
         # Current assets — per ASC 210-10-45-1 (Issue #496), negative cash is
         # reclassified to short-term borrowings so it never reduces total assets.
-        reported_cash = max(self.cash, ZERO)
+        reported_cash = max(self.cash, to_decimal(0))
         current = (
             reported_cash
             + self.accounts_receivable
@@ -271,7 +286,7 @@ class BalanceSheetMixin:
         # Get accrued expenses from accrual manager (excludes INSURANCE_CLAIMS to avoid
         # double-counting with ClaimLiability objects which are the source of truth)
         accrual_items = self.accrual_manager.get_balance_sheet_items()
-        total_accrued_expenses = to_decimal(accrual_items.get("accrued_expenses", ZERO))
+        total_accrued_expenses = to_decimal(accrual_items.get("accrued_expenses", to_decimal(0)))
 
         # Subtract any insurance claims from accrual manager to prevent double-counting
         # ClaimLiability is the authoritative source for claim liabilities
@@ -281,7 +296,7 @@ class BalanceSheetMixin:
                 for a in self.accrual_manager.accrued_expenses.get(AccrualType.INSURANCE_CLAIMS, [])
                 if not a.is_fully_paid
             ),
-            ZERO,
+            to_decimal(0),
         )
         adjusted_accrued_expenses = total_accrued_expenses - insurance_claims_in_accrual
 
@@ -293,7 +308,7 @@ class BalanceSheetMixin:
 
         # Long-term liabilities (claim liabilities) - single source of truth
         claim_liability_total = sum(
-            (liability.remaining_amount for liability in self.claim_liabilities), ZERO
+            (liability.remaining_amount for liability in self.claim_liabilities), to_decimal(0)
         )
 
         # Issue #821: Net DTL per ASC 740-10-45-6 (DTA/DTL netted within jurisdiction)
@@ -531,7 +546,7 @@ class BalanceSheetMixin:
         # Calculate reduction ratio
         if total_liquid <= total_reduction:
             # Use all liquid assets
-            reduction_ratio = ONE
+            reduction_ratio = to_decimal(1)
         else:
             reduction_ratio = total_reduction / total_liquid
 
@@ -575,21 +590,34 @@ class BalanceSheetMixin:
     # ========================================================================
 
     def calculate_working_capital_components(
-        self, revenue: Union[Decimal, float], dso: float = 45, dio: float = 60, dpo: float = 30
+        self,
+        revenue: Union[Decimal, float],
+        dso: float = 45,
+        dio: float = 60,
+        dpo: float = 30,
+        period_revenue: Union[Decimal, float, None] = None,
     ) -> Dict[str, Decimal]:
         """Calculate individual working capital components based on revenue and ratios.
 
         Uses standard financial ratios to calculate accounts receivable, inventory,
         and accounts payable from annual revenue.
 
+        Issue #1302: Revenue is recognised as Dr AR / Cr REVENUE (accrual basis,
+        ASC 606).  This method records *cash collections* on AR
+        (Dr CASH / Cr AR) rather than the old Dr AR / Cr CASH delta, which
+        double-counted the cash impact when revenue also debited CASH.
+
         Args:
-            revenue (float): Annual revenue in dollars.
-            dso (float): Days Sales Outstanding. Defaults to 45.
-            dio (float): Days Inventory Outstanding. Defaults to 60.
-            dpo (float): Days Payable Outstanding. Defaults to 30.
+            revenue: Annual revenue in dollars (used for target computation).
+            dso: Days Sales Outstanding. Defaults to 45.
+            dio: Days Inventory Outstanding. Defaults to 60.
+            dpo: Days Payable Outstanding. Defaults to 30.
+            period_revenue: Revenue that will be recorded to AR in this period
+                (annual in annual mode, annual/12 in monthly mode).  Defaults
+                to ``revenue`` when *None* (backward compatibility / annual).
 
         Returns:
-            Dict[str, float]: Dictionary containing working capital components.
+            Dict containing working capital components.
         """
         # Convert inputs to Decimal
         revenue_decimal = to_decimal(revenue)
@@ -597,6 +625,12 @@ class BalanceSheetMixin:
         dio_decimal = to_decimal(dio)
         dpo_decimal = to_decimal(dpo)
         days_per_year = to_decimal(365)
+
+        _use_accrual_ar = period_revenue is not None
+        if _use_accrual_ar:
+            period_revenue_decimal = to_decimal(period_revenue)
+        else:
+            period_revenue_decimal = ZERO
 
         # Calculate cost of goods sold (approximate as % of revenue)
         cogs = revenue_decimal * to_decimal(1 - self.base_operating_margin)
@@ -611,29 +645,59 @@ class BalanceSheetMixin:
         inventory_change = new_inventory - self.inventory
         ap_change = new_ap - self.accounts_payable
 
-        # Record working capital changes in ledger
-        # FIX (Issue #305): Use AccountName enum instead of string literals
-        # AR increase: Debit AR, Credit Cash (collection cycle)
-        if ar_change > 0:
-            self.ledger.record_double_entry(
-                date=self.current_year,
-                debit_account=AccountName.ACCOUNTS_RECEIVABLE,
-                credit_account=AccountName.CASH,
-                amount=ar_change,
-                transaction_type=TransactionType.WORKING_CAPITAL,
-                description="AR increase from revenue growth",
-                month=self.current_month,
-            )
-        elif ar_change < 0:
-            self.ledger.record_double_entry(
-                date=self.current_year,
-                debit_account=AccountName.CASH,
-                credit_account=AccountName.ACCOUNTS_RECEIVABLE,
-                amount=abs(ar_change),
-                transaction_type=TransactionType.COLLECTION,
-                description="AR decrease (net collections)",
-                month=self.current_month,
-            )
+        if _use_accrual_ar:
+            # Issue #1302: Record cash collections on AR instead of the old
+            # Dr AR / Cr CASH delta.  Revenue will be recorded as Dr AR, so
+            # the WC module handles the collection cycle (Dr CASH / Cr AR).
+            #   collections = old_AR + period_revenue − target_AR
+            # After both entries: AR = old_AR + period_revenue − collections
+            #                       = target_AR
+            collections = self.accounts_receivable + period_revenue_decimal - new_ar
+            if collections > ZERO:
+                self.ledger.record_double_entry(
+                    date=self.current_year,
+                    debit_account=AccountName.CASH,
+                    credit_account=AccountName.ACCOUNTS_RECEIVABLE,
+                    amount=collections,
+                    transaction_type=TransactionType.COLLECTION,
+                    description="Cash collections on accounts receivable",
+                    month=self.current_month,
+                )
+            elif collections < ZERO:
+                # Target AR exceeds current AR + period revenue (rapid growth
+                # or first period with zero initial AR).
+                self.ledger.record_double_entry(
+                    date=self.current_year,
+                    debit_account=AccountName.ACCOUNTS_RECEIVABLE,
+                    credit_account=AccountName.CASH,
+                    amount=abs(collections),
+                    transaction_type=TransactionType.WORKING_CAPITAL,
+                    description="AR buildup exceeds period collections",
+                    month=self.current_month,
+                )
+        else:
+            # Legacy path (backward compat): adjust AR to target via delta.
+            collections = ZERO
+            if ar_change > 0:
+                self.ledger.record_double_entry(
+                    date=self.current_year,
+                    debit_account=AccountName.ACCOUNTS_RECEIVABLE,
+                    credit_account=AccountName.CASH,
+                    amount=ar_change,
+                    transaction_type=TransactionType.WORKING_CAPITAL,
+                    description="AR increase from revenue growth",
+                    month=self.current_month,
+                )
+            elif ar_change < 0:
+                self.ledger.record_double_entry(
+                    date=self.current_year,
+                    debit_account=AccountName.CASH,
+                    credit_account=AccountName.ACCOUNTS_RECEIVABLE,
+                    amount=abs(ar_change),
+                    transaction_type=TransactionType.COLLECTION,
+                    description="AR decrease (net collections)",
+                    month=self.current_month,
+                )
 
         # Inventory increase: Debit Inventory, Credit Cash (purchase cycle)
         if inventory_change > 0:
@@ -697,7 +761,11 @@ class BalanceSheetMixin:
         cash_conversion_cycle_days = dso_decimal + dio_decimal - dpo_decimal
 
         # Calculate cash impact for logging
-        cash_impact = -(ar_change + inventory_change) + ap_change
+        if _use_accrual_ar:
+            # Issue #1302: collections replace -ar_change
+            cash_impact = collections - inventory_change + ap_change
+        else:
+            cash_impact = -(ar_change + inventory_change) + ap_change
 
         logger.debug(
             f"Working capital components: AR=${self.accounts_receivable:,.0f}, "
@@ -720,15 +788,18 @@ class BalanceSheetMixin:
         growth_rate: Union[Decimal, float] = 0.0,
         depreciation_expense: Union[Decimal, float, int] = 0,
         period_revenue: Union[Decimal, float, int] = 0,
-        period_cash_expenses: Union[Decimal, float, int] = 0,
+        cogs_expense: Union[Decimal, float, int] = 0,
+        opex_expense: Union[Decimal, float, int] = 0,
     ) -> None:
         """Update balance sheet with retained earnings and dividend distribution.
 
-        Issues #687/#803: When called from step() with period_revenue and
-        period_cash_expenses, uses proper closing entries that close income
-        statement accounts (SALES_REVENUE, OPERATING_EXPENSES,
-        DEPRECIATION_EXPENSE) to RETAINED_EARNINGS without touching CASH —
-        because cash was already updated by the income entries in step().
+        Issues #687/#803/#1213: When called from step() with period_revenue,
+        uses proper closing entries that close income statement accounts
+        (SALES_REVENUE, DEPRECIATION_EXPENSE, COST_OF_GOODS_SOLD,
+        OPERATING_EXPENSES) to RETAINED_EARNINGS and compute the cash outflow
+        directly from net_income, avoiding the period_cash_expenses
+        decomposition that double-counted depreciation embedded in
+        base_operating_margin.
 
         When called without period_revenue (backward compatibility, tests),
         falls back to the legacy Dr CASH / Cr RETAINED_EARNINGS approach
@@ -738,16 +809,19 @@ class BalanceSheetMixin:
             net_income: Net income for the period in dollars.
             growth_rate: Revenue growth rate parameter (currently unused).
             depreciation_expense: Period depreciation expense. Defaults to 0.
-            period_revenue: Revenue recorded in step() via Dr CASH / Cr SALES_REVENUE.
-                Defaults to 0 (legacy mode).
-            period_cash_expenses: Cash operating expenses recorded in step() via
-                Dr OPERATING_EXPENSES / Cr CASH. Defaults to 0 (legacy mode).
+            period_revenue: Revenue recorded in step() via Dr AR / Cr SALES_REVENUE
+                (Issue #1302).  Defaults to 0 (legacy mode).
+            cogs_expense: COGS recorded in step() via Dr COGS / Cr CASH (Issue #1326).
+                Defaults to 0 (backward compat).
+            opex_expense: OPEX recorded in step() via Dr OPEX / Cr CASH (Issue #1326).
+                Defaults to 0 (backward compat).
         """
         # Convert inputs to Decimal
         net_income_decimal = to_decimal(net_income)
         depreciation_addback = to_decimal(depreciation_expense)
         period_revenue_decimal = to_decimal(period_revenue)
-        period_cash_expenses_decimal = to_decimal(period_cash_expenses)
+        cogs_expense_decimal = to_decimal(cogs_expense)
+        opex_expense_decimal = to_decimal(opex_expense)
 
         # Issue #803: Determine if we should use proper closing entries (new path)
         # or legacy Dr CASH / Cr RE behavior (backward compatibility).
@@ -756,10 +830,17 @@ class BalanceSheetMixin:
         # Validation: retention ratio should be applied to net income
         assert 0 <= self.retention_ratio <= 1, f"Invalid retention ratio: {self.retention_ratio}"
 
-        # Calculate retained earnings
+        # Calculate retained earnings and dividends
+        # Issue #1304: ASC 505-20-45 — dividends can only be declared from
+        # positive earnings.  When net income is negative, 100 % of the loss
+        # must be absorbed by retained earnings; no negative-dividend offset.
         retention_decimal = to_decimal(self.retention_ratio)
-        retained_earnings = net_income_decimal * retention_decimal
-        dividends = net_income_decimal * (to_decimal(1) - retention_decimal)
+        if net_income_decimal > ZERO:
+            retained_earnings = net_income_decimal * retention_decimal
+            dividends = net_income_decimal * (to_decimal(1) - retention_decimal)
+        else:
+            retained_earnings = net_income_decimal  # full loss absorbed
+            dividends = ZERO
 
         # Log retention calculation details
         logger.info("===== RETENTION CALCULATION =====")
@@ -786,12 +867,15 @@ class BalanceSheetMixin:
                     f"Cannot absorb loss of ${loss_amount:,.2f}. "
                     f"Company is already insolvent (threshold: ${tolerance:,.2f})."
                 )
-                self._last_dividends_paid = ZERO
+                # Issue #1297: Close ALL temporary accounts even on insolvency
+                if use_closing_entries:
+                    self._record_closing_entries(net_income_decimal)
+                self._last_dividends_paid = to_decimal(0)
                 return
 
             # Issue #637: Depreciation did not consume cash, so actual cash
             # needed to cover the loss is reduced by the depreciation add-back.
-            cash_consumed = max(loss_amount - depreciation_addback, ZERO)
+            cash_consumed = max(loss_amount - depreciation_addback, to_decimal(0))
 
             # Check 2: LIQUIDITY CHECK - must have cash to pay loss
             # When using closing entries, cash is already updated by step() income
@@ -804,7 +888,7 @@ class BalanceSheetMixin:
                     f"${available_cash:,.2f}. Equity=${current_equity:,.2f}. "
                     f"Company cannot meet obligations despite positive book equity."
                 )
-                self._last_dividends_paid = ZERO
+                self._last_dividends_paid = to_decimal(0)
                 self.handle_insolvency()
                 return
 
@@ -823,13 +907,8 @@ class BalanceSheetMixin:
                     f"Current equity=${current_equity:,.2f}. Triggering insolvency."
                 )
                 if use_closing_entries:
-                    # Issue #803: Close income statement accounts to RE
-                    self._record_closing_entries(
-                        period_revenue_decimal,
-                        period_cash_expenses_decimal,
-                        depreciation_addback,
-                        net_income_decimal,
-                    )
+                    # Issue #803/#1297: Close ALL income statement accounts to RE
+                    self._record_closing_entries(net_income_decimal)
                 else:
                     # Legacy: Dr RE / Cr CASH
                     self.ledger.record_double_entry(
@@ -851,19 +930,14 @@ class BalanceSheetMixin:
                             description=f"Year {self.current_year} depreciation add-back (non-cash, Issue #637)",
                             month=self.current_month,
                         )
-                self._last_dividends_paid = ZERO
+                self._last_dividends_paid = to_decimal(0)
                 self.handle_insolvency()
                 return
 
             # All checks passed - absorb the full loss
             if use_closing_entries:
-                # Issue #803: Close income statement accounts to RE
-                self._record_closing_entries(
-                    period_revenue_decimal,
-                    period_cash_expenses_decimal,
-                    depreciation_addback,
-                    net_income_decimal,
-                )
+                # Issue #803/#1297: Close ALL income statement accounts to RE
+                self._record_closing_entries(net_income_decimal)
             else:
                 # Legacy: Dr RE / Cr CASH
                 self.ledger.record_double_entry(
@@ -886,7 +960,7 @@ class BalanceSheetMixin:
                         month=self.current_month,
                     )
 
-            self._last_dividends_paid = ZERO
+            self._last_dividends_paid = to_decimal(0)
             logger.info(
                 f"Absorbed loss: ${loss_amount:,.2f}. "
                 f"Remaining cash: ${self.cash:,.2f}, Remaining equity: ${self.equity:,.2f}"
@@ -903,7 +977,7 @@ class BalanceSheetMixin:
                 projected_cash = self.cash + retained_earnings + depreciation_addback
 
             if projected_cash <= ZERO:
-                actual_dividends = ZERO
+                actual_dividends = to_decimal(0)
                 additional_retained = dividends
                 logger.warning(
                     f"DIVIDEND CONSTRAINT: Projected cash ${projected_cash:,.2f} <= 0. "
@@ -919,20 +993,15 @@ class BalanceSheetMixin:
                 )
             else:
                 actual_dividends = dividends
-                additional_retained = ZERO
+                additional_retained = to_decimal(0)
 
             self._last_dividends_paid = actual_dividends
 
             total_retained = retained_earnings + additional_retained
 
             if use_closing_entries:
-                # Issue #803: Close income statement accounts to RE
-                self._record_closing_entries(
-                    period_revenue_decimal,
-                    period_cash_expenses_decimal,
-                    depreciation_addback,
-                    net_income_decimal,
-                )
+                # Issue #803/#1297: Close ALL income statement accounts to RE
+                self._record_closing_entries(net_income_decimal)
             else:
                 # Legacy: Issue #683: Record full net income to retained earnings
                 if net_income_decimal > ZERO:
@@ -977,90 +1046,197 @@ class BalanceSheetMixin:
 
     def _record_closing_entries(
         self,
-        period_revenue: Decimal,
-        period_cash_expenses: Decimal,
-        depreciation_expense: Decimal,
         net_income: Decimal,
     ) -> None:
-        """Record period-end closing entries to transfer income statement balances to RE.
+        """Record period-end closing entries per GAAP (ASC 205-10).
 
-        Issue #803: Proper closing entries close revenue and expense accounts to
-        RETAINED_EARNINGS. A residual entry captures the difference between
-        base operating income and net income (insurance costs, taxes, collateral
-        costs) so that RE reflects full net income and cash reflects operating
-        cash flow.
+        Issue #1297: Close ALL temporary accounts (revenue and expense) to
+        RETAINED_EARNINGS at period end.  Previous implementation only closed
+        SALES_REVENUE, DEPRECIATION_EXPENSE, COGS, and OPEX; remaining
+        temporary accounts (INSURANCE_EXPENSE, TAX_EXPENSE, INSURANCE_LOSS,
+        LAE_EXPENSE, RESERVE_DEVELOPMENT, etc.) were left unclosed, violating
+        the GAAP closing process and causing cumulative balances.
+
+        The method reads each temporary account's current balance from the
+        ledger and closes it individually, providing a full audit trail.
+
+        After these entries:
+        - RE changes by net_income
+        - All temporary accounts are zeroed
+        - CASH is adjusted for the residual between ledger net and
+          computed net_income (indirect-method OCF, ASC 230-10-28)
 
         Args:
-            period_revenue: Revenue recorded during the period.
-            period_cash_expenses: Cash operating expenses recorded during the period.
-            depreciation_expense: Depreciation expense recorded during the period.
             net_income: Full net income for the period (after all deductions).
         """
-        # Close revenue: Dr SALES_REVENUE / Cr RETAINED_EARNINGS
-        if period_revenue > ZERO:
-            self.ledger.record_double_entry(
-                date=self.current_year,
-                debit_account=AccountName.SALES_REVENUE,
-                credit_account=AccountName.RETAINED_EARNINGS,
-                amount=period_revenue,
-                transaction_type=TransactionType.RETAINED_EARNINGS,
-                description=f"Year {self.current_year} close revenue to retained earnings",
-                month=self.current_month,
-            )
+        total_revenue_closed = to_decimal(0)
+        total_expense_closed = to_decimal(0)
+        tax_expense_closed = to_decimal(0)
 
-        # Close cash operating expenses: Dr RETAINED_EARNINGS / Cr OPERATING_EXPENSES
-        if period_cash_expenses > ZERO:
-            self.ledger.record_double_entry(
-                date=self.current_year,
-                debit_account=AccountName.RETAINED_EARNINGS,
-                credit_account=AccountName.OPERATING_EXPENSES,
-                amount=period_cash_expenses,
-                transaction_type=TransactionType.RETAINED_EARNINGS,
-                description=f"Year {self.current_year} close operating expenses to retained earnings",
-                month=self.current_month,
-            )
+        for account, acct_type in CHART_OF_ACCOUNTS.items():
+            if acct_type == AccountType.REVENUE:
+                balance = self.ledger.get_balance(account)
+                if balance > to_decimal(0):
+                    # Normal revenue (credit balance): Dr REVENUE / Cr RE
+                    self.ledger.record_double_entry(
+                        date=self.current_year,
+                        debit_account=account,
+                        credit_account=AccountName.RETAINED_EARNINGS,
+                        amount=balance,
+                        transaction_type=TransactionType.RETAINED_EARNINGS,
+                        description=(
+                            f"Year {self.current_year} close "
+                            f"{account.value} to retained earnings"
+                        ),
+                        month=self.current_month,
+                    )
+                    total_revenue_closed += balance
+                elif balance < to_decimal(0):
+                    # Unusual debit balance on revenue account: Dr RE / Cr REVENUE
+                    self.ledger.record_double_entry(
+                        date=self.current_year,
+                        debit_account=AccountName.RETAINED_EARNINGS,
+                        credit_account=account,
+                        amount=abs(balance),
+                        transaction_type=TransactionType.RETAINED_EARNINGS,
+                        description=(
+                            f"Year {self.current_year} close "
+                            f"{account.value} (debit balance) to retained earnings"
+                        ),
+                        month=self.current_month,
+                    )
+                    total_revenue_closed += balance  # negative, reduces total
 
-        # Close depreciation expense: Dr RETAINED_EARNINGS / Cr DEPRECIATION_EXPENSE
-        if depreciation_expense > ZERO:
-            self.ledger.record_double_entry(
-                date=self.current_year,
-                debit_account=AccountName.RETAINED_EARNINGS,
-                credit_account=AccountName.DEPRECIATION_EXPENSE,
-                amount=depreciation_expense,
-                transaction_type=TransactionType.RETAINED_EARNINGS,
-                description=f"Year {self.current_year} close depreciation to retained earnings",
-                month=self.current_month,
-            )
+            elif acct_type == AccountType.EXPENSE:
+                balance = self.ledger.get_balance(account)
 
-        # Residual closing entry: captures insurance costs, taxes, collateral
-        # costs, and other items that reduce net_income below base operating
-        # income but may not have their own income statement ledger entries.
-        # base_operating_income = period_revenue - period_cash_expenses - depreciation
-        base_operating_income = period_revenue - period_cash_expenses - depreciation_expense
-        residual = net_income - base_operating_income
+                # Close TAX_EXPENSE to RE (not ACCRUED_TAXES) to preserve
+                # the ACCRUED_TAXES liability balance that must agree with
+                # AccrualManager (Issue #1297).  TAX_EXPENSE IS included in
+                # total_expense_closed so that ledger_net ≈ NI for fully-
+                # journalized flows, and the residual captures only
+                # un-journalized items (e.g., period_insurance_premiums
+                # that have no ledger entry).
+                if account == AccountName.TAX_EXPENSE:
+                    if balance > to_decimal(0):
+                        # Dr RE / Cr TAX_EXPENSE
+                        self.ledger.record_double_entry(
+                            date=self.current_year,
+                            debit_account=AccountName.RETAINED_EARNINGS,
+                            credit_account=account,
+                            amount=balance,
+                            transaction_type=TransactionType.RETAINED_EARNINGS,
+                            description=(
+                                f"Year {self.current_year} close "
+                                f"{account.value} to retained earnings"
+                            ),
+                            month=self.current_month,
+                        )
+                    elif balance < to_decimal(0):
+                        # Dr TAX_EXPENSE / Cr RE
+                        self.ledger.record_double_entry(
+                            date=self.current_year,
+                            debit_account=account,
+                            credit_account=AccountName.RETAINED_EARNINGS,
+                            amount=abs(balance),
+                            transaction_type=TransactionType.RETAINED_EARNINGS,
+                            description=(
+                                f"Year {self.current_year} close "
+                                f"{account.value} (credit balance) to retained earnings"
+                            ),
+                            month=self.current_month,
+                        )
+                    # Do NOT add to total_expense_closed — tax is excluded
+                    # from ledger_net because the residual uses income_before_tax
+                    # (not net_income) to avoid conflating accrued taxes with
+                    # cash flows.
+                    tax_expense_closed = balance
+                    continue
 
-        if residual < ZERO:
-            # Net income is less than base operating income (insurance, taxes, etc.)
-            # Dr RETAINED_EARNINGS / Cr CASH — reduces both RE and cash
+                if balance > to_decimal(0):
+                    # Normal expense (debit balance): Dr RE / Cr EXPENSE
+                    self.ledger.record_double_entry(
+                        date=self.current_year,
+                        debit_account=AccountName.RETAINED_EARNINGS,
+                        credit_account=account,
+                        amount=balance,
+                        transaction_type=TransactionType.RETAINED_EARNINGS,
+                        description=(
+                            f"Year {self.current_year} close "
+                            f"{account.value} to retained earnings"
+                        ),
+                        month=self.current_month,
+                    )
+                    total_expense_closed += balance
+                elif balance < to_decimal(0):
+                    # Unusual credit balance on expense (e.g., favorable
+                    # reserve development): Dr EXPENSE / Cr RE
+                    self.ledger.record_double_entry(
+                        date=self.current_year,
+                        debit_account=account,
+                        credit_account=AccountName.RETAINED_EARNINGS,
+                        amount=abs(balance),
+                        transaction_type=TransactionType.RETAINED_EARNINGS,
+                        description=(
+                            f"Year {self.current_year} close "
+                            f"{account.value} (credit balance) to retained earnings"
+                        ),
+                        month=self.current_month,
+                    )
+                    total_expense_closed += balance  # negative, reduces total
+
+        # Net income per ledger (should equal computed net_income when all
+        # income/expense flows are journaled; may differ when some costs
+        # are only captured in the net_income calculation, not as entries).
+        ledger_net = total_revenue_closed - total_expense_closed
+
+        # Issue #1213/#1302/#1297: Residual cash adjustment.
+        # Closing entries only shuffle between temporary accounts and RE;
+        # they do not touch CASH.  The residual reconciles the gap between
+        # ledger_net (journalized income items, excluding tax) and
+        # income_before_tax (all income items before tax deduction).
+        #
+        # Using income_before_tax instead of net_income is critical:
+        # taxes are accrued (Dr TAX_EXPENSE / Cr ACCRUED_TAXES), not paid
+        # in cash during this period.  Using net_income would incorrectly
+        # drain cash by the tax amount.  Tax cash outflows are handled
+        # separately via process_accrued_payments() (ASC 230-10-28).
+        # When called via step(), _period_income_before_tax is set by
+        # calculate_net_income().  When called directly (e.g., from tests
+        # or update_balance_sheet without step()), fall back to
+        # net_income + tax_expense_closed, which equals income_before_tax
+        # when TAX_EXPENSE in the ledger matches the NI tax deduction.
+        income_before_tax = getattr(
+            self, "_period_income_before_tax", net_income + tax_expense_closed
+        )
+        cash_outflow = ledger_net - income_before_tax
+
+        if cash_outflow > to_decimal(0):
+            # Ledger tracked more income than computed — remove excess cash
+            # Dr RETAINED_EARNINGS / Cr CASH
             self.ledger.record_double_entry(
                 date=self.current_year,
                 debit_account=AccountName.RETAINED_EARNINGS,
                 credit_account=AccountName.CASH,
-                amount=abs(residual),
+                amount=cash_outflow,
                 transaction_type=TransactionType.RETAINED_EARNINGS,
-                description=f"Year {self.current_year} close residual expenses to retained earnings",
+                description=(
+                    f"Year {self.current_year} close residual cash outflow " f"to retained earnings"
+                ),
                 month=self.current_month,
             )
-        elif residual > ZERO:
-            # Net income exceeds base operating income (unusual — e.g., insurance recoveries)
+        elif cash_outflow < to_decimal(0):
+            # Ledger tracked less income than computed — add cash
             # Dr CASH / Cr RETAINED_EARNINGS
             self.ledger.record_double_entry(
                 date=self.current_year,
                 debit_account=AccountName.CASH,
                 credit_account=AccountName.RETAINED_EARNINGS,
-                amount=residual,
+                amount=abs(cash_outflow),
                 transaction_type=TransactionType.RETAINED_EARNINGS,
-                description=f"Year {self.current_year} close residual income to retained earnings",
+                description=(
+                    f"Year {self.current_year} close net cash inflow " f"to retained earnings"
+                ),
                 month=self.current_month,
             )
 
@@ -1098,7 +1274,7 @@ class BalanceSheetMixin:
                     f"Accumulated: ${self.accumulated_depreciation:,.2f}"
                 )
                 return depreciation_expense
-        return ZERO
+        return to_decimal(0)
 
     def record_capex(self, capex_amount: Union[Decimal, float]) -> Decimal:
         """Record capital expenditure (reinvestment in PP&E).
@@ -1116,7 +1292,7 @@ class BalanceSheetMixin:
         """
         amount = to_decimal(capex_amount)
         if amount <= ZERO:
-            return ZERO
+            return to_decimal(0)
 
         # Cannot spend more cash than available (Issue #543)
         available_cash = self.cash
@@ -1125,7 +1301,7 @@ class BalanceSheetMixin:
                 f"Skipping capex: no cash available "
                 f"(cash={available_cash:,.2f}, requested={amount:,.2f})"
             )
-            return ZERO
+            return to_decimal(0)
 
         actual_capex = min(amount, available_cash)
         if actual_capex < amount:
@@ -1143,6 +1319,12 @@ class BalanceSheetMixin:
             description=f"Year {self.current_year} capital expenditure",
             month=self.current_month,
         )
+
+        # Track vintage cohort for accurate DTL calculation (Issue #1321)
+        if hasattr(self, "_ppe_cohorts"):
+            from ergodic_insurance.manufacturer import _PPECohort
+
+            self._ppe_cohorts.append(_PPECohort(amount=actual_capex))
 
         logger.debug(
             f"Recorded capex: ${actual_capex:,.2f}, "
@@ -1165,7 +1347,7 @@ class BalanceSheetMixin:
         if rate == ZERO or not (time_resolution == "annual" or self.current_month == 11):
             return
 
-        base_growth = float(ONE + rate)  # Boundary: float for StochasticProcess
+        base_growth = float(to_decimal(1) + rate)  # Boundary: float for StochasticProcess
 
         # Add stochastic component to growth if enabled
         if apply_stochastic and self.stochastic_process is not None:

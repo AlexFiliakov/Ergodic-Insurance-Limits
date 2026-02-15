@@ -630,17 +630,16 @@ class GPUDifferentialEvolution:
         best_x = population[best_idx].copy()
         best_fit = fitness[best_idx]
 
+        pop_indices = np.arange(pop_size)
+
         for _gen in range(n_generations):
             # --- Mutation: DE/rand/1 ---
-            # For each member, pick three distinct others
-            indices = np.arange(pop_size)
-            # Generate random triplets (avoiding self)
-            r1 = np.empty(pop_size, dtype=int)
-            r2 = np.empty(pop_size, dtype=int)
-            r3 = np.empty(pop_size, dtype=int)
-            for i in range(pop_size):
-                choices = rng.choice(np.delete(indices, i), size=3, replace=False)
-                r1[i], r2[i], r3[i] = choices
+            # For each member, pick three distinct others (vectorized).
+            # Use argpartition on random values with self masked out.
+            rand_matrix = rng.random(size=(pop_size, pop_size))
+            rand_matrix[pop_indices, pop_indices] = np.inf  # exclude self
+            top3 = np.argpartition(rand_matrix, 3, axis=1)[:, :3]
+            r1, r2, r3 = top3[:, 0], top3[:, 1], top3[:, 2]
 
             mutant = population[r1] + mutation_factor * (population[r2] - population[r3])
 
@@ -649,10 +648,9 @@ class GPUDifferentialEvolution:
 
             # --- Crossover: binomial ---
             cross_mask = rng.random(size=(pop_size, n_params)) < crossover_prob
-            # Ensure at least one parameter is crossed over
+            # Ensure at least one parameter is crossed over (vectorized)
             j_rand = rng.integers(0, n_params, size=pop_size)
-            for i in range(pop_size):
-                cross_mask[i, j_rand[i]] = True
+            cross_mask[pop_indices, j_rand] = True
 
             trial = np.where(cross_mask, mutant, population)
 

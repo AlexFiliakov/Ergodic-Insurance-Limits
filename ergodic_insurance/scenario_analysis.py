@@ -12,7 +12,7 @@ and the
 from __future__ import annotations
 
 import logging
-from typing import TYPE_CHECKING, List, Union
+from typing import TYPE_CHECKING, Dict, List, Tuple, Union
 
 import numpy as np
 
@@ -30,14 +30,89 @@ from .simulation import SimulationResults
 
 if TYPE_CHECKING:
     from .ergodic_analyzer import ErgodicAnalyzer
+    from .monte_carlo import MonteCarloResults
 
 logger = logging.getLogger(__name__)
 
 
+def _extract_from_monte_carlo(
+    mc_results: "MonteCarloResults",
+) -> Tuple[List[float], Dict[str, float]]:
+    """Extract time-average growth rates and ensemble stats from MC results.
+
+    Args:
+        mc_results: :class:`~ergodic_insurance.monte_carlo.MonteCarloResults`
+            from :meth:`MonteCarloEngine.run`.
+
+    Returns:
+        ``(time_avg_growth_list, ensemble_stats_dict)`` where
+        *time_avg_growth_list* contains per-path growth rates (``-inf``
+        for ruined paths, consistent with
+        :meth:`~ergodic_insurance.ergodic_analyzer.ErgodicAnalyzer.calculate_time_average_growth`),
+        and *ensemble_stats_dict* has keys ``mean``, ``std``, ``median``,
+        ``survival_rate``, ``n_survived``, ``n_total``.
+    """
+    growth_rates = np.array(mc_results.growth_rates, dtype=np.float64)
+    final_assets = np.array(mc_results.final_assets, dtype=np.float64)
+
+    # The MC engine stores 0.0 for ruined paths; the ergodic analyzer
+    # convention is -inf.  Convert ruined paths for consistency.
+    ruined_mask = final_assets <= 0
+    time_avg = growth_rates.copy()
+    time_avg[ruined_mask] = -np.inf
+
+    time_avg_list: List[float] = time_avg.tolist()
+
+    # Ensemble stats from valid (non-ruined) paths
+    valid = time_avg[~ruined_mask]
+    n_total = len(growth_rates)
+    n_survived = int(np.sum(~ruined_mask))
+
+    ensemble: Dict[str, float] = {
+        "mean": float(np.mean(valid)) if len(valid) > 0 else 0.0,
+        "std": float(np.std(valid, ddof=1)) if len(valid) > 1 else 0.0,
+        "median": float(np.median(valid)) if len(valid) > 0 else 0.0,
+        "survival_rate": n_survived / n_total if n_total > 0 else 0.0,
+        "n_survived": n_survived,
+        "n_total": n_total,
+    }
+
+    return time_avg_list, ensemble
+
+
+def _extract_growth_and_ensemble(
+    analyzer: "ErgodicAnalyzer",
+    results: "Union[List[SimulationResults], np.ndarray, MonteCarloResults]",
+    metric: str,
+) -> Tuple[List[float], Dict[str, float]]:
+    """Dispatch extraction of growth rates and ensemble stats by input type.
+
+    Returns:
+        ``(time_avg_growth_list, ensemble_stats_dict)`` — same contract as
+        :func:`_extract_from_monte_carlo`.
+    """
+    # Lazy import to avoid circular dependency
+    from .monte_carlo import MonteCarloResults as _MCResults
+
+    if isinstance(results, _MCResults):
+        return _extract_from_monte_carlo(results)
+
+    # Existing paths: SimulationResults list or raw arrays
+    if isinstance(results, list) and len(results) > 0 and isinstance(results[0], SimulationResults):
+        trajectories = [np.asarray(getattr(r, metric)) for r in results]
+    else:
+        trajectories = [np.asarray(traj) for traj in results]
+
+    time_avg = [analyzer.calculate_time_average_growth(traj) for traj in trajectories]
+    ensemble = analyzer.calculate_ensemble_average(trajectories, metric="growth_rate")
+
+    return time_avg, ensemble
+
+
 def compare_scenarios(
-    analyzer: ErgodicAnalyzer,
-    insured_results: Union[List[SimulationResults], np.ndarray],
-    uninsured_results: Union[List[SimulationResults], np.ndarray],
+    analyzer: "ErgodicAnalyzer",
+    insured_results: "Union[List[SimulationResults], np.ndarray, MonteCarloResults]",
+    uninsured_results: "Union[List[SimulationResults], np.ndarray, MonteCarloResults]",
     metric: str = "equity",
 ) -> ScenarioComparison:
     """Compare insured vs uninsured scenarios using ergodic analysis.
@@ -50,44 +125,43 @@ def compare_scenarios(
         analyzer: :class:`~ergodic_insurance.ergodic_analyzer.ErgodicAnalyzer`
             instance for growth rate calculations.
         insured_results: Simulation results from insured scenarios —
-            list of :class:`SimulationResults`, list of arrays, or 2-D array.
+            list of :class:`SimulationResults`, 2-D array, or
+            :class:`~ergodic_insurance.monte_carlo.MonteCarloResults`.
         uninsured_results: Simulation results from uninsured scenarios
-            (same format as *insured_results*).
+            (same format as *insured_results*; types may differ).
         metric: Financial metric to analyze (default ``"equity"``).
+            Ignored when a :class:`MonteCarloResults` is passed (growth
+            rates are pre-calculated by the MC engine).
 
     Returns:
         :class:`ScenarioComparison` with ``insured``, ``uninsured``, and
         ``ergodic_advantage`` fields containing growth statistics, survival
         rates, and significance test results.  Supports dict-style access
         for backward compatibility (with deprecation warnings).
-    """
-    # Extract trajectories
-    if isinstance(insured_results, list) and isinstance(insured_results[0], SimulationResults):
-        insured_trajectories = [np.asarray(getattr(r, metric)) for r in insured_results]
-        uninsured_trajectories = [np.asarray(getattr(r, metric)) for r in uninsured_results]
-    else:
-        insured_trajectories = [np.asarray(traj) for traj in insured_results]
-        uninsured_trajectories = [np.asarray(traj) for traj in uninsured_results]
 
-    # Calculate time-average growth for each path
-    insured_time_avg = [
-        analyzer.calculate_time_average_growth(traj) for traj in insured_trajectories
-    ]
-    uninsured_time_avg = [
-        analyzer.calculate_time_average_growth(traj) for traj in uninsured_trajectories
-    ]
+    Example:
+        Using :class:`MonteCarloResults` directly::
+
+            from ergodic_insurance import ErgodicAnalyzer
+            from ergodic_insurance.monte_carlo import MonteCarloEngine
+
+            engine = MonteCarloEngine(manufacturer, config)
+            insured_mc = engine.run(insurance_program=program)
+            uninsured_mc = engine.run(insurance_program=None)
+
+            analyzer = ErgodicAnalyzer()
+            comparison = analyzer.compare_scenarios(insured_mc, uninsured_mc)
+    """
+    insured_time_avg, insured_ensemble = _extract_growth_and_ensemble(
+        analyzer, insured_results, metric
+    )
+    uninsured_time_avg, uninsured_ensemble = _extract_growth_and_ensemble(
+        analyzer, uninsured_results, metric
+    )
 
     # Filter out infinite values
     insured_time_avg_valid = [g for g in insured_time_avg if np.isfinite(g)]
     uninsured_time_avg_valid = [g for g in uninsured_time_avg if np.isfinite(g)]
-
-    # Calculate ensemble averages
-    insured_ensemble = analyzer.calculate_ensemble_average(
-        insured_trajectories, metric="growth_rate"
-    )
-    uninsured_ensemble = analyzer.calculate_ensemble_average(
-        uninsured_trajectories, metric="growth_rate"
-    )
 
     # Compute per-scenario means
     insured_mean = float(np.mean(insured_time_avg_valid)) if insured_time_avg_valid else -np.inf

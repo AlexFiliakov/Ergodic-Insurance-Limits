@@ -4,6 +4,16 @@ This module provides utilities for adding professional annotations,
 labels, and callouts to plots with smart placement and leader line routing.
 """
 
+__all__ = [
+    "add_value_labels",
+    "add_trend_annotation",
+    "add_callout",
+    "add_benchmark_line",
+    "add_shaded_region",
+    "add_data_source",
+    "add_footnote",
+]
+
 from dataclasses import dataclass
 from typing import Any, Dict, List, Optional, Set, Tuple
 

@@ -33,11 +33,17 @@ from dataclasses import dataclass, field
 from datetime import datetime
 from decimal import Decimal
 from enum import Enum
+import itertools
+import logging
 from typing import Any, Dict, List, Optional, Tuple, Union
-import uuid
-import warnings
 
-from .decimal_utils import ZERO, to_decimal
+logger = logging.getLogger(__name__)
+
+from .decimal_utils import ZERO, is_float_mode, to_decimal
+
+# Lightweight monotonic counter for transaction reference IDs.
+# Replaces uuid4() to avoid syscall overhead in the Monte Carlo inner loop.
+_entry_counter = itertools.count()
 
 
 class AccountType(Enum):
@@ -212,7 +218,7 @@ class TransactionType(Enum):
     RETAINED_EARNINGS = "retained_earnings"  # Internal equity allocation
 
 
-@dataclass
+@dataclass(slots=True)
 class LedgerEntry:
     """A single entry in the accounting ledger.
 
@@ -226,8 +232,8 @@ class LedgerEntry:
         entry_type: DEBIT or CREDIT
         transaction_type: Classification for cash flow mapping
         description: Human-readable description of the transaction
-        reference_id: UUID linking both sides of a double-entry transaction
-        timestamp: Actual datetime when entry was recorded (for audit)
+        reference_id: Lightweight ID linking both sides of a double-entry transaction
+        timestamp: Datetime when entry was recorded (None in simulation hot path)
         month: Optional month within the year (0-11)
     """
 
@@ -237,14 +243,19 @@ class LedgerEntry:
     entry_type: EntryType
     transaction_type: TransactionType
     description: str = ""
-    reference_id: str = field(default_factory=lambda: str(uuid.uuid4()))
-    timestamp: datetime = field(default_factory=datetime.now)
+    reference_id: str = field(default_factory=lambda: f"txn_{next(_entry_counter)}")
+    timestamp: Optional[datetime] = None
     month: int = 0  # Month within year (0-11)
 
     def __post_init__(self) -> None:
         """Validate entry after initialization."""
-        # Convert amount to Decimal if not already (runtime check for backwards compatibility)
-        if not isinstance(self.amount, Decimal):
+        # Convert amount to the mode-appropriate type (Issue #1142).
+        # In float mode, accept float as-is; in Decimal mode, convert
+        # non-Decimal values to Decimal.
+        if is_float_mode():
+            if not isinstance(self.amount, (Decimal, float)):
+                object.__setattr__(self, "amount", to_decimal(self.amount))  # type: ignore[unreachable]
+        elif not isinstance(self.amount, Decimal):
             object.__setattr__(self, "amount", to_decimal(self.amount))  # type: ignore[unreachable]
         if self.amount < ZERO:
             raise ValueError(f"Ledger entry amount must be non-negative, got {self.amount}")
@@ -401,7 +412,7 @@ class Ledger:
         simulation trial should use its own ``Ledger`` instance.
     """
 
-    def __init__(self, strict_validation: bool = True) -> None:
+    def __init__(self, strict_validation: bool = True, simulation_mode: bool = False) -> None:
         """Initialize an empty ledger.
 
         Args:
@@ -409,7 +420,12 @@ class Ledger:
                 raise ValueError. If False, unknown accounts are added
                 as ASSET type (backward compatible behavior). The strict
                 mode is recommended to catch typos early (Issue #260).
+            simulation_mode: If True, only maintain the ``_balances`` cache
+                without storing individual entries (Issue #1146).  This
+                drastically reduces memory in Monte Carlo hot loops where
+                only final balances matter.
         """
+        self._simulation_mode = simulation_mode
         self.entries: List[LedgerEntry] = []
         self.chart_of_accounts: Dict[str, AccountType] = _CHART_OF_ACCOUNTS_BY_STRING.copy()
         self._strict_validation = strict_validation
@@ -419,8 +435,9 @@ class Ledger:
         self._pruned_balances: Dict[str, Decimal] = {}
         self._prune_cutoff: Optional[int] = None
         # Aggregate debit/credit totals for pruned entries (Issue #362)
-        self._pruned_debits: Decimal = ZERO
-        self._pruned_credits: Decimal = ZERO
+        # Use to_decimal(0) so the type adapts to float mode (Issue #1142)
+        self._pruned_debits = to_decimal(0)
+        self._pruned_credits = to_decimal(0)
 
     def _update_balance_cache(self, entry: LedgerEntry) -> None:
         """Update running balance cache after recording an entry.
@@ -434,7 +451,7 @@ class Ledger:
         account_type = self.chart_of_accounts.get(account, AccountType.ASSET)
 
         if account not in self._balances:
-            self._balances[account] = ZERO
+            self._balances[account] = to_decimal(0)
 
         # Apply entry based on account type and entry type
         if account_type in (AccountType.ASSET, AccountType.EXPENSE):
@@ -481,7 +498,8 @@ class Ledger:
             # Backward compatible: add unknown account as ASSET
             self.chart_of_accounts[entry.account] = AccountType.ASSET
 
-        self.entries.append(entry)
+        if not self._simulation_mode:
+            self.entries.append(entry)
         self._update_balance_cache(entry)
 
     def record_double_entry(
@@ -563,9 +581,8 @@ class Ledger:
             # Return None sentinel for zero-amount transactions (Issue #315)
             return (None, None)
 
-        # Generate shared reference ID
-        ref_id = str(uuid.uuid4())
-        timestamp = datetime.now()
+        # Shared reference ID for both sides of the double-entry
+        ref_id = f"txn_{next(_entry_counter)}"
 
         debit_entry = LedgerEntry(
             date=date,
@@ -575,7 +592,6 @@ class Ledger:
             transaction_type=transaction_type,
             description=description,
             reference_id=ref_id,
-            timestamp=timestamp,
             month=month,
         )
 
@@ -587,7 +603,6 @@ class Ledger:
             transaction_type=transaction_type,
             description=description,
             reference_id=ref_id,
-            timestamp=timestamp,
             month=month,
         )
 
@@ -625,23 +640,24 @@ class Ledger:
         account_str = _resolve_account_name(account)
 
         # O(1) lookup for current balance (Issue #259)
+        # Use to_decimal(0) so the default adapts to float mode (Issue #1142)
         if as_of_date is None:
-            return self._balances.get(account_str, ZERO)
+            return self._balances.get(account_str, to_decimal(0))
 
         # Warn when querying dates in the pruned range (Issue #362)
         if self._prune_cutoff is not None and as_of_date < self._prune_cutoff:
-            warnings.warn(
-                f"as_of_date {as_of_date} is before prune cutoff "
-                f"{self._prune_cutoff}; returned balance reflects the "
-                f"prune-point snapshot, not the true historical balance",
-                stacklevel=2,
+            logger.warning(
+                "as_of_date %s is before prune cutoff %s; returned balance "
+                "reflects the prune-point snapshot, not the true historical balance",
+                as_of_date,
+                self._prune_cutoff,
             )
 
         # Historical query: iterate through entries (less frequent use case)
         account_type = self.chart_of_accounts.get(account_str, AccountType.ASSET)
 
         # Start from pruned snapshot if entries have been pruned (Issue #315)
-        total = self._pruned_balances.get(account_str, ZERO)
+        total = self._pruned_balances.get(account_str, to_decimal(0))
         for entry in self.entries:
             if entry.account != account_str:
                 continue
@@ -680,7 +696,7 @@ class Ledger:
         account_str = _resolve_account_name(account)
         account_type = self.chart_of_accounts.get(account_str, AccountType.ASSET)
 
-        total = ZERO
+        total = to_decimal(0)
         for entry in self.entries:
             if entry.account != account_str:
                 continue
@@ -781,7 +797,7 @@ class Ledger:
         # Resolve account name if provided
         account_str = _resolve_account_name(account) if account is not None else None
 
-        total = ZERO
+        total = to_decimal(0)
 
         for entry in self.entries:
             if entry.transaction_type != transaction_type:
@@ -927,11 +943,11 @@ class Ledger:
         """
         total_debits = self._pruned_debits + sum(
             (e.amount for e in self.entries if e.entry_type == EntryType.DEBIT),
-            ZERO,
+            to_decimal(0),
         )
         total_credits = self._pruned_credits + sum(
             (e.amount for e in self.entries if e.entry_type == EntryType.CREDIT),
-            ZERO,
+            to_decimal(0),
         )
 
         difference = total_debits - total_credits
@@ -970,11 +986,11 @@ class Ledger:
 
         # Warn when querying dates in the pruned range (Issue #362)
         if self._prune_cutoff is not None and as_of_date < self._prune_cutoff:
-            warnings.warn(
-                f"as_of_date {as_of_date} is before prune cutoff "
-                f"{self._prune_cutoff}; returned balances reflect the "
-                f"prune-point snapshot, not true historical balances",
-                stacklevel=2,
+            logger.warning(
+                "as_of_date %s is before prune cutoff %s; returned balances "
+                "reflect the prune-point snapshot, not true historical balances",
+                as_of_date,
+                self._prune_cutoff,
             )
 
         # O(N) single-pass: accumulate per-account balances in one iteration
@@ -990,7 +1006,7 @@ class Ledger:
 
             account = entry.account
             if account not in totals:
-                totals[account] = ZERO
+                totals[account] = to_decimal(0)
 
             account_type = self.chart_of_accounts.get(account, AccountType.ASSET)
             if account_type in (AccountType.ASSET, AccountType.EXPENSE):
@@ -1045,7 +1061,7 @@ class Ledger:
                 # Accumulate into snapshot
                 account = entry.account
                 if account not in snapshot:
-                    snapshot[account] = ZERO
+                    snapshot[account] = to_decimal(0)
                 account_type = self.chart_of_accounts.get(account, AccountType.ASSET)
                 if account_type in (AccountType.ASSET, AccountType.EXPENSE):
                     if entry.entry_type == EntryType.DEBIT:
@@ -1083,8 +1099,8 @@ class Ledger:
         self._balances.clear()
         self._pruned_balances.clear()
         self._prune_cutoff = None
-        self._pruned_debits = ZERO
-        self._pruned_credits = ZERO
+        self._pruned_debits = to_decimal(0)
+        self._pruned_credits = to_decimal(0)
 
     def __len__(self) -> int:
         """Return the number of entries in the ledger."""
@@ -1117,8 +1133,9 @@ class Ledger:
         # Copy chart of accounts (shallow copy is fine - values are enums)
         result.chart_of_accounts = self.chart_of_accounts.copy()
 
-        # Copy validation setting
+        # Copy validation and simulation mode settings
         result._strict_validation = self._strict_validation
+        result._simulation_mode = self._simulation_mode
 
         # Deep copy balance cache
         result._balances = copy.deepcopy(self._balances, memo)

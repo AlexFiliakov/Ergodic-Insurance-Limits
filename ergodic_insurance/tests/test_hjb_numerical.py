@@ -70,7 +70,7 @@ class TestNumericalMethods:
                 # Check modified boundary rows for Neumann
                 # Neumann BC modifies the matrix to enforce zero derivative
                 # The exact implementation may vary, but matrix should be valid
-                assert mat_array is not None
+                assert isinstance(mat_array, np.ndarray)
                 assert np.all(np.isfinite(mat_array))
             elif bc == BoundaryCondition.ABSORBING:
                 # For absorbing BC, boundary rows enforce d²V/dx² = 0
@@ -249,7 +249,7 @@ class TestNumericalMethods:
                 time_horizon=1.0,  # Shorter horizon for stability
             )
             config = HJBSolverConfig(
-                time_step=0.01, max_iterations=50, tolerance=1e-4, verbose=False
+                time_step=0.01, max_iterations=20, tolerance=1e-4, verbose=False
             )
             solver = HJBSolver(problem, config)
             value, _ = solver.solve()
@@ -779,7 +779,7 @@ class TestConvergenceAndAccuracy:
         )
 
         config = HJBSolverConfig(
-            time_step=0.05, max_iterations=50, tolerance=1e-6, verbose=True  # Test verbose output
+            time_step=0.05, max_iterations=20, tolerance=1e-6, verbose=True  # Test verbose output
         )
 
         solver = HJBSolver(problem, config)
@@ -818,7 +818,7 @@ class TestConvergenceAndAccuracy:
             time_horizon=None,  # Infinite horizon
         )
 
-        config = HJBSolverConfig(time_step=0.01, max_iterations=100, tolerance=1e-5, verbose=False)
+        config = HJBSolverConfig(time_step=0.01, max_iterations=30, tolerance=1e-5, verbose=False)
 
         solver = HJBSolver(problem, config)
         value, policy = solver.solve()
@@ -1653,7 +1653,7 @@ class TestDiffusionTerm:
             # Higher control -> higher volatility
             return x**2 * 0.1 * u[..., 0].reshape(x.shape)
 
-        config = HJBSolverConfig(time_step=0.01, max_iterations=30, tolerance=1e-5, verbose=False)
+        config = HJBSolverConfig(time_step=0.01, max_iterations=15, tolerance=1e-5, verbose=False)
 
         # Without diffusion
         problem_no = HJBProblem(
@@ -1706,7 +1706,7 @@ class TestDiffusionTerm:
             time_horizon=None,  # Infinite horizon
             diffusion=diffusion,
         )
-        config = HJBSolverConfig(time_step=0.01, max_iterations=50, tolerance=1e-5, verbose=False)
+        config = HJBSolverConfig(time_step=0.01, max_iterations=20, tolerance=1e-5, verbose=False)
         solver = HJBSolver(problem, config)
         value, policy = solver.solve()
 

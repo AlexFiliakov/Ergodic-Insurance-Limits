@@ -211,7 +211,10 @@ class TestSerializationRoundTrip:
         assert "loss_cv" in dumped
         assert "default_optimization_weights" in dumped
         assert "layer_attachment_thresholds" in dumped
-        assert len(dumped) == 7  # All 7 fields present
+        assert "metrics_n_simulations" in dumped
+        assert "metrics_time_horizon" in dumped
+        assert "use_crn" in dumped
+        assert len(dumped) == 10  # All 10 fields present
 
     def test_model_json_schema_generation(self):
         """Verify JSON schema can be generated for API documentation."""

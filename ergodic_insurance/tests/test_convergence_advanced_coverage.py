@@ -126,6 +126,81 @@ class TestRafteryLewisStuckChain:
 
 
 # ---------------------------------------------------------------------------
+# Raftery-Lewis: degenerate transition matrix (issue #1343)
+# ---------------------------------------------------------------------------
+class TestRafteryLewisDegenerateTransitions:
+    """Test Raftery-Lewis guard for alpha + beta >= 1 (issue #1343)."""
+
+    def test_independent_chain_alpha_plus_beta_equals_one(self, diagnostics):
+        """When alpha + beta = 1, chain has no memory; burn-in should be 1."""
+        # Pattern [0,1,1,0] repeated gives exactly n01=n00=n10=n11
+        # so alpha=0.5, beta=0.5, alpha+beta=1.0
+        pattern = np.array([0, 1, 1, 0] * 2500)  # length 10000
+        chain = pattern * 10.0  # 0.0 or 10.0
+        result = diagnostics.raftery_lewis_diagnostic(chain, q=0.5)
+
+        assert result["burn_in"] == 1
+        assert result["thinning"] == 1
+        assert np.isfinite(result["n_total"])
+        assert np.isfinite(result["dependence_factor"])
+
+    def test_anti_persistent_chain_alpha_plus_beta_equals_two(self, diagnostics):
+        """When alpha + beta = 2 (deterministic alternation), burn-in = 1."""
+        # Strictly alternating: alpha=1, beta=1, alpha+beta=2
+        n = 10_000
+        chain = np.empty(n)
+        chain[0::2] = 0.0
+        chain[1::2] = 1.0
+        result = diagnostics.raftery_lewis_diagnostic(chain, q=0.5)
+
+        assert result["burn_in"] == 1
+        assert result["thinning"] == 1
+        assert np.isfinite(result["n_total"])
+        assert np.isfinite(result["dependence_factor"])
+
+    def test_fast_mixing_alpha_plus_beta_1_2(self, diagnostics):
+        """Acceptance criterion: [[0.3,0.7],[0.5,0.5]] (alpha+beta=1.2)."""
+        # Construct Markov chain with alpha≈0.7, beta≈0.5
+        rng = np.random.default_rng(42)
+        n = 20_000
+        binary = np.zeros(n, dtype=int)
+        for i in range(1, n):
+            if binary[i - 1] == 0:
+                binary[i] = 1 if rng.random() < 0.7 else 0
+            else:
+                binary[i] = 0 if rng.random() < 0.5 else 1
+        chain = np.where(binary == 1, 0.0, 10.0)
+        result = diagnostics.raftery_lewis_diagnostic(chain, q=binary.mean())
+
+        assert result["burn_in"] == 1
+        assert result["thinning"] == 1
+        assert np.isfinite(result["n_total"])
+        assert np.isfinite(result["dependence_factor"])
+
+    def test_no_nan_or_inf_in_burn_in(self, diagnostics):
+        """No NaN or inf should appear in burn_in for any valid chain."""
+        rng = np.random.default_rng(99)
+        for _ in range(20):
+            chain = rng.standard_normal(500)
+            result = diagnostics.raftery_lewis_diagnostic(chain)
+            assert np.isfinite(result["burn_in"]), "burn_in must be finite"
+            assert result["burn_in"] >= 1, "burn_in must be >= 1"
+            assert np.isfinite(result["n_total"]), "n_total must be finite"
+
+    def test_moderate_alpha_beta_still_works(self, diagnostics):
+        """When alpha + beta < 1, the standard formula should apply."""
+        # Highly autocorrelated chain: random walk
+        rng = np.random.default_rng(42)
+        chain = np.cumsum(rng.standard_normal(5000))
+        result = diagnostics.raftery_lewis_diagnostic(chain)
+
+        assert result["burn_in"] >= 1
+        assert result["thinning"] >= 1
+        assert np.isfinite(result["burn_in"])
+        assert np.isfinite(result["n_total"])
+
+
+# ---------------------------------------------------------------------------
 # ACF FFT: zero variance chain (line 437)
 # ---------------------------------------------------------------------------
 class TestACFFftZeroVariance:

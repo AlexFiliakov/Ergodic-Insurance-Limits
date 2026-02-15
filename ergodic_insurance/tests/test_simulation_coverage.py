@@ -1,11 +1,12 @@
-"""Tests targeting specific uncovered lines in simulation.py.
+"""Tests targeting specific uncovered lines in simulation.py and _compare_strategies.py.
 
 Coverage targets:
 - Lines 789-790: LossData validation failure in run_with_loss_data
 - Lines 822-825: Progress logging in run_with_loss_data
 - Lines 847-857: Insolvency handling in run_with_loss_data
-- Lines 923-1044: run_monte_carlo class method
-- Lines 1070-1130: compare_insurance_strategies class method
+- _compare_strategies.run_monte_carlo standalone function
+- _compare_strategies.compare_strategies standalone function
+- Deprecated classmethod wrappers on Simulation
 """
 
 from unittest.mock import MagicMock, Mock, patch
@@ -15,11 +16,17 @@ import numpy as np
 import pandas as pd
 import pytest
 
+from ergodic_insurance._compare_strategies import (
+    StrategyComparisonResult,
+    compare_strategies,
+    run_monte_carlo,
+)
+from ergodic_insurance._warnings import ErgodicInsuranceDeprecationWarning
 from ergodic_insurance.config import Config, ManufacturerConfig
 from ergodic_insurance.insurance import InsuranceLayer, InsurancePolicy
 from ergodic_insurance.loss_distributions import LossData, LossEvent
 from ergodic_insurance.manufacturer import WidgetManufacturer
-from ergodic_insurance.simulation import Simulation, SimulationResults, StrategyComparisonResult
+from ergodic_insurance.simulation import Simulation, SimulationResults
 
 # ---------------------------------------------------------------------------
 # Shared helper: full Config object
@@ -350,15 +357,15 @@ class TestRunWithLossDataInsolvency:
 
 
 # ---------------------------------------------------------------------------
-# Tests for Lines 923-1044: run_monte_carlo class method
+# Tests for _compare_strategies.run_monte_carlo standalone function
 # ---------------------------------------------------------------------------
 
 
 class TestRunMonteCarlo:
-    """Tests for the Simulation.run_monte_carlo class method.
+    """Tests for the standalone run_monte_carlo function.
 
-    Covers lines 923-1044. Uses mocking for MonteCarloEngine since actual
-    Monte Carlo runs would be prohibitively slow in unit tests.
+    Uses mocking for MonteCarloEngine since actual Monte Carlo runs
+    would be prohibitively slow in unit tests.
     """
 
     @pytest.fixture
@@ -402,13 +409,10 @@ class TestRunMonteCarlo:
         mock_results.growth_rates = np.array([0.05, 0.10, -0.02])
         return mock_results
 
-    @patch("ergodic_insurance.simulation.MonteCarloEngine")
+    @patch("ergodic_insurance._compare_strategies.MonteCarloEngine")
     def test_run_monte_carlo_with_ergodic_analysis(self, MockMCEngine, full_config, test_policy):
         """Test the full path through run_monte_carlo where both insured
-        and uninsured results have statistics with geometric_return.
-
-        This covers lines 923-1041 (the main success path).
-        """
+        and uninsured results have statistics with geometric_return."""
         mock_engine_insured = MagicMock()
         mock_engine_uninsured = MagicMock()
 
@@ -427,7 +431,7 @@ class TestRunMonteCarlo:
 
         with warnings.catch_warnings():
             warnings.simplefilter("ignore", DeprecationWarning)
-            output = Simulation.run_monte_carlo(
+            output = run_monte_carlo(
                 config=full_config,
                 insurance_policy=test_policy,
                 n_scenarios=100,
@@ -460,13 +464,12 @@ class TestRunMonteCarlo:
         assert analysis["survival_benefit"] == pytest.approx(0.95 - 0.85, rel=1e-6)
         assert analysis["volatility_reduction"] == pytest.approx(0.12 - 0.08, rel=1e-6)
 
-    @patch("ergodic_insurance.simulation.MonteCarloEngine")
+    @patch("ergodic_insurance._compare_strategies.MonteCarloEngine")
     def test_run_monte_carlo_fallback_no_statistics(self, MockMCEngine, full_config, test_policy):
-        """Test the fallback path (lines 1043-1047) when results lack
-        a statistics attribute.
+        """Test the fallback path when results lack a statistics attribute.
 
         MonteCarloEngine.run() returns results without a 'statistics'
-        attribute, so the method returns a minimal result dict.
+        attribute, so the function returns a minimal result dict.
         """
         mock_engine_insured = MagicMock()
         mock_engine_uninsured = MagicMock()
@@ -481,7 +484,7 @@ class TestRunMonteCarlo:
 
         with warnings.catch_warnings():
             warnings.simplefilter("ignore", DeprecationWarning)
-            output = Simulation.run_monte_carlo(
+            output = run_monte_carlo(
                 config=full_config,
                 insurance_policy=test_policy,
                 n_scenarios=50,
@@ -494,15 +497,11 @@ class TestRunMonteCarlo:
         # No ergodic_analysis when statistics are absent
         assert "ergodic_analysis" not in output
 
-    @patch("ergodic_insurance.simulation.MonteCarloEngine")
+    @patch("ergodic_insurance._compare_strategies.MonteCarloEngine")
     def test_run_monte_carlo_statistics_without_geometric_return(
         self, MockMCEngine, full_config, test_policy
     ):
-        """Test path when statistics exist but lack geometric_return key.
-
-        This exercises the condition on line 1002 where the key check fails,
-        falling through to the fallback return on lines 1043-1047.
-        """
+        """Test path when statistics exist but lack geometric_return key."""
         mock_engine_insured = MagicMock()
         mock_engine_uninsured = MagicMock()
 
@@ -516,7 +515,7 @@ class TestRunMonteCarlo:
 
         with warnings.catch_warnings():
             warnings.simplefilter("ignore", DeprecationWarning)
-            output = Simulation.run_monte_carlo(
+            output = run_monte_carlo(
                 config=full_config,
                 insurance_policy=test_policy,
                 n_scenarios=50,
@@ -528,7 +527,7 @@ class TestRunMonteCarlo:
         assert "results_without_insurance" in output
         assert "ergodic_analysis" not in output
 
-    @patch("ergodic_insurance.simulation.MonteCarloEngine")
+    @patch("ergodic_insurance._compare_strategies.MonteCarloEngine")
     def test_run_monte_carlo_n_jobs_configuration(self, MockMCEngine, full_config, test_policy):
         """Verify that n_jobs parameter correctly propagates to
         SimulationConfig (parallel=True if n_jobs > 1)."""
@@ -539,7 +538,7 @@ class TestRunMonteCarlo:
 
         with warnings.catch_warnings():
             warnings.simplefilter("ignore", DeprecationWarning)
-            Simulation.run_monte_carlo(
+            run_monte_carlo(
                 config=full_config,
                 insurance_policy=test_policy,
                 n_scenarios=50,
@@ -556,7 +555,7 @@ class TestRunMonteCarlo:
         assert sim_config.parallel is True
         assert sim_config.seed == 99
 
-    @patch("ergodic_insurance.simulation.MonteCarloEngine")
+    @patch("ergodic_insurance._compare_strategies.MonteCarloEngine")
     def test_run_monte_carlo_single_job(self, MockMCEngine, full_config, test_policy):
         """When n_jobs=1, parallel should be False."""
         mock_engine = MagicMock()
@@ -566,7 +565,7 @@ class TestRunMonteCarlo:
 
         with warnings.catch_warnings():
             warnings.simplefilter("ignore", DeprecationWarning)
-            Simulation.run_monte_carlo(
+            run_monte_carlo(
                 config=full_config,
                 insurance_policy=test_policy,
                 n_scenarios=10,
@@ -579,7 +578,7 @@ class TestRunMonteCarlo:
         assert sim_config.parallel is False
         assert sim_config.n_workers == 1
 
-    @patch("ergodic_insurance.simulation.MonteCarloEngine")
+    @patch("ergodic_insurance._compare_strategies.MonteCarloEngine")
     def test_run_monte_carlo_premium_rate_calculation(self, MockMCEngine, full_config, test_policy):
         """Verify that the premium_rate in ergodic_analysis is correctly
         calculated as premium / initial_assets."""
@@ -596,7 +595,7 @@ class TestRunMonteCarlo:
 
         with warnings.catch_warnings():
             warnings.simplefilter("ignore", DeprecationWarning)
-            output = Simulation.run_monte_carlo(
+            output = run_monte_carlo(
                 config=full_config,
                 insurance_policy=test_policy,
                 n_scenarios=100,
@@ -610,7 +609,7 @@ class TestRunMonteCarlo:
 
         assert output["ergodic_analysis"]["premium_rate"] == pytest.approx(expected_rate, rel=1e-6)
 
-    @patch("ergodic_insurance.simulation.MonteCarloEngine")
+    @patch("ergodic_insurance._compare_strategies.MonteCarloEngine")
     def test_run_monte_carlo_respects_time_horizon_years(self, MockMCEngine, test_policy):
         """Regression test for #1080: run_monte_carlo must use
         config.simulation.time_horizon_years, not a hardcoded fallback."""
@@ -625,7 +624,7 @@ class TestRunMonteCarlo:
 
         with warnings.catch_warnings():
             warnings.simplefilter("ignore", DeprecationWarning)
-            Simulation.run_monte_carlo(
+            run_monte_carlo(
                 config=config,
                 insurance_policy=test_policy,
                 n_scenarios=10,
@@ -642,17 +641,16 @@ class TestRunMonteCarlo:
 
 
 # ---------------------------------------------------------------------------
-# Tests for Lines 1070-1130: compare_insurance_strategies class method
+# Tests for _compare_strategies.compare_strategies standalone function
 # ---------------------------------------------------------------------------
 
 
 class TestCompareInsuranceStrategies:
-    """Tests for the Simulation.compare_insurance_strategies class method.
+    """Tests for the standalone compare_strategies function.
 
-    After the fix for #985, compare_insurance_strategies no longer delegates
-    to run_monte_carlo (which ran 2 sims per call).  Instead it constructs
-    MonteCarloEngine instances directly: one shared uninsured baseline plus
-    one per strategy, using Common Random Numbers for paired comparison.
+    compare_strategies constructs MonteCarloEngine instances directly:
+    one shared uninsured baseline plus one per strategy, using Common
+    Random Numbers for paired comparison.
     """
 
     @pytest.fixture
@@ -695,16 +693,16 @@ class TestCompareInsuranceStrategies:
         mock_results.growth_rates = np.abs(rng.normal(0.06, 0.03, n_scenarios))
         return mock_results
 
-    @patch("ergodic_insurance.simulation.MonteCarloEngine")
+    @patch("ergodic_insurance._compare_strategies.MonteCarloEngine")
     def test_compare_basic_structure(self, MockMCEngine, full_config, policy_dict):
-        """Verify that compare_insurance_strategies returns a
+        """Verify that compare_strategies returns a
         StrategyComparisonResult whose summary_df has the correct columns
         and one row per policy."""
         mock_engine = MagicMock()
         mock_engine.run.return_value = self._make_mock_engine_result()
         MockMCEngine.return_value = mock_engine
 
-        result = Simulation.compare_insurance_strategies(
+        result = compare_strategies(
             config=full_config,
             insurance_policies=policy_dict,
             n_scenarios=50,
@@ -734,7 +732,7 @@ class TestCompareInsuranceStrategies:
         }
         assert expected_columns.issubset(set(df.columns))
 
-    @patch("ergodic_insurance.simulation.MonteCarloEngine")
+    @patch("ergodic_insurance._compare_strategies.MonteCarloEngine")
     def test_compare_relative_metrics_computed(self, MockMCEngine, full_config, policy_dict):
         """Verify that derived columns (premium_to_coverage, sharpe_ratio)
         are computed correctly."""
@@ -742,7 +740,7 @@ class TestCompareInsuranceStrategies:
         mock_engine.run.return_value = self._make_mock_engine_result()
         MockMCEngine.return_value = mock_engine
 
-        result = Simulation.compare_insurance_strategies(
+        result = compare_strategies(
             config=full_config,
             insurance_policies=policy_dict,
             n_scenarios=50,
@@ -761,7 +759,7 @@ class TestCompareInsuranceStrategies:
             expected_sharpe = row["arithmetic_return"] / row["std_final_equity"]
             assert row["sharpe_ratio"] == pytest.approx(expected_sharpe, rel=1e-6)
 
-    @patch("ergodic_insurance.simulation.MonteCarloEngine")
+    @patch("ergodic_insurance._compare_strategies.MonteCarloEngine")
     def test_compare_runs_baseline_plus_one_per_strategy(
         self, MockMCEngine, full_config, policy_dict
     ):
@@ -771,7 +769,7 @@ class TestCompareInsuranceStrategies:
         mock_engine.run.return_value = self._make_mock_engine_result()
         MockMCEngine.return_value = mock_engine
 
-        result = Simulation.compare_insurance_strategies(
+        result = compare_strategies(
             config=full_config,
             insurance_policies=policy_dict,
             n_scenarios=200,
@@ -794,7 +792,7 @@ class TestCompareInsuranceStrategies:
         # Verify result has the CRN seed recorded
         assert result.crn_seed == 99
 
-    @patch("ergodic_insurance.simulation.MonteCarloEngine")
+    @patch("ergodic_insurance._compare_strategies.MonteCarloEngine")
     def test_compare_single_policy(self, MockMCEngine, full_config):
         """Works correctly with a single policy."""
         mock_engine = MagicMock()
@@ -810,7 +808,7 @@ class TestCompareInsuranceStrategies:
                 )
             }
 
-        result = Simulation.compare_insurance_strategies(
+        result = compare_strategies(
             config=full_config,
             insurance_policies=single_policy,
             n_scenarios=10,
@@ -827,7 +825,7 @@ class TestCompareInsuranceStrategies:
         # 1 baseline + 1 strategy = 2 engine constructions
         assert MockMCEngine.call_count == 2
 
-    @patch("ergodic_insurance.simulation.MonteCarloEngine")
+    @patch("ergodic_insurance._compare_strategies.MonteCarloEngine")
     def test_compare_preserves_premium_and_coverage_values(
         self, MockMCEngine, full_config, policy_dict
     ):
@@ -837,7 +835,7 @@ class TestCompareInsuranceStrategies:
         mock_engine.run.return_value = self._make_mock_engine_result()
         MockMCEngine.return_value = mock_engine
 
-        result = Simulation.compare_insurance_strategies(
+        result = compare_strategies(
             config=full_config,
             insurance_policies=policy_dict,
             n_scenarios=50,
@@ -851,7 +849,7 @@ class TestCompareInsuranceStrategies:
             assert row["annual_premium"] == pytest.approx(policy.calculate_premium(), rel=1e-6)
             assert row["total_coverage"] == pytest.approx(policy.get_total_coverage(), rel=1e-6)
 
-    @patch("ergodic_insurance.simulation.MonteCarloEngine")
+    @patch("ergodic_insurance._compare_strategies.MonteCarloEngine")
     def test_compare_survival_rate_calculation(self, MockMCEngine, full_config):
         """Verify survival_rate is calculated as fraction of positive
         final assets."""
@@ -877,7 +875,7 @@ class TestCompareInsuranceStrategies:
                 )
             }
 
-        result = Simulation.compare_insurance_strategies(
+        result = compare_strategies(
             config=full_config,
             insurance_policies=single_policy,
             n_scenarios=10,
@@ -890,7 +888,7 @@ class TestCompareInsuranceStrategies:
         # 0.0 is NOT > 0, and -50.0 is NOT > 0
         assert df.iloc[0]["survival_rate"] == pytest.approx(0.7, rel=1e-6)
 
-    @patch("ergodic_insurance.simulation.MonteCarloEngine")
+    @patch("ergodic_insurance._compare_strategies.MonteCarloEngine")
     def test_compare_geometric_return_uses_all_rates(self, MockMCEngine, full_config):
         """Geometric return should use ALL growth rates via growth factors."""
         mock_sim_results = MagicMock()
@@ -911,7 +909,7 @@ class TestCompareInsuranceStrategies:
                 )
             }
 
-        result = Simulation.compare_insurance_strategies(
+        result = compare_strategies(
             config=full_config,
             insurance_policies=single_policy,
             n_scenarios=5,
@@ -926,7 +924,7 @@ class TestCompareInsuranceStrategies:
         expected_geo = float(np.exp(np.mean(np.log(growth_factors))) - 1)
         assert df.iloc[0]["geometric_return"] == pytest.approx(expected_geo, rel=1e-4)
 
-    @patch("ergodic_insurance.simulation.MonteCarloEngine")
+    @patch("ergodic_insurance._compare_strategies.MonteCarloEngine")
     def test_compare_geometric_return_handles_total_wipeout(self, MockMCEngine, full_config):
         """Growth rates <= -1 should produce a finite geometric return."""
         mock_sim_results = MagicMock()
@@ -947,7 +945,7 @@ class TestCompareInsuranceStrategies:
                 )
             }
 
-        result = Simulation.compare_insurance_strategies(
+        result = compare_strategies(
             config=full_config,
             insurance_policies=single_policy,
             n_scenarios=3,
@@ -959,7 +957,7 @@ class TestCompareInsuranceStrategies:
         geo = df.iloc[0]["geometric_return"]
         assert np.isfinite(geo), f"Geometric return should be finite, got {geo}"
 
-    @patch("ergodic_insurance.simulation.MonteCarloEngine")
+    @patch("ergodic_insurance._compare_strategies.MonteCarloEngine")
     def test_compare_baseline_is_shared(self, MockMCEngine, full_config, policy_dict):
         """The uninsured baseline should be run once and shared across all
         strategies (core fix for issue #985)."""
@@ -974,7 +972,7 @@ class TestCompareInsuranceStrategies:
             mock_engines.append(engine)
         MockMCEngine.side_effect = mock_engines
 
-        result = Simulation.compare_insurance_strategies(
+        result = compare_strategies(
             config=full_config,
             insurance_policies=policy_dict,
             n_scenarios=50,
@@ -989,14 +987,14 @@ class TestCompareInsuranceStrategies:
         for name in policy_dict:
             assert name in result.strategy_results
 
-    @patch("ergodic_insurance.simulation.MonteCarloEngine")
+    @patch("ergodic_insurance._compare_strategies.MonteCarloEngine")
     def test_compare_crn_seed_generated_when_no_seed(self, MockMCEngine, full_config, policy_dict):
         """When no seed is provided, a CRN base seed is still generated."""
         mock_engine = MagicMock()
         mock_engine.run.return_value = self._make_mock_engine_result()
         MockMCEngine.return_value = mock_engine
 
-        result = Simulation.compare_insurance_strategies(
+        result = compare_strategies(
             config=full_config,
             insurance_policies=policy_dict,
             n_scenarios=50,
@@ -1011,9 +1009,9 @@ class TestCompareInsuranceStrategies:
             kwargs = call[1]
             assert kwargs["config"].crn_base_seed == result.crn_seed
 
-    @patch("ergodic_insurance.simulation.MonteCarloEngine")
+    @patch("ergodic_insurance._compare_strategies.MonteCarloEngine")
     def test_compare_respects_time_horizon_years(self, MockMCEngine, policy_dict):
-        """Regression test for #1080: compare_insurance_strategies must use
+        """Regression test for #1080: compare_strategies must use
         config.simulation.time_horizon_years, not a hardcoded fallback."""
         config = _make_full_config()
         config.simulation.time_horizon_years = 30
@@ -1022,7 +1020,7 @@ class TestCompareInsuranceStrategies:
         mock_engine.run.return_value = self._make_mock_engine_result()
         MockMCEngine.return_value = mock_engine
 
-        Simulation.compare_insurance_strategies(
+        compare_strategies(
             config=config,
             insurance_policies=policy_dict,
             n_scenarios=10,
@@ -1036,6 +1034,105 @@ class TestCompareInsuranceStrategies:
             assert (
                 sim_config.n_years == 30
             ), f"Expected n_years=30 from time_horizon_years, got {sim_config.n_years}"
+
+
+# ---------------------------------------------------------------------------
+# Tests for deprecated classmethod wrappers on Simulation
+# ---------------------------------------------------------------------------
+
+
+class TestDeprecatedClassmethods:
+    """Verify that the deprecated classmethods on Simulation emit warnings
+    and delegate to the standalone functions."""
+
+    @pytest.fixture
+    def full_config(self):
+        return _make_full_config()
+
+    @pytest.fixture
+    def test_policy(self):
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore", DeprecationWarning)
+            layer = InsuranceLayer(
+                attachment_point=500_000,
+                limit=5_000_000,
+                rate=0.02,
+            )
+            return InsurancePolicy(layers=[layer], deductible=500_000)
+
+    @patch("ergodic_insurance._compare_strategies.MonteCarloEngine")
+    def test_run_monte_carlo_classmethod_emits_deprecation(
+        self, MockMCEngine, full_config, test_policy
+    ):
+        """Simulation.run_monte_carlo() should emit
+        ErgodicInsuranceDeprecationWarning and still return results."""
+        mock_engine = MagicMock()
+        mock_results = Mock(spec=["final_assets", "growth_rates"])
+        mock_results.final_assets = np.array([10_000_000.0])
+        mock_results.growth_rates = np.array([0.05])
+        mock_engine.run.return_value = mock_results
+        MockMCEngine.return_value = mock_engine
+
+        with warnings.catch_warnings(record=True) as caught:
+            warnings.simplefilter("always")
+            output = Simulation.run_monte_carlo(
+                config=full_config,
+                insurance_policy=test_policy,
+                n_scenarios=10,
+                n_jobs=1,
+                seed=42,
+            )
+
+        deprecation_warnings = [
+            w for w in caught if issubclass(w.category, ErgodicInsuranceDeprecationWarning)
+        ]
+        assert len(deprecation_warnings) >= 1
+        assert "standalone run_monte_carlo()" in str(deprecation_warnings[0].message)
+        assert "results_with_insurance" in output
+
+    @patch("ergodic_insurance._compare_strategies.MonteCarloEngine")
+    def test_compare_insurance_strategies_classmethod_emits_deprecation(
+        self, MockMCEngine, full_config
+    ):
+        """Simulation.compare_insurance_strategies() should emit
+        ErgodicInsuranceDeprecationWarning and still return results."""
+        mock_engine = MagicMock()
+        mock_results = MagicMock()
+        rng = np.random.default_rng(42)
+        mock_results.final_assets = rng.normal(12_000_000, 2_000_000, 10)
+        mock_results.growth_rates = np.abs(rng.normal(0.06, 0.03, 10))
+        mock_engine.run.return_value = mock_results
+        MockMCEngine.return_value = mock_engine
+
+        # Create policy outside recording context to avoid InsurancePolicy
+        # deprecation warning polluting the captured list.
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore", DeprecationWarning)
+            single_policy = {
+                "Test": InsurancePolicy(
+                    layers=[InsuranceLayer(0, 1_000_000, 0.02)],
+                    deductible=0,
+                )
+            }
+
+        with warnings.catch_warnings(record=True) as caught:
+            warnings.simplefilter("always")
+            result = Simulation.compare_insurance_strategies(
+                config=full_config,
+                insurance_policies=single_policy,
+                n_scenarios=10,
+                n_jobs=1,
+                seed=42,
+            )
+
+        wrapper_warnings = [
+            w
+            for w in caught
+            if issubclass(w.category, ErgodicInsuranceDeprecationWarning)
+            and "standalone compare_strategies()" in str(w.message)
+        ]
+        assert len(wrapper_warnings) >= 1
+        assert isinstance(result, StrategyComparisonResult)
 
 
 # ---------------------------------------------------------------------------

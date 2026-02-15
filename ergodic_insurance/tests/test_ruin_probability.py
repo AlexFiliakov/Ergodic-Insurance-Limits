@@ -149,6 +149,7 @@ class TestRuinProbabilityAnalyzer:
         manufacturer.total_assets = 10_000_000
         manufacturer.debt = 0  # Set default debt value
         manufacturer.is_ruined = False
+        manufacturer.stochastic_process = None
         manufacturer.calculate_revenue.return_value = 5_000_000
         manufacturer.step.return_value = {"equity": 1_000_000, "operating_income": 500_000}
 
@@ -167,6 +168,24 @@ class TestRuinProbabilityAnalyzer:
         manufacturer.copy = copy_manufacturer
         manufacturer.process_insurance_claim = MagicMock()
         return manufacturer
+
+    @pytest.fixture(autouse=True)
+    def _patch_create_fresh(self, mock_manufacturer):
+        """Patch WidgetManufacturer.create_fresh to return a mock."""
+
+        def _make_fresh(*args, **kwargs):
+            copy_mfg = MagicMock()
+            copy_mfg.total_assets = mock_manufacturer.total_assets
+            copy_mfg.debt = 0
+            copy_mfg.is_ruined = False
+            copy_mfg.calculate_revenue = mock_manufacturer.calculate_revenue
+            copy_mfg.step = mock_manufacturer.step
+            copy_mfg.process_insurance_claim = MagicMock()
+            return copy_mfg
+
+        with patch("ergodic_insurance.ruin_probability.WidgetManufacturer") as MockWM:
+            MockWM.create_fresh.side_effect = _make_fresh
+            yield
 
     @pytest.fixture
     def mock_loss_generator(self):
@@ -402,6 +421,92 @@ class TestRuinProbabilityAnalyzer:
         assert "equity" in metrics
         mock_manufacturer.calculate_revenue.assert_called_once()
         mock_manufacturer.step.assert_called_once()
+
+    def test_process_simulation_year_per_occurrence(self, mock_manufacturer, mock_config):
+        """Test that each loss event is processed individually through process_claim.
+
+        Regression test for issue #1136: previously all annual losses were summed
+        into a single claim, breaking per-occurrence deductible and layer semantics.
+        """
+        # Create 3 separate loss events
+        event1 = MagicMock()
+        event1.amount = 200_000
+        event2 = MagicMock()
+        event2.amount = 300_000
+        event3 = MagicMock()
+        event3.amount = 500_000
+
+        loss_generator = MagicMock()
+        loss_generator.generate_losses.return_value = (
+            [event1, event2, event3],
+            {"total_loss": 1_000_000},
+        )
+
+        # Insurance program with per-occurrence deductible of 100K
+        # Each event should be processed separately:
+        #   event1: 200K claim -> 100K deductible, 100K recovery
+        #   event2: 300K claim -> 100K deductible, 200K recovery
+        #   event3: 500K claim -> 100K deductible, 400K recovery
+        # Total recovery = 700K, retained = 300K
+        insurance_program = MagicMock()
+        insurance_program.process_claim.side_effect = [
+            ClaimResult(
+                total_claim=200_000,
+                deductible_paid=100_000,
+                insurance_recovery=100_000,
+                uncovered_loss=0.0,
+                reinstatement_premiums=0.0,
+            ),
+            ClaimResult(
+                total_claim=300_000,
+                deductible_paid=100_000,
+                insurance_recovery=200_000,
+                uncovered_loss=0.0,
+                reinstatement_premiums=0.0,
+            ),
+            ClaimResult(
+                total_claim=500_000,
+                deductible_paid=100_000,
+                insurance_recovery=400_000,
+                uncovered_loss=0.0,
+                reinstatement_premiums=0.0,
+            ),
+        ]
+
+        analyzer = RuinProbabilityAnalyzer(
+            mock_manufacturer, loss_generator, insurance_program, mock_config
+        )
+
+        analyzer._process_simulation_year(mock_manufacturer, 0)
+
+        # Verify process_claim was called 3 times (once per event), NOT once with the sum
+        assert insurance_program.process_claim.call_count == 3
+        insurance_program.process_claim.assert_any_call(200_000)
+        insurance_program.process_claim.assert_any_call(300_000)
+        insurance_program.process_claim.assert_any_call(500_000)
+
+        # Retained = 1_000_000 total - 700_000 recovery = 300_000
+        mock_manufacturer.process_uninsured_claim.assert_called_once_with(
+            claim_amount=300_000,
+            immediate_payment=False,
+        )
+
+    def test_process_simulation_year_no_events(self, mock_config, mock_manufacturer):
+        """Test that no claims are processed when there are no loss events."""
+        loss_generator = MagicMock()
+        loss_generator.generate_losses.return_value = ([], {"total_loss": 0})
+
+        insurance_program = MagicMock()
+
+        analyzer = RuinProbabilityAnalyzer(
+            mock_manufacturer, loss_generator, insurance_program, mock_config
+        )
+
+        analyzer._process_simulation_year(mock_manufacturer, 0)
+
+        # No events means no claims processed and no uninsured loss
+        insurance_program.process_claim.assert_not_called()
+        mock_manufacturer.process_uninsured_claim.assert_not_called()
 
     def test_pad_survival_curves(self, analyzer):
         """Test padding survival curves to uniform length."""

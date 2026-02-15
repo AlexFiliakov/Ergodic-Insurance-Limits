@@ -36,7 +36,7 @@ Examples:
             loss_frequency=2.5,
             loss_severity_mean=1_000_000,
             deductible=500_000,
-            coverage_limit=10_000_000,
+            limit=10_000_000,
             premium_rate=0.025,
         )
         print(results.summary())
@@ -167,6 +167,9 @@ __all__ = [
     "Simulation",
     "SimulationResults",
     "StrategyComparisonResult",
+    # Standalone Monte Carlo orchestration (Issue #1301)
+    "run_monte_carlo",
+    "compare_strategies",
 ]
 
 
@@ -300,11 +303,18 @@ def __getattr__(name):
         from .manufacturer import WidgetManufacturer  # pylint: disable=import-outside-toplevel
 
         return WidgetManufacturer
-    if name in ("Simulation", "SimulationResults", "StrategyComparisonResult"):
+    if name in ("run_monte_carlo", "compare_strategies", "StrategyComparisonResult"):
+        from ._compare_strategies import (  # pylint: disable=import-outside-toplevel,possibly-unused-variable
+            StrategyComparisonResult,
+            compare_strategies,
+            run_monte_carlo,
+        )
+
+        return locals()[name]
+    if name in ("Simulation", "SimulationResults"):
         from .simulation import (  # pylint: disable=import-outside-toplevel,possibly-unused-variable
             Simulation,
             SimulationResults,
-            StrategyComparisonResult,
         )
 
         return locals()[name]
@@ -392,6 +402,7 @@ def __getattr__(name):
         return locals()[name]
     if name in (
         "ErgodicInsuranceWarning",
+        "ErgodicInsuranceDeprecationWarning",
         "ConfigurationWarning",
         "DataQualityWarning",
         "ExportWarning",
@@ -399,6 +410,7 @@ def __getattr__(name):
         from ._warnings import (  # pylint: disable=import-outside-toplevel,possibly-unused-variable
             ConfigurationWarning,
             DataQualityWarning,
+            ErgodicInsuranceDeprecationWarning,
             ErgodicInsuranceWarning,
             ExportWarning,
         )

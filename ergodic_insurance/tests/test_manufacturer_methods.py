@@ -252,7 +252,8 @@ class TestProcessInsuranceClaim:
         lae_factor = ONE + lae_ratio
         expected_liability = to_decimal(claim_amount) * lae_factor
         assert manufacturer.equity == pytest.approx(initial_equity - expected_liability)
-        assert manufacturer.period_insurance_losses == 0
+        # Deferred claims now record loss at inception per ASC 450-20 (Issue #1297)
+        assert manufacturer.period_insurance_losses == to_decimal(claim_amount)
         assert len(manufacturer.claim_liabilities) == 1
         assert manufacturer.collateral == 0
         assert manufacturer.restricted_assets == 0

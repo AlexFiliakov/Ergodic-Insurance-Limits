@@ -36,6 +36,19 @@ class RiskMetrics:
 
     This class provides industry-standard risk metrics for analyzing
     tail risk in insurance and financial applications.
+
+    **Sign convention:** By default, input values are treated as **losses**
+    (positive values = losses, negative values = gains).  All percentile-based
+    metrics (VaR, TVaR, PML, Expected Shortfall) are computed on this loss
+    distribution.
+
+    If your data represents **returns** (positive values = gains), pass
+    ``convention="return"`` and the class will automatically negate the
+    input internally so that the loss-based metrics remain correct.
+
+    A heuristic check is performed on construction: if more than 80 % of
+    finite values are negative under the ``"loss"`` convention, a warning is
+    emitted because the data likely represents returns rather than losses.
     """
 
     def __init__(
@@ -43,17 +56,30 @@ class RiskMetrics:
         losses: np.ndarray,
         weights: Optional[np.ndarray] = None,
         seed: Optional[int] = None,
+        convention: Literal["loss", "return"] = "loss",
     ):
         """Initialize risk metrics calculator.
 
         Args:
-            losses: Array of loss values (positive values represent losses).
+            losses: Array of loss values.  Interpretation depends on
+                *convention*: with ``"loss"`` (default) positive values are
+                losses; with ``"return"`` positive values are gains.
             weights: Optional importance sampling weights.
             seed: Random seed for bootstrap calculations.
+            convention: Sign convention of the input data.
+
+                * ``"loss"`` (default) — positive values represent losses.
+                * ``"return"`` — positive values represent gains.  The data
+                  is negated internally so that all metrics are computed in
+                  loss space.
 
         Raises:
-            ValueError: If losses array is empty or contains invalid values.
+            ValueError: If losses array is empty, contains invalid values,
+                or *convention* is not ``"loss"`` or ``"return"``.
         """
+        if convention not in ("loss", "return"):
+            raise ValueError(f"convention must be 'loss' or 'return', got {convention!r}")
+
         if len(losses) == 0:
             raise ValueError("Losses array cannot be empty")
 
@@ -65,7 +91,25 @@ class RiskMetrics:
             if weights is not None:
                 weights = weights[valid_mask]
 
+        # Heuristic sign-convention check
+        if convention == "loss" and len(losses) > 0:
+            neg_frac = np.sum(losses < 0) / len(losses)
+            if neg_frac > 0.8:
+                warnings.warn(
+                    f"More than {neg_frac:.0%} of values are negative. "
+                    "RiskMetrics expects losses (positive values = losses). "
+                    "If these are returns, use convention='return' or negate "
+                    "them first: RiskMetrics(-data)",
+                    UserWarning,
+                    stacklevel=2,
+                )
+
+        # Convert returns to losses when needed
+        if convention == "return":
+            losses = -np.asarray(losses)
+
         self.losses = np.asarray(losses)
+        self.convention = convention
         self.weights = weights
         self.rng = np.random.default_rng(seed)
 
@@ -436,6 +480,12 @@ class RiskMetrics:
         It is *not* the same as the standard portfolio-return drawdown
         commonly used in asset management.
 
+        .. note::
+           When ``convention="return"`` was used at construction, the stored
+           losses are the negated returns.  The drawdown is therefore computed
+           on the cumulative *negated* returns, which represents the
+           cumulative loss experienced by the portfolio.
+
         Returns:
             Maximum drawdown value (non-negative).
         """
@@ -560,6 +610,11 @@ class RiskMetrics:
         risk_free_rate: float = DEFAULT_RISK_FREE_RATE,
     ) -> Dict[str, float]:
         """Calculate risk-adjusted return metrics.
+
+        When *returns* is ``None`` the method derives returns as
+        ``-self.losses``.  Because the ``"return"`` convention negates the
+        input on construction, ``-self.losses`` correctly recovers the
+        original return values regardless of which convention was used.
 
         Args:
             returns: Array of returns (if None, uses negative of losses).
