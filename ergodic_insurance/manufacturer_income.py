@@ -178,6 +178,12 @@ class IncomeCalculationMixin:
 
         income_before_tax = operating_income_decimal - collateral_costs_decimal
 
+        # Cache for closing entries residual (Issue #1297).  The residual
+        # formula uses income_before_tax (not net_income) so that accrued
+        # taxes are excluded from the cash adjustment — taxes are non-cash
+        # until paid via accrual payments.
+        self._period_income_before_tax = income_before_tax
+
         # Capture DTA before tax calculation for journal entry delta (Issue #365)
         old_dta = (
             self.tax_handler.deferred_tax_asset if self._nol_carryforward_enabled else to_decimal(0)

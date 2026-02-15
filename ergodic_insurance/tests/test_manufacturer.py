@@ -1020,7 +1020,8 @@ class TestWidgetManufacturer:
         expected_insured_liability = to_decimal(deductible) * lae_factor
         expected_uninsured_liability = to_decimal(100_000) * lae_factor
         assert manufacturer_insured.period_insurance_losses == 0
-        assert manufacturer_uninsured.period_insurance_losses == 0
+        # Deferred claims now record loss at inception per ASC 450-20 (Issue #1297)
+        assert manufacturer_uninsured.period_insurance_losses == to_decimal(100_000)
         assert manufacturer_insured.total_claim_liabilities == pytest.approx(
             expected_insured_liability
         )

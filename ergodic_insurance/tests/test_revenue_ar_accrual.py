@@ -116,9 +116,14 @@ class TestRevenueARAccrual:
         delta_ar = manufacturer.accounts_receivable - initial_ar
         delta_inv = manufacturer.inventory - initial_inv
         delta_ap = manufacturer.accounts_payable - initial_ap
+        delta_accrued_taxes = to_decimal(metrics.get("accrued_taxes", 0))
 
-        # OCF (indirect method) = NI + dep - ΔAR - ΔInv + ΔAP
-        expected_ocf = ni + dep - delta_ar - delta_inv + delta_ap
+        # OCF (indirect method, ASC 230-10-45) =
+        #   NI + dep + ΔACCRUED_TAXES - ΔAR - ΔInv + ΔAP
+        # The ΔACCRUED_TAXES term is required because taxes are accrued
+        # (Dr TAX_EXPENSE / Cr ACCRUED_TAXES) — a non-cash charge that
+        # increases a current liability (Issue #1297).
+        expected_ocf = ni + dep + delta_accrued_taxes - delta_ar - delta_inv + delta_ap
         actual_cash_change = manufacturer.cash - initial_cash
 
         # Cash change should match indirect-method OCF (before investing/financing)
@@ -130,8 +135,8 @@ class TestRevenueARAccrual:
         # the only non-OCF cash flow is capex (which is 0 here).
         assert float(actual_cash_change) == pytest.approx(float(expected_ocf), rel=0.01), (
             f"Cash change ({actual_cash_change}) should match indirect-method OCF "
-            f"({expected_ocf}) = NI ({ni}) + dep ({dep}) - ΔAR ({delta_ar}) "
-            f"- ΔInv ({delta_inv}) + ΔAP ({delta_ap})"
+            f"({expected_ocf}) = NI ({ni}) + dep ({dep}) + ΔAccTax ({delta_accrued_taxes}) "
+            f"- ΔAR ({delta_ar}) - ΔInv ({delta_inv}) + ΔAP ({delta_ap})"
         )
 
     def test_collections_equal_revenue_minus_ar_change(self, manufacturer):

@@ -1071,6 +1071,7 @@ class BalanceSheetMixin:
         """
         total_revenue_closed = to_decimal(0)
         total_expense_closed = to_decimal(0)
+        tax_expense_closed = to_decimal(0)
 
         for account, acct_type in CHART_OF_ACCOUNTS.items():
             if acct_type == AccountType.REVENUE:
@@ -1109,42 +1110,47 @@ class BalanceSheetMixin:
             elif acct_type == AccountType.EXPENSE:
                 balance = self.ledger.get_balance(account)
 
-                # Bug 2+3 fix: Close TAX_EXPENSE to ACCRUED_TAXES instead of RE.
-                # Tax expense is already reflected in net_income; closing it to RE
-                # would include it in ledger_net, making the residual cash adjustment
-                # exclude tax from cash outflow (breaking OCF reconciliation).
-                # Closing to ACCRUED_TAXES zeros the temporary account without
-                # affecting ledger_net or the residual.
+                # Close TAX_EXPENSE to RE (not ACCRUED_TAXES) to preserve
+                # the ACCRUED_TAXES liability balance that must agree with
+                # AccrualManager (Issue #1297).  TAX_EXPENSE IS included in
+                # total_expense_closed so that ledger_net ≈ NI for fully-
+                # journalized flows, and the residual captures only
+                # un-journalized items (e.g., period_insurance_premiums
+                # that have no ledger entry).
                 if account == AccountName.TAX_EXPENSE:
                     if balance > to_decimal(0):
-                        # Dr ACCRUED_TAXES / Cr TAX_EXPENSE
+                        # Dr RE / Cr TAX_EXPENSE
                         self.ledger.record_double_entry(
                             date=self.current_year,
-                            debit_account=AccountName.ACCRUED_TAXES,
+                            debit_account=AccountName.RETAINED_EARNINGS,
                             credit_account=account,
                             amount=balance,
                             transaction_type=TransactionType.RETAINED_EARNINGS,
                             description=(
                                 f"Year {self.current_year} close "
-                                f"{account.value} to accrued taxes"
+                                f"{account.value} to retained earnings"
                             ),
                             month=self.current_month,
                         )
                     elif balance < to_decimal(0):
-                        # Dr TAX_EXPENSE / Cr ACCRUED_TAXES
+                        # Dr TAX_EXPENSE / Cr RE
                         self.ledger.record_double_entry(
                             date=self.current_year,
                             debit_account=account,
-                            credit_account=AccountName.ACCRUED_TAXES,
+                            credit_account=AccountName.RETAINED_EARNINGS,
                             amount=abs(balance),
                             transaction_type=TransactionType.RETAINED_EARNINGS,
                             description=(
                                 f"Year {self.current_year} close "
-                                f"{account.value} (credit balance) to accrued taxes"
+                                f"{account.value} (credit balance) to retained earnings"
                             ),
                             month=self.current_month,
                         )
-                    # Do NOT add to total_expense_closed — excluded from ledger_net
+                    # Do NOT add to total_expense_closed — tax is excluded
+                    # from ledger_net because the residual uses income_before_tax
+                    # (not net_income) to avoid conflating accrued taxes with
+                    # cash flows.
+                    tax_expense_closed = balance
                     continue
 
                 if balance > to_decimal(0):
@@ -1184,13 +1190,26 @@ class BalanceSheetMixin:
         # are only captured in the net_income calculation, not as entries).
         ledger_net = total_revenue_closed - total_expense_closed
 
-        # Issue #1213/#1302: Residual cash adjustment.
+        # Issue #1213/#1302/#1297: Residual cash adjustment.
         # Closing entries only shuffle between temporary accounts and RE;
-        # they do not touch CASH.  The residual reconciles any gap between
-        # ledger_net (from journal entries) and the computed net_income
-        # (from the income model), ensuring RE changes by exactly net_income
-        # and CASH adjusts accordingly (indirect-method OCF, ASC 230-10-28).
-        cash_outflow = ledger_net - net_income
+        # they do not touch CASH.  The residual reconciles the gap between
+        # ledger_net (journalized income items, excluding tax) and
+        # income_before_tax (all income items before tax deduction).
+        #
+        # Using income_before_tax instead of net_income is critical:
+        # taxes are accrued (Dr TAX_EXPENSE / Cr ACCRUED_TAXES), not paid
+        # in cash during this period.  Using net_income would incorrectly
+        # drain cash by the tax amount.  Tax cash outflows are handled
+        # separately via process_accrued_payments() (ASC 230-10-28).
+        # When called via step(), _period_income_before_tax is set by
+        # calculate_net_income().  When called directly (e.g., from tests
+        # or update_balance_sheet without step()), fall back to
+        # net_income + tax_expense_closed, which equals income_before_tax
+        # when TAX_EXPENSE in the ledger matches the NI tax deduction.
+        income_before_tax = getattr(
+            self, "_period_income_before_tax", net_income + tax_expense_closed
+        )
+        cash_outflow = ledger_net - income_before_tax
 
         if cash_outflow > to_decimal(0):
             # Ledger tracked more income than computed — remove excess cash
