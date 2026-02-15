@@ -327,15 +327,39 @@ class SolvencyMixin:
         """
         # Per ASC 470-10 (Issue #496), negative cash represents a draw on the
         # working capital facility and is reclassified as short-term borrowings.
-        # It is NOT an insolvency signal — solvency is determined by equity below.
+        facility_limit = getattr(self.config, "working_capital_facility_limit", None)
         if self.cash < ZERO:
-            logger.info(
-                f"Working capital facility in use: cash balance ${self.cash:,.2f}. "
-                f"Reclassified as ${-self.cash:,.2f} short-term borrowings (ASC 470-10)."
-            )
+            if facility_limit is not None:
+                facility_limit_d = to_decimal(facility_limit)
+                logger.info(
+                    f"Working capital facility in use: cash ${self.cash:,.2f}, "
+                    f"facility limit ${facility_limit_d:,.2f}, "
+                    f"remaining capacity ${facility_limit_d + self.cash:,.2f} (ASC 470-10)."
+                )
+            else:
+                logger.info(
+                    f"Working capital facility in use: cash balance ${self.cash:,.2f}. "
+                    f"Reclassified as ${-self.cash:,.2f} short-term borrowings (ASC 470-10)."
+                )
 
         # --- Tier 1: Hard stops (non-configurable) ---
 
+        # Tier 1a: Working capital facility breach (Issue #1337, ASC 205-40-50-12)
+        # When a facility limit is configured, cash below -(limit) means the
+        # company has exhausted its credit facility and cannot meet obligations.
+        if facility_limit is not None:
+            facility_limit_d = to_decimal(facility_limit)
+            if self.cash < -facility_limit_d:
+                logger.warning(
+                    f"LIQUIDITY INSOLVENCY: Cash ${self.cash:,.2f} breaches "
+                    f"working capital facility limit of ${facility_limit_d:,.2f} "
+                    f"(overdraft ${-self.cash:,.2f} > facility ${facility_limit_d:,.2f}). "
+                    f"Company cannot meet obligations (ASC 205-40-50-12, Issue #1337)."
+                )
+                self.handle_insolvency()
+                return False
+
+        # Tier 1b: Balance sheet insolvency — operational equity <= 0
         # Use solvency_equity (operational equity) — see property docstring
         # for GAAP justification (ASC 205-40-50-7, Issue #464, #1311)
         if self.solvency_equity <= ZERO:

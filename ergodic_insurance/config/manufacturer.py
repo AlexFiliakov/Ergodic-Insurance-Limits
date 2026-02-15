@@ -392,6 +392,17 @@ class ManufacturerConfig(BaseModel):
         "(Damodaran sector data).",
     )
 
+    # Working capital facility configuration (Issue #1337, ASC 470-10 / ASC 205-40-50-12)
+    working_capital_facility_limit: Optional[float] = Field(
+        default=None,
+        ge=0,
+        description="Maximum working capital facility (credit line) amount in dollars. "
+        "When cash goes below -(facility_limit), the company has exhausted its "
+        "credit facility and is deemed insolvent per ASC 205-40-50-12. "
+        "None = unlimited facility (legacy behavior). "
+        "Typical: 10-20%% of total assets for manufacturers.",
+    )
+
     # Loss adjustment expense configuration (Issue #468, ASC 944-40)
     lae_ratio: float = Field(
         default=0.12,
