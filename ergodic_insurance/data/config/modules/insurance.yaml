@@ -415,7 +415,7 @@ pricing:
       Market Premium = Pure Premium / Loss Ratio
 
       Where:
-      - Pure Premium = Expected Frequency × Expected Severity
+      - Pure Premium = Mean of Annual Aggregate Losses in Layer
       - Loss Ratio varies by market cycle (60% hard, 70% normal, 80% soft)
       - Technical Premium = Pure Premium × (1 + Expenses + Profit + Risk Loading)
       - Final Premium = max(Technical Premium / Loss Ratio, Minimum Premium)
