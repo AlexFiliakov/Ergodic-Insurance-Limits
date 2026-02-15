@@ -2,7 +2,7 @@
 
 Rationalizing and optimizing insurance purchasing decisions.
 
-![Repo Banner](assets/repo_banner_small.png)
+![Repo Banner](https://github.com/AlexFiliakov/Ergodic-Insurance-Limits/raw/main/assets/repo_banner_small.png)
 
 This research model applies Ole Peters’ ergodic economics framework to insurance optimization for a widget manufacturing company, demonstrating that traditional expected value approaches systematically mislead insurance decisions. By optimizing time-average growth rates (for a single company) rather than ensemble averages (across many companies), the model aims to demonstrate that insurance premiums can significantly exceed expected losses while still enhancing long-term growth, transforming insurance from a cost center to a growth enabler. The implementation features:
 - A comprehensive Monte Carlo simulation engine with stochastic processes (GBM, mean-reversion)
@@ -24,7 +24,7 @@ This framework resolves the fundamental insurance puzzle: while insurance appear
 
 ### Value Proposition
 
-![Ergodic Distinction Between Averages](assets/ergodic_distinction.png)
+![Ergodic Distinction Between Averages](https://github.com/AlexFiliakov/Ergodic-Insurance-Limits/raw/main/assets/ergodic_distinction.png)
 
 The framework fundamentally reframes insurance from a cost center to growth enabler. By optimizing time-average growth rates rather than expected values, widget manufacturers can achieve **30-50% better long-term performance** while maintaining acceptable ruin probabilities. The key insight: **maximizing ergodic growth rates naturally balances profitability with survival**, eliminating the need for arbitrary risk preferences or utility functions.
 
@@ -89,7 +89,7 @@ flowchart LR
 - **Strategy backtesting** with pre-built strategies (conservative, aggressive, adaptive, optimized)
 
 ### Visualization & Reporting
-![Sample Analytics: Optimal Insurance Configuration by Company Size](assets/sample_optmal_insurance_config_by_company_size.png)
+![Sample Analytics: Optimal Insurance Configuration by Company Size](https://github.com/AlexFiliakov/Ergodic-Insurance-Limits/raw/main/assets/sample_optmal_insurance_config_by_company_size.png)
 - **40+ executive and technical plots** — ROE-ruin frontiers, ruin cliffs, tornado diagrams, convergence diagnostics, Pareto frontiers
 - **Interactive dashboards** (Plotly-based) for exploration
 - **Excel report generation** with cover sheets, financial statements, metrics dashboards, and pivot data
