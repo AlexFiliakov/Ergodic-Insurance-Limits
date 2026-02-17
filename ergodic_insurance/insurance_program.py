@@ -1355,48 +1355,49 @@ class InsuranceProgram:
     ) -> "InsuranceProgram":
         """Create standard manufacturing insurance program.
 
+        Builds a tower with up to 4 layers above the deductible:
+        Primary ($deductible-$5M), 1st Excess ($5M-$25M),
+        2nd Excess ($25M-$50M), CAT ($50M-$100M).
+
+        Layers whose limit would be zero or negative (because the
+        deductible exceeds their attachment boundary) are skipped.
+
         Args:
             deductible: Self-insured retention amount.
 
         Returns:
             Standard manufacturing insurance program.
         """
-        layers = [
-            # Primary Layer
-            EnhancedInsuranceLayer(
-                attachment_point=deductible,
-                limit=5_000_000 - deductible,
-                base_premium_rate=0.015,  # 1.5% rate
-                reinstatements=0,
-            ),
-            # First Excess
-            EnhancedInsuranceLayer(
-                attachment_point=5_000_000,
-                limit=20_000_000,
-                base_premium_rate=0.008,  # 0.8% rate
-                reinstatements=1,
-                reinstatement_premium=1.0,
-                reinstatement_type=ReinstatementType.FULL,
-            ),
-            # Second Excess
-            EnhancedInsuranceLayer(
-                attachment_point=25_000_000,
-                limit=25_000_000,
-                base_premium_rate=0.004,  # 0.4% rate
-                reinstatements=2,
-                reinstatement_premium=1.0,
-                reinstatement_type=ReinstatementType.PRO_RATA,
-            ),
-            # Third Excess
-            EnhancedInsuranceLayer(
-                attachment_point=50_000_000,
-                limit=50_000_000,
-                base_premium_rate=0.002,  # 0.2% rate
-                reinstatements=999,  # Effectively unlimited
-                reinstatement_premium=1.0,
-                reinstatement_type=ReinstatementType.PRO_RATA,
-            ),
+        layer_defs = [
+            # (attachment, ceiling, rate, reinstatements, reinst_prem, reinst_type)
+            (deductible, 5_000_000, 0.015, 0, 1.0, ReinstatementType.PRO_RATA),
+            (5_000_000, 25_000_000, 0.008, 1, 1.0, ReinstatementType.FULL),
+            (25_000_000, 50_000_000, 0.004, 2, 1.0, ReinstatementType.PRO_RATA),
+            (50_000_000, 100_000_000, 0.002, 999, 1.0, ReinstatementType.PRO_RATA),
         ]
+
+        layers = []
+        for attach, ceiling, rate, reinst, reinst_prem, reinst_type in layer_defs:
+            effective_attach = max(attach, deductible)
+            limit = ceiling - effective_attach
+            if limit <= 0:
+                continue
+            layers.append(
+                EnhancedInsuranceLayer(
+                    attachment_point=effective_attach,
+                    limit=limit,
+                    base_premium_rate=rate,
+                    reinstatements=reinst,
+                    reinstatement_premium=reinst_prem,
+                    reinstatement_type=reinst_type,
+                ),
+            )
+
+        if not layers:
+            raise ValueError(
+                f"Deductible ${deductible:,.0f} exceeds all layer ceilings; "
+                f"no insurance coverage possible"
+            )
 
         return cls(layers=layers, deductible=deductible, name="Standard Manufacturing Program")
 
