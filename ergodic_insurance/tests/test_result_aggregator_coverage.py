@@ -94,7 +94,8 @@ class TestDistributionFitting:
         """Lines 221-222, 234-235: Fit normal and lognormal distributions."""
         config = AggregationConfig(calculate_distribution_fit=True)
         agg = ResultAggregator(config=config)
-        data = np.random.lognormal(10, 0.5, 1000)
+        rng = np.random.default_rng(42)
+        data = rng.lognormal(10, 0.5, 1000)
         result = agg.aggregate(data)
         assert "distribution_fit" in result
         if "normal" in result["distribution_fit"]:
@@ -182,8 +183,9 @@ class TestPercentileTrackerMerge:
         tracker1 = PercentileTracker([25, 50, 75])
         tracker2 = PercentileTracker([25, 50, 75])
 
-        data1 = np.random.normal(100, 15, 500)
-        data2 = np.random.normal(100, 15, 500)
+        rng = np.random.default_rng(43)
+        data1 = rng.normal(100, 15, 500)
+        data2 = rng.normal(100, 15, 500)
 
         tracker1.update(data1)
         tracker2.update(data2)

@@ -387,6 +387,7 @@ class TestIntegration:
 
     def test_plots_handle_edge_cases(self):
         """Test that plots handle edge cases gracefully."""
+        np.random.seed(42)
         # Small data
         small_chains = np.random.randn(10)
         small_losses = np.random.lognormal(10, 1, 10)

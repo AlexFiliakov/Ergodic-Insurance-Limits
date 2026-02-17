@@ -24,12 +24,8 @@ class TestFigureFactory:
     @pytest.fixture(autouse=True)
     def setup(self):
         """Setup test fixtures."""
-        plt.close("all")  # Clean up any existing plots
+        np.random.seed(42)  # Seed for reproducibility of random test data
         self.factory = FigureFactory()  # pylint: disable=attribute-defined-outside-init
-
-    def teardown_method(self):
-        """Clean up after each test."""
-        plt.close("all")
 
     def test_initialization_default(self):
         """Test FigureFactory initialization with default parameters."""

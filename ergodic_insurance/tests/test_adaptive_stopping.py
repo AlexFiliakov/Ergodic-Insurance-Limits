@@ -141,7 +141,8 @@ class TestAdaptiveStoppingMonitor:
 
     def test_check_convergence_below_min_iterations(self, monitor):
         """Test convergence check before minimum iterations."""
-        chains = np.random.randn(2, 500)
+        rng = np.random.default_rng(100)
+        chains = rng.standard_normal((2, 500))
 
         status = monitor.check_convergence(500, chains)
 
@@ -153,7 +154,8 @@ class TestAdaptiveStoppingMonitor:
     def test_check_convergence_at_max_iterations(self, monitor):
         """Test convergence check at maximum iterations."""
         monitor.criteria.max_iterations = 1000
-        chains = np.random.randn(2, 1000)
+        rng = np.random.default_rng(101)
+        chains = rng.standard_normal((2, 1000))
 
         status = monitor.check_convergence(1000, chains)
 
@@ -163,7 +165,8 @@ class TestAdaptiveStoppingMonitor:
 
     def test_check_convergence_not_at_interval(self, monitor):
         """Test convergence check not at check interval."""
-        chains = np.random.randn(2, 1050)
+        rng = np.random.default_rng(102)
+        chains = rng.standard_normal((2, 1050))
 
         status = monitor.check_convergence(1050, chains)
 
@@ -190,7 +193,8 @@ class TestAdaptiveStoppingMonitor:
         monitor.criteria.min_ess = 500
 
         # Create chain with good ESS
-        chains = np.random.randn(2, 2000)
+        rng = np.random.default_rng(103)
+        chains = rng.standard_normal((2, 2000))
 
         status = monitor.check_convergence(2000, chains)
 
@@ -203,7 +207,8 @@ class TestAdaptiveStoppingMonitor:
         monitor.criteria.mcse_relative_threshold = 0.1
 
         # Create chain with stable mean
-        chains = np.random.randn(2, 2000) + 10  # Large mean for small relative MCSE
+        rng = np.random.default_rng(104)
+        chains = rng.standard_normal((2, 2000)) + 10  # Large mean for small relative MCSE
 
         status = monitor.check_convergence(2000, chains)
 
@@ -215,7 +220,8 @@ class TestAdaptiveStoppingMonitor:
         monitor.criteria.rule = StoppingRule.COMBINED
 
         # Create well-converged chains
-        chains = np.random.randn(4, 2000) + 10
+        rng = np.random.default_rng(105)
+        chains = rng.standard_normal((4, 2000)) + 10
 
         status = monitor.check_convergence(2000, chains)
 
@@ -291,7 +297,8 @@ class TestAdaptiveStoppingMonitor:
 
     def test_detect_adaptive_burn_in_invalid_method(self, monitor):
         """Test burn-in detection with invalid method."""
-        chains = np.random.randn(2, 100)
+        rng = np.random.default_rng(106)
+        chains = rng.standard_normal((2, 100))
 
         with pytest.raises(ValueError, match="Unknown burn-in detection method"):
             monitor.detect_adaptive_burn_in(chains, method="invalid")
@@ -339,7 +346,8 @@ class TestAdaptiveStoppingMonitor:
 
     def test_calculate_diagnostics(self, monitor):
         """Test diagnostic calculation."""
-        chains = np.random.randn(3, 1000)
+        rng = np.random.default_rng(107)
+        chains = rng.standard_normal((3, 1000))
 
         diagnostics = monitor._calculate_diagnostics(chains)
 
@@ -356,7 +364,8 @@ class TestAdaptiveStoppingMonitor:
 
     def test_calculate_diagnostics_single_chain(self, monitor):
         """Test diagnostics with single chain."""
-        chain = np.random.randn(1000)
+        rng = np.random.default_rng(108)
+        chain = rng.standard_normal(1000)
 
         diagnostics = monitor._calculate_diagnostics(chain)
 

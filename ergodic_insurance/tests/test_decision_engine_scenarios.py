@@ -22,6 +22,10 @@ from ergodic_insurance.manufacturer import WidgetManufacturer
 class TestRealWorldScenarios:
     """Test real-world business scenarios."""
 
+    def setup_method(self):
+        """Seed random state for reproducible test data."""
+        np.random.seed(42)
+
     def test_startup_company_scenario(self):
         """Test optimization for a startup with limited capital."""
         # Startup configuration: small assets, high growth potential
@@ -521,6 +525,10 @@ class TestCatastrophicEventScenarios:
 
 class TestPortfolioOptimizationScenarios:
     """Test scenarios for companies with multiple business units."""
+
+    def setup_method(self):
+        """Seed random state for reproducible test data."""
+        np.random.seed(43)
 
     def test_diversified_company_scenario(self):
         """Test optimization for diversified company with multiple risk sources."""

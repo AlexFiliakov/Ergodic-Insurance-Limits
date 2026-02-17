@@ -187,20 +187,20 @@ class TestTimeAverageGrowthEdgeCases:
         growth = analyzer.calculate_time_average_growth(values)
         # time_horizon = len(5)-1-4 = 0; final_value=5>0, initial=5>0, time_horizon=0
         # -> goes to line 785: "return 0.0 if time_horizon <= 0 else -np.inf"
-        assert growth == 0.0
+        assert growth == pytest.approx(0.0, abs=1e-10)
 
     def test_initial_positive_final_positive_normal_growth(self, analyzer):
         """Normal trajectory should yield finite positive growth."""
         values = np.array([100.0, 110.0, 121.0, 133.1])
         growth = analyzer.calculate_time_average_growth(values)
         expected = (1.0 / 3) * np.log(133.1 / 100.0)
-        assert abs(growth - expected) < 1e-6
+        assert growth == pytest.approx(expected, rel=1e-6)
 
     def test_time_horizon_zero_from_explicit_param(self, analyzer):
         """Explicitly passing time_horizon=0 should return 0.0 (line 785)."""
         values = np.array([100.0, 200.0])
         growth = analyzer.calculate_time_average_growth(values, time_horizon=0)
-        assert growth == 0.0
+        assert growth == pytest.approx(0.0, abs=1e-10)
 
 
 # ===================================================================

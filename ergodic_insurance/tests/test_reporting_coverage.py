@@ -259,6 +259,7 @@ class TestExecutiveReport:
         )
         fig = report.generate_roe_frontier(fig_config)
         assert fig is not None
+        # TODO(tautology-review): sole assertion is `fig is not None`. Verify placeholder text or empty axes.
         plt.close(fig)
 
     # -- lines 393-462: generate_performance_table with actual metrics
@@ -479,13 +480,21 @@ class TestTechnicalReport:
         plt.close(fig)
 
     # -- _get_unit for known and unknown parameter names
-    def test_get_unit_known(self, technical_results, technical_parameters, tmp_dir):
+    @pytest.mark.parametrize(
+        "param_name,expected_unit",
+        [
+            pytest.param("growth_rate", "%", id="rate"),
+            pytest.param("primary_limit", "$", id="dollar"),
+            pytest.param("years", "years", id="years"),
+            pytest.param("num_simulations", "paths", id="paths"),
+            pytest.param("something_unknown", "-", id="unknown"),
+        ],
+    )
+    def test_get_unit(
+        self, param_name, expected_unit, technical_results, technical_parameters, tmp_dir
+    ):
         report = self._make_report(technical_results, technical_parameters, tmp_dir)
-        assert report._get_unit("growth_rate") == "%"
-        assert report._get_unit("primary_limit") == "$"
-        assert report._get_unit("years") == "years"
-        assert report._get_unit("num_simulations") == "paths"
-        assert report._get_unit("something_unknown") == "-"
+        assert report._get_unit(param_name) == expected_unit
 
 
 # ===================================================================
@@ -884,68 +893,50 @@ class TestReportValidator:
 class TestValidateResultsData:
     """Tests for validate_results_data function covering missing lines."""
 
-    # -- lines 342, 344: ROE not numeric / unrealistic
-    def test_roe_not_numeric(self):
-        results = {
-            "roe": "bad",
-            "ruin_probability": 0.01,
-            "trajectories": np.array([[1, 2, 3]]),
-        }
-        is_valid, errors = validate_results_data(results)
-        assert not is_valid
-        assert any("ROE must be numeric" in e for e in errors)
+    def setup_method(self):
+        """Seed random state for reproducible test data."""
+        np.random.seed(42)
 
-    def test_roe_unrealistic(self):
-        results = {
-            "roe": 50.0,
-            "ruin_probability": 0.01,
-            "trajectories": np.array([[1, 2, 3]]),
-        }
+    # -- Invalid results data
+    @pytest.mark.parametrize(
+        "results,error_pattern",
+        [
+            pytest.param(
+                {"roe": "bad", "ruin_probability": 0.01, "trajectories": np.array([[1, 2, 3]])},
+                "ROE must be numeric",
+                id="roe_not_numeric",
+            ),
+            pytest.param(
+                {"roe": 50.0, "ruin_probability": 0.01, "trajectories": np.array([[1, 2, 3]])},
+                "seems unrealistic",
+                id="roe_unrealistic",
+            ),
+            pytest.param(
+                {"roe": 0.1, "ruin_probability": "bad", "trajectories": np.array([[1, 2, 3]])},
+                "Ruin probability must be numeric",
+                id="ruin_prob_not_numeric",
+            ),
+            pytest.param(
+                {"roe": 0.1, "ruin_probability": 1.5, "trajectories": np.array([[1, 2, 3]])},
+                "between 0 and 1",
+                id="ruin_prob_out_of_range",
+            ),
+            pytest.param(
+                {"roe": 0.1, "ruin_probability": 0.01, "trajectories": [[1, 2, 3]]},
+                "numpy array",
+                id="trajectories_not_ndarray",
+            ),
+            pytest.param(
+                {"roe": 0.1, "ruin_probability": 0.01, "trajectories": np.zeros((2, 3, 4))},
+                "1D or 2D",
+                id="trajectories_wrong_shape",
+            ),
+        ],
+    )
+    def test_invalid_results_data(self, results, error_pattern):
         is_valid, errors = validate_results_data(results)
         assert not is_valid
-        assert any("seems unrealistic" in e for e in errors)
-
-    # -- lines 349, 351: ruin probability not numeric / out of range
-    def test_ruin_prob_not_numeric(self):
-        results = {
-            "roe": 0.1,
-            "ruin_probability": "bad",
-            "trajectories": np.array([[1, 2, 3]]),
-        }
-        is_valid, errors = validate_results_data(results)
-        assert not is_valid
-        assert any("Ruin probability must be numeric" in e for e in errors)
-
-    def test_ruin_prob_out_of_range(self):
-        results = {
-            "roe": 0.1,
-            "ruin_probability": 1.5,
-            "trajectories": np.array([[1, 2, 3]]),
-        }
-        is_valid, errors = validate_results_data(results)
-        assert not is_valid
-        assert any("between 0 and 1" in e for e in errors)
-
-    # -- lines 356, 358: trajectories not ndarray / wrong shape
-    def test_trajectories_not_ndarray(self):
-        results = {
-            "roe": 0.1,
-            "ruin_probability": 0.01,
-            "trajectories": [[1, 2, 3]],
-        }
-        is_valid, errors = validate_results_data(results)
-        assert not is_valid
-        assert any("numpy array" in e for e in errors)
-
-    def test_trajectories_wrong_shape(self):
-        results = {
-            "roe": 0.1,
-            "ruin_probability": 0.01,
-            "trajectories": np.zeros((2, 3, 4)),
-        }
-        is_valid, errors = validate_results_data(results)
-        assert not is_valid
-        assert any("1D or 2D" in e for e in errors)
+        assert any(error_pattern in e for e in errors)
 
     # -- missing required keys
     def test_missing_keys(self):
@@ -1054,29 +1045,32 @@ class TestNumberFormatter:
         assert "K" in result
 
     # -- NaN handling across methods
-    def test_format_currency_nan(self):
-        assert self.fmt.format_currency(float("nan")) == "-"
-
-    def test_format_percentage_nan(self):
-        assert self.fmt.format_percentage(float("nan")) == "-"
-
-    def test_format_number_nan(self):
-        assert self.fmt.format_number(float("nan")) == "-"
-
-    def test_format_ratio_nan(self):
-        assert self.fmt.format_ratio(float("nan")) == "-"
+    @pytest.mark.parametrize(
+        "method",
+        [
+            pytest.param("format_currency", id="currency"),
+            pytest.param("format_percentage", id="percentage"),
+            pytest.param("format_number", id="number"),
+            pytest.param("format_ratio", id="ratio"),
+        ],
+    )
+    def test_format_nan_returns_dash(self, method):
+        assert getattr(self.fmt, method)(float("nan")) == "-"
 
     # -- None handling
     def test_format_currency_none(self):
         assert self.fmt.format_currency(None) == "-"  # type: ignore[arg-type]
 
     # -- scientific notation
-    def test_format_number_scientific_large(self):
-        result = self.fmt.format_number(1_500_000, scientific=True)
-        assert "e" in result
-
-    def test_format_number_scientific_small(self):
-        result = self.fmt.format_number(0.00005, scientific=True)
+    @pytest.mark.parametrize(
+        "value",
+        [
+            pytest.param(1_500_000, id="large"),
+            pytest.param(0.00005, id="small"),
+        ],
+    )
+    def test_format_number_scientific(self, value):
+        result = self.fmt.format_number(value, scientific=True)
         assert "e" in result
 
     # -- custom separators (use non-colliding separators to avoid double-replace)
@@ -1087,13 +1081,16 @@ class TestNumberFormatter:
         assert "," in result  # decimal separator
 
     # -- currency abbreviation
-    def test_format_currency_abbreviate_billion(self):
-        result = self.fmt.format_currency(3_000_000_000, abbreviate=True)
-        assert "B" in result
-
-    def test_format_currency_abbreviate_thousand(self):
-        result = self.fmt.format_currency(5_500, abbreviate=True)
-        assert "K" in result
+    @pytest.mark.parametrize(
+        "value,expected_suffix",
+        [
+            pytest.param(3_000_000_000, "B", id="billion"),
+            pytest.param(5_500, "K", id="thousand"),
+        ],
+    )
+    def test_format_currency_abbreviate(self, value, expected_suffix):
+        result = self.fmt.format_currency(value, abbreviate=True)
+        assert expected_suffix in result
 
 
 class TestColorCoder:

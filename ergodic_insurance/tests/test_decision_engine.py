@@ -884,7 +884,7 @@ class TestIntegration:
 
         # Create simple loss distribution
         loss_dist = Mock(spec=LossDistribution)
-        loss_dist.rvs = Mock(return_value=np.random.lognormal(11, 2))  # ~100K mean
+        loss_dist.rvs = Mock(return_value=np.random.default_rng(42).lognormal(11, 2))  # ~100K mean
         loss_dist.ppf = Mock(
             side_effect=lambda p: np.exp(11 + 2 * np.sqrt(2) * np.log(p / (1 - p + 1e-10)))
         )

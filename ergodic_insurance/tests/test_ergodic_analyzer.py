@@ -446,7 +446,7 @@ class TestErgodicAnalyzer:
         # Single value
         single = np.array([1000000])
         growth = analyzer.calculate_time_average_growth(single)
-        assert growth == 0.0
+        assert growth == pytest.approx(0.0, abs=1e-10)
 
         # All zeros
         zeros = np.zeros(100)

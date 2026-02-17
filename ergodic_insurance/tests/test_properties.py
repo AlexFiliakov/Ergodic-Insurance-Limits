@@ -301,12 +301,13 @@ class TestConvergenceProperties:
 
         # Create values with known autocorrelation
         # Independent samples
-        independent = np.random.randn(n_samples)
+        rng = np.random.default_rng(42)
+        independent = rng.standard_normal(n_samples)
 
         # Highly correlated samples (moving average)
-        correlated = np.convolve(np.random.randn(n_samples + 10), np.ones(10) / 10, mode="valid")[
-            :n_samples
-        ]
+        correlated = np.convolve(
+            rng.standard_normal(n_samples + 10), np.ones(10) / 10, mode="valid"
+        )[:n_samples]
 
         # Skip ESS test - ConvergenceMonitor not available
         # Would need monitor._calculate_ess which is not accessible
@@ -332,10 +333,10 @@ class TestOptimizationProperties:
         """
         lower, upper = bounds
         assume(lower < upper)
-        assume(lower <= initial_value <= upper)
+        assume(lower <= initial_value <= upper)  # pylint: disable=unreachable
 
         # Simple optimization: minimize (x - 50)^2
-        def objective(x):
+        def objective(x):  # pylint: disable=unreachable
             return (x - 50) ** 2
 
         # Simple gradient descent with bounds

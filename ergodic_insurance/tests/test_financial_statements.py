@@ -1402,15 +1402,16 @@ class TestMonteCarloStatementAggregator:
     @pytest.fixture
     def mock_results(self):
         """Create mock Monte Carlo results."""
+        rng = np.random.default_rng(42)
         # Create sample results from multiple trajectories
         results = []
         for i in range(10):
             trajectory = {
                 "trajectory_id": i,
-                "final_assets": 10_000_000 * (1 + np.random.normal(0.05, 0.02)),
-                "final_equity": 10_000_000 * (1 + np.random.normal(0.05, 0.02)),
-                "total_revenue": 50_000_000 * (1 + np.random.normal(0.03, 0.01)),
-                "total_claims": np.random.exponential(100_000),
+                "final_assets": 10_000_000 * (1 + rng.normal(0.05, 0.02)),
+                "final_equity": 10_000_000 * (1 + rng.normal(0.05, 0.02)),
+                "total_revenue": 50_000_000 * (1 + rng.normal(0.03, 0.01)),
+                "total_claims": rng.exponential(100_000),
             }
             results.append(trajectory)
 
