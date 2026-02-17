@@ -103,6 +103,7 @@ class ControlVariable:
     max_value: float
     num_points: int = 50
     continuous: bool = True
+    log_scale: bool = False
 
     def __post_init__(self):
         """Validate control variable configuration."""
@@ -110,6 +111,8 @@ class ControlVariable:
             raise ValueError(f"min_value must be less than max_value for {self.name}")
         if self.num_points < 2:
             raise ValueError(f"Need at least 2 control points for {self.name}")
+        if self.log_scale and self.min_value <= 0:
+            raise ValueError(f"Cannot use log scale with non-positive min_value for {self.name}")
 
     def get_values(self) -> np.ndarray:
         """Get discrete control values for optimization.
@@ -117,6 +120,8 @@ class ControlVariable:
         Returns:
             Array of control values
         """
+        if self.log_scale:
+            return np.geomspace(self.min_value, self.max_value, self.num_points)
         return np.linspace(self.min_value, self.max_value, self.num_points)
 
 
