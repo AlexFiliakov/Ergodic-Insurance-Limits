@@ -149,6 +149,10 @@ class TestReportConfig:
 class TestCacheManager:
     """Cover missing lines in reporting/cache_manager.py."""
 
+    def setup_method(self):
+        """Seed random state for reproducible test data."""
+        np.random.seed(42)
+
     @pytest.fixture
     def cache_dir(self, tmp_path):
         return tmp_path / "cache"
@@ -439,6 +443,7 @@ class TestScenarioComparator:
         comparator.compare_scenarios(results)
         fig = comparator.create_comparison_grid()
         assert fig is not None
+        # TODO(tautology-review): sole assertion is `fig is not None`. Verify grid has expected number of subplots.
         plt.close(fig)
 
     def test_plot_metric_comparison_missing_metric(self):
@@ -466,6 +471,7 @@ class TestScenarioComparator:
         comparator.compare_scenarios(results)
         fig = comparator.create_comparison_grid(metrics=["ruin_probability"])
         assert fig is not None
+        # TODO(tautology-review): sole assertion is `fig is not None`. Verify bar colors differ for best/worst.
         plt.close(fig)
 
     def test_create_parameter_diff_table_empty(self):
@@ -660,6 +666,10 @@ class TestTableGenerator:
 class TestFigureFactory:
     """Cover missing lines in visualization_infra/figure_factory.py."""
 
+    def setup_method(self):
+        """Seed random state for reproducible test data."""
+        np.random.seed(43)
+
     @pytest.fixture(autouse=True)
     def close_figs(self):
         yield
@@ -695,6 +705,7 @@ class TestFigureFactory:
             show_values=True,
         )
         assert fig is not None
+        # TODO(tautology-review): sole assertion is `fig is not None`. Verify two bar groups per category.
 
     def test_create_bar_plot_horizontal_multi_series(self):
         """Lines 240-263 horizontal branch: multi-series horizontal bar plot."""
@@ -713,6 +724,7 @@ class TestFigureFactory:
             show_values=True,
         )
         assert fig is not None
+        # TODO(tautology-review): sole assertion is `fig is not None`. Verify horizontal orientation and value labels.
 
     def test_create_bar_plot_with_xlabel(self):
         """Line 276: x_label is set."""
@@ -741,6 +753,7 @@ class TestFigureFactory:
             show_statistics=True,
         )
         assert fig is not None
+        # TODO(tautology-review): sole assertion is `fig is not None`. Verify KDE line and statistics text present.
 
     def test_create_histogram_xlabel(self):
         """Line 437: x_label is set in histogram."""
@@ -800,6 +813,7 @@ class TestFigureFactory:
         # Check formatter is applied
         formatter = ax.yaxis.get_major_formatter()
         assert formatter is not None
+        # TODO(tautology-review): sole assertion is `formatter is not None`. Verify formatter produces $ prefix or abbreviation.
 
     def test_format_axis_currency_x_axis(self):
         """Line 665: format x-axis as currency."""
@@ -811,6 +825,7 @@ class TestFigureFactory:
         factory.format_axis_currency(ax, axis="x", abbreviate=True)
         formatter = ax.xaxis.get_major_formatter()
         assert formatter is not None
+        # TODO(tautology-review): sole assertion is `formatter is not None`. Verify formatter produces $ prefix.
 
     def test_format_axis_percentage(self):
         """Line 682: percentage formatter."""
@@ -822,6 +837,7 @@ class TestFigureFactory:
         factory.format_axis_percentage(ax, axis="y")
         formatter = ax.yaxis.get_major_formatter()
         assert formatter is not None
+        # TODO(tautology-review): sole assertion is `formatter is not None`. Verify formatter produces % suffix.
 
     def test_format_axis_percentage_x(self):
         """Line 688: format x-axis as percentage."""

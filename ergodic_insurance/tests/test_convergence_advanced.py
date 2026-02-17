@@ -123,7 +123,8 @@ class TestAdvancedConvergenceDiagnostics:
 
     def test_ess_batch_means_invalid_params(self, diagnostics):
         """Test ESS batch means with invalid parameters."""
-        chain = np.random.randn(100)
+        rng = np.random.default_rng(200)
+        chain = rng.standard_normal(100)
 
         with pytest.raises(ValueError, match="exceeds chain length"):
             diagnostics.calculate_ess_batch_means(chain, batch_size=50, n_batches=3)
@@ -171,7 +172,8 @@ class TestAdvancedConvergenceDiagnostics:
     def test_heidelberger_welch_non_stationary(self, diagnostics):
         """Test Heidelberger-Welch with non-stationary chain."""
         # Create trending chain (non-stationary)
-        chain = np.cumsum(np.random.randn(1000))
+        rng = np.random.default_rng(201)
+        chain = np.cumsum(rng.standard_normal(1000))
         result = diagnostics.heidelberger_welch_advanced(chain)
 
         # Should detect non-stationarity (though simplified test may not always)

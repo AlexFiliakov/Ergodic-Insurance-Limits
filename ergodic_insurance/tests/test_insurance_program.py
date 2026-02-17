@@ -326,11 +326,11 @@ class TestLayerState:
 
         # Use half of first limit
         state.process_claim(2_500_000)
-        assert state.get_utilization_rate() == 0.25  # 2.5M / 10M
+        assert state.get_utilization_rate() == pytest.approx(0.25)  # 2.5M / 10M
 
         # Use rest and trigger reinstatement
         state.process_claim(2_500_000)
-        assert state.get_utilization_rate() == 0.5  # 5M / 10M
+        assert state.get_utilization_rate() == pytest.approx(0.5)  # 5M / 10M
 
 
 class TestInsuranceProgram:
@@ -364,7 +364,7 @@ class TestInsuranceProgram:
         ]
 
         program = InsuranceProgram(layers)
-        assert program.calculate_premium() == 200_000  # 100K + 100K
+        assert program.calculate_premium() == pytest.approx(200_000)  # 100K + 100K
 
     def test_process_small_claim(self):
         """Test processing a small claim within deductible."""
@@ -1405,7 +1405,7 @@ class TestInsuranceProgramSimple:
             limit=10_000_000,
             rate=0.025,
         )
-        assert program.calculate_premium() == 250_000  # 10M * 0.025
+        assert program.calculate_premium() == pytest.approx(250_000)  # 10M * 0.025
 
     def test_claim_processing(self):
         """Claims flow correctly through a simple() program."""
@@ -1511,7 +1511,7 @@ class TestInsuranceProgramCalculatePremium:
     def test_calculate_premium_empty_program(self):
         """calculate_premium() returns 0 for empty program."""
         program = InsuranceProgram(layers=[])
-        assert program.calculate_premium() == 0.0
+        assert program.calculate_premium() == pytest.approx(0.0, abs=1e-10)
 
     def test_calculate_premium_single_layer(self):
         """calculate_premium() works for single layer."""
@@ -1523,7 +1523,7 @@ class TestInsuranceProgramCalculatePremium:
             )
         ]
         program = InsuranceProgram(layers, deductible=500_000)
-        assert program.calculate_premium() == 4_500_000 * 0.015
+        assert program.calculate_premium() == pytest.approx(4_500_000 * 0.015)
 
 
 class TestInsuranceProgramCreateFresh:
@@ -1913,7 +1913,7 @@ class TestInsuranceProgramFromConfig:
         )
         program = InsuranceProgram.from_config(ic)
 
-        assert program.calculate_premium() == 10_000_000 * 0.02
+        assert program.calculate_premium() == pytest.approx(10_000_000 * 0.02)
 
     def test_round_trip_yaml_config_program(self, tmp_path):
         """End-to-end: YAML -> Config -> InsuranceProgram -> claims."""

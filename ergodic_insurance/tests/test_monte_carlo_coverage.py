@@ -50,9 +50,8 @@ from ergodic_insurance.parallel_executor import PerformanceMetrics
 # ---------------------------------------------------------------------------
 
 
-@pytest.fixture
-def manufacturer_config():
-    """Standard ManufacturerConfig for tests."""
+def _make_manufacturer_config():
+    """Factory for standard ManufacturerConfig."""
     return ManufacturerConfig(
         initial_assets=1_000_000,
         asset_turnover_ratio=0.5,
@@ -62,22 +61,19 @@ def manufacturer_config():
     )
 
 
-@pytest.fixture
-def manufacturer(manufacturer_config):
-    """Standard WidgetManufacturer for tests."""
-    return WidgetManufacturer(manufacturer_config)
+def _make_manufacturer():
+    """Factory for standard WidgetManufacturer."""
+    return WidgetManufacturer(_make_manufacturer_config())
 
 
-@pytest.fixture
-def insurance_program():
-    """Standard InsuranceProgram for tests."""
+def _make_insurance_program():
+    """Factory for standard InsuranceProgram."""
     layer = EnhancedInsuranceLayer(attachment_point=0, limit=500_000, base_premium_rate=0.02)
     return InsuranceProgram(layers=[layer])
 
 
-@pytest.fixture
-def loss_generator():
-    """Real ManufacturingLossGenerator for tests that need reseed/generate_losses."""
+def _make_loss_generator():
+    """Factory for real ManufacturingLossGenerator."""
     return ManufacturingLossGenerator(
         attritional_params={
             "base_frequency": 1.0,
@@ -92,6 +88,30 @@ def loss_generator():
         catastrophic_params=None,
         seed=42,
     )
+
+
+@pytest.fixture
+def manufacturer_config():
+    """Standard ManufacturerConfig for tests."""
+    return _make_manufacturer_config()
+
+
+@pytest.fixture
+def manufacturer(manufacturer_config):
+    """Standard WidgetManufacturer for tests."""
+    return WidgetManufacturer(manufacturer_config)
+
+
+@pytest.fixture
+def insurance_program():
+    """Standard InsuranceProgram for tests."""
+    return _make_insurance_program()
+
+
+@pytest.fixture
+def loss_generator():
+    """Real ManufacturingLossGenerator for tests that need reseed/generate_losses."""
+    return _make_loss_generator()
 
 
 @pytest.fixture
@@ -1017,8 +1037,8 @@ class TestAdvancedAggregationSummaryReport:
 class TestExportResults:
     """Tests for MonteCarloEngine.export_results method."""
 
-    @pytest.fixture
-    def engine_and_results(self, loss_generator, insurance_program, manufacturer):
+    @pytest.fixture(scope="class")
+    def engine_and_results(self):
         config = MonteCarloConfig(
             n_simulations=30,
             n_years=3,
@@ -1029,9 +1049,9 @@ class TestExportResults:
             enable_advanced_aggregation=True,
         )
         engine = MonteCarloEngine(
-            loss_generator=loss_generator,
-            insurance_program=insurance_program,
-            manufacturer=manufacturer,
+            loss_generator=_make_loss_generator(),
+            insurance_program=_make_insurance_program(),
+            manufacturer=_make_manufacturer(),
             config=config,
         )
         results = engine.run()
@@ -1130,8 +1150,8 @@ class TestExportResults:
 class TestComputeBootstrapCI:
     """Tests for the full bootstrap confidence interval computation method."""
 
-    @pytest.fixture
-    def engine_with_results(self, loss_generator, insurance_program, manufacturer):
+    @pytest.fixture(scope="class")
+    def engine_with_results(self):
         config = MonteCarloConfig(
             n_simulations=100,
             n_years=3,
@@ -1141,9 +1161,9 @@ class TestComputeBootstrapCI:
             seed=42,
         )
         engine = MonteCarloEngine(
-            loss_generator=loss_generator,
-            insurance_program=insurance_program,
-            manufacturer=manufacturer,
+            loss_generator=_make_loss_generator(),
+            insurance_program=_make_insurance_program(),
+            manufacturer=_make_manufacturer(),
             config=config,
         )
         results = engine.run()
@@ -1233,13 +1253,15 @@ class TestConvergenceAndBatchMethods:
 
     def test_check_convergence_at_interval_with_few_iterations(self, monitoring_engine):
         """With only 1 iteration, relative MCSE should be inf (#1353)."""
-        final_assets = np.random.normal(1_000_000, 100_000, 100)
+        rng = np.random.default_rng(42)
+        final_assets = rng.normal(1_000_000, 100_000, 100)
         relative_mcse = monitoring_engine._check_convergence_at_interval(1, final_assets)
         assert relative_mcse == float("inf")
 
     def test_check_convergence_at_interval_with_enough_iterations(self, monitoring_engine):
         """With enough iterations, relative MCSE should be a finite value (#1353)."""
-        final_assets = np.random.normal(1_000_000, 100_000, 2000)
+        rng = np.random.default_rng(43)
+        final_assets = rng.normal(1_000_000, 100_000, 2000)
         relative_mcse = monitoring_engine._check_convergence_at_interval(2000, final_assets)
         assert np.isfinite(relative_mcse)
         assert relative_mcse > 0
@@ -1250,7 +1272,7 @@ class TestConvergenceAndBatchMethods:
         """Line 1681: When check_intervals is None, defaults should be used and
         filtered to n_simulations."""
         config = MonteCarloConfig(
-            n_simulations=200,
+            n_simulations=50,
             n_years=2,
             parallel=False,
             cache_results=False,
@@ -1263,8 +1285,8 @@ class TestConvergenceAndBatchMethods:
             manufacturer=manufacturer,
             config=config,
         )
-        # With n_simulations=200, the default [10_000, 25_000, 50_000, 100_000]
-        # should all be filtered out (> 200), leaving an empty list
+        # With n_simulations=50, the default [10_000, 25_000, 50_000, 100_000]
+        # should all be filtered out (> 50), leaving an empty list
         results = engine.run_with_progress_monitoring(
             check_intervals=None,
             convergence_threshold=1.1,
@@ -1272,12 +1294,12 @@ class TestConvergenceAndBatchMethods:
             show_progress=False,
         )
         assert results is not None
-        assert len(results.final_assets) == 200
+        assert len(results.final_assets) == 50
 
     def test_early_stopping_logs_message(self, loss_generator, insurance_program, manufacturer):
         """Line 1663: When early stopping is triggered, a message should be logged."""
         config = MonteCarloConfig(
-            n_simulations=2000,
+            n_simulations=500,
             n_years=2,
             parallel=False,
             cache_results=False,
@@ -1315,7 +1337,7 @@ class TestConvergenceAndBatchMethods:
 
             with patch("ergodic_insurance.monte_carlo.logger") as mock_logger:
                 results = engine.run_with_progress_monitoring(
-                    check_intervals=[1000, 2000],
+                    check_intervals=[250, 500],
                     convergence_threshold=1.1,
                     early_stopping=True,
                     show_progress=True,

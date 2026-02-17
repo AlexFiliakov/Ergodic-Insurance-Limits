@@ -532,12 +532,12 @@ class TestMissingROEDataFallback:
             metrics = engine.calculate_decision_metrics(decision)
 
             # Should use fallback calculations
-            assert metrics.time_weighted_roe == 0.15  # Mean of roe array
+            assert metrics.time_weighted_roe == pytest.approx(0.15, rel=1e-6)  # Mean of roe array
             assert metrics.roe_volatility > 0  # Should calculate std
             assert metrics.roe_sharpe_ratio > 0  # Should calculate Sharpe
-            assert metrics.roe_1yr_rolling == 0.15
-            assert metrics.roe_3yr_rolling == 0.15
-            assert metrics.roe_5yr_rolling == 0.15
+            assert metrics.roe_1yr_rolling == pytest.approx(0.15, rel=1e-6)
+            assert metrics.roe_3yr_rolling == pytest.approx(0.15, rel=1e-6)
+            assert metrics.roe_5yr_rolling == pytest.approx(0.15, rel=1e-6)
 
 
 class TestBankruptcyAndNegativeEquityScenarios:

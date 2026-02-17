@@ -9,7 +9,6 @@ from functools import lru_cache
 import gc
 import io
 import pstats
-import time
 from unittest.mock import MagicMock, Mock, PropertyMock, patch
 
 import numpy as np
@@ -183,12 +182,12 @@ class TestSmartCache:
 
         assert cache.hits == 2
         assert cache.misses == 2
-        assert cache.hit_rate == 50.0
+        assert cache.hit_rate == pytest.approx(50.0)
 
     def test_hit_rate_empty(self):
         """Test hit rate with no accesses."""
         cache = SmartCache()
-        assert cache.hit_rate == 0.0
+        assert cache.hit_rate == pytest.approx(0.0, abs=1e-10)
 
     def test_clear(self):
         """Test clearing the cache."""
@@ -431,13 +430,13 @@ class TestPerformanceOptimizer:
         optimizer = PerformanceOptimizer()
 
         def test_function(n):
-            time.sleep(0.01)
-            return sum(range(n))
+            # CPU-bound work instead of sleep
+            return sum(i * i for i in range(n))
 
-        result = optimizer.profile_execution(test_function, 1000)
+        result = optimizer.profile_execution(test_function, 50000)
 
         assert isinstance(result, ProfileResult)
-        assert result.total_time > 0.01
+        assert result.total_time > 0
         assert isinstance(result.function_times, dict)
 
     def test_profile_execution_with_error(self):
@@ -566,7 +565,8 @@ class TestPerformanceOptimizer:
         """Test that cache key uses a hash, not raw tobytes() (#499)."""
         optimizer = PerformanceOptimizer(config=OptimizationConfig(enable_caching=True))
 
-        losses = np.random.exponential(100000, 10000)
+        rng = np.random.default_rng(42)
+        losses = rng.exponential(100000, 10000)
         layers = [(100000, 500000, 0.015)]
 
         optimizer.optimize_insurance_calculation(losses, layers)

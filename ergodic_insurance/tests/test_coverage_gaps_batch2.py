@@ -195,51 +195,22 @@ class TestComprehensiveBenchmarkWithOptimizations:
 class TestMeetsRequirements100KSpecialChecks:
     """Cover lines 552, 554: 100K special checks for time/memory and accuracy."""
 
-    def test_100k_fails_on_execution_time_over_60(self):
-        """A 100K result with execution_time > 60 should fail meets_requirements
-        even if target_times allows it."""
+    @pytest.mark.parametrize(
+        "exec_time,mem_peak,accuracy,reason",
+        [
+            pytest.param(61.0, 3000.0, 0.99999, "execution_time > 60", id="slow"),
+            pytest.param(50.0, 4500.0, 0.99999, "memory_peak_mb > 4000", id="high_memory"),
+            pytest.param(50.0, 3000.0, 0.999, "accuracy_score < 0.9999", id="low_accuracy"),
+        ],
+    )
+    def test_100k_special_check_failures(self, exec_time, mem_peak, accuracy, reason):
+        """100K results should fail meets_requirements when breaching special limits."""
         metrics = BenchmarkMetrics(
-            execution_time=61.0,
-            simulations_per_second=1639.0,
-            memory_peak_mb=3000.0,
-            memory_average_mb=2500.0,
-            accuracy_score=0.99999,
-        )
-        result = BenchmarkResult(
-            scale=100000, metrics=metrics, configuration={}, timestamp=datetime.now()
-        )
-        # Set a very generous target_time so meets_target passes but
-        # the 100K special check fails
-        config = BenchmarkConfig(target_times={100000: 120.0}, memory_limit_mb=5000.0)
-        comp = ComprehensiveBenchmarkResult([result], config, {})
-
-        assert comp.meets_requirements() is False
-
-    def test_100k_fails_on_memory_over_4000(self):
-        """A 100K result with memory_peak_mb > 4000 should fail."""
-        metrics = BenchmarkMetrics(
-            execution_time=50.0,
+            execution_time=exec_time,
             simulations_per_second=2000.0,
-            memory_peak_mb=4500.0,
-            memory_average_mb=3000.0,
-            accuracy_score=0.99999,
-        )
-        result = BenchmarkResult(
-            scale=100000, metrics=metrics, configuration={}, timestamp=datetime.now()
-        )
-        config = BenchmarkConfig(target_times={100000: 120.0}, memory_limit_mb=5000.0)
-        comp = ComprehensiveBenchmarkResult([result], config, {})
-
-        assert comp.meets_requirements() is False
-
-    def test_100k_fails_on_low_accuracy(self):
-        """A 100K result with accuracy_score < 0.9999 should fail."""
-        metrics = BenchmarkMetrics(
-            execution_time=50.0,
-            simulations_per_second=2000.0,
-            memory_peak_mb=3000.0,
+            memory_peak_mb=mem_peak,
             memory_average_mb=2500.0,
-            accuracy_score=0.999,  # Below 0.9999
+            accuracy_score=accuracy,
         )
         result = BenchmarkResult(
             scale=100000, metrics=metrics, configuration={}, timestamp=datetime.now()
@@ -330,7 +301,8 @@ class TestDiagnosticsESSZero:
         # We need to trick _calculate_ess into returning 0.
         # Patch _calculate_ess to return 0
         with patch.object(monitor, "_calculate_ess", return_value=0.0):
-            chains = np.random.randn(1, 100)
+            rng = np.random.default_rng(42)
+            chains = rng.standard_normal((1, 100))
             diagnostics = monitor._calculate_diagnostics(chains)
 
         assert diagnostics["mcse"] == np.inf
@@ -343,7 +315,8 @@ class TestDetectBurnInEarlyReturn:
     def test_detect_burn_in_skips_when_too_early(self):
         """When iteration < 500, burn-in detection should not run."""
         monitor = AdaptiveStoppingMonitor()
-        chains = np.random.randn(2, 300)
+        rng = np.random.default_rng(43)
+        chains = rng.standard_normal((2, 300))
 
         monitor._detect_burn_in(chains, iteration=300)
 
@@ -410,7 +383,8 @@ class TestCustomRuleNoFunction:
             criteria=StoppingCriteria(rule=StoppingRule.CUSTOM),
             custom_rule=None,
         )
-        chains = np.random.randn(2, 2000) + 10
+        rng = np.random.default_rng(44)
+        chains = rng.standard_normal((2, 2000)) + 10
 
         status = monitor.check_convergence(2000, chains)
 
@@ -559,23 +533,26 @@ class TestLoadResultsNonDataFrame:
             result = sweeper.load_results("nonexistent_hash_12345")
             assert result is None
 
-    def test_load_results_returns_none_for_non_dataframe_hdf5(self):
-        """When the HDF5 file contains something other than a DataFrame,
-        return None. This covers lines 801-805."""
+    @pytest.mark.parametrize(
+        "file_suffix,mock_return",
+        [
+            pytest.param("", pd.Series([1, 2, 3]), id="main_hdf5_non_dataframe"),
+            pytest.param("_temp", pd.Series([1, 2, 3]), id="temp_hdf5_non_dataframe"),
+        ],
+    )
+    def test_load_results_returns_none_for_non_dataframe_hdf5(self, file_suffix, mock_return):
+        """When HDF5 file contains non-DataFrame, return None (lines 801-805, 822)."""
         with tempfile.TemporaryDirectory() as tmpdir:
             sweeper = ParameterSweeper(cache_dir=tmpdir)
             sweep_hash = "test_hash"
 
-            # Create a dummy .h5 file so exists() returns True
-            h5_file = sweeper.cache_dir / f"sweep_{sweep_hash}.h5"
+            h5_file = sweeper.cache_dir / f"sweep_{sweep_hash}{file_suffix}.h5"
             h5_file.write_text("dummy")
 
-            # Mock pd.read_hdf to return a Series (not a DataFrame)
             with patch("ergodic_insurance.parameter_sweep.pd.read_hdf") as mock_read:
-                mock_read.return_value = pd.Series([1, 2, 3])
+                mock_read.return_value = mock_return
                 result = sweeper.load_results(sweep_hash)
 
-            # Should return None since it's not a DataFrame
             assert result is None
 
     def test_load_results_hdf5_import_error_falls_through(self):
@@ -585,31 +562,11 @@ class TestLoadResultsNonDataFrame:
             sweeper = ParameterSweeper(cache_dir=tmpdir)
             sweep_hash = "import_err"
 
-            # Create dummy .h5 file
             h5_file = sweeper.cache_dir / f"sweep_{sweep_hash}.h5"
             h5_file.write_text("dummy")
 
             with patch("ergodic_insurance.parameter_sweep.pd.read_hdf") as mock_read:
                 mock_read.side_effect = ImportError("tables not available")
-                result = sweeper.load_results(sweep_hash)
-
-            # No parquet file either, so should return None
-            assert result is None
-
-    def test_load_results_temp_file_non_dataframe(self):
-        """When a temp HDF5 file contains a non-DataFrame, return None.
-        This covers line 822."""
-        with tempfile.TemporaryDirectory() as tmpdir:
-            sweeper = ParameterSweeper(cache_dir=tmpdir)
-            sweep_hash = "test_temp_hash"
-
-            # Create only a temp HDF5 file (no main file, no parquet files)
-            temp_h5_file = sweeper.cache_dir / f"sweep_{sweep_hash}_temp.h5"
-            temp_h5_file.write_text("dummy")
-
-            # Mock pd.read_hdf to return a Series for the temp file path
-            with patch("ergodic_insurance.parameter_sweep.pd.read_hdf") as mock_read:
-                mock_read.return_value = pd.Series([1, 2, 3])
                 result = sweeper.load_results(sweep_hash)
 
             assert result is None

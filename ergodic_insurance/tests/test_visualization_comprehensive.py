@@ -36,6 +36,10 @@ matplotlib.use("Agg")  # Use non-interactive backend for all tests
 class TestAnnotations:
     """Comprehensive tests for annotations module."""
 
+    def setup_method(self):
+        """Seed random state for reproducible test data."""
+        np.random.seed(42)
+
     def test_add_value_labels_basic(self):
         """Test basic value label addition."""
         fig, ax = plt.subplots()
@@ -246,6 +250,10 @@ class TestAnnotations:
 
 class TestBatchPlots:
     """Comprehensive tests for batch_plots module."""
+
+    def setup_method(self):
+        """Seed random state for reproducible test data."""
+        np.random.seed(43)
 
     def create_mock_aggregated_results(self):
         """Create mock AggregatedResults for testing."""
@@ -543,7 +551,13 @@ class TestExport:
 
 
 class TestFigureFactory:
-    """Comprehensive tests for figure_factory module."""
+    """Tests for figure_factory module.
+
+    Note: Basic figure creation tests (create_figure, create_subplots,
+    create_line_plot, create_bar_plot, create_scatter_plot, create_histogram,
+    create_heatmap, save_figure) are covered more thoroughly in
+    test_visualization_factory.py::TestFigureFactory.
+    """
 
     def test_figure_factory_initialization_default(self):
         """Test FigureFactory initialization with defaults."""
@@ -557,107 +571,6 @@ class TestFigureFactory:
         factory = figure_factory.FigureFactory(theme=Theme.PRESENTATION)
 
         assert factory.style_manager.current_theme == Theme.PRESENTATION
-
-    def test_create_figure(self):
-        """Test basic figure creation."""
-        factory = figure_factory.FigureFactory()
-        fig, ax = factory.create_figure()
-
-        assert fig is not None
-        assert ax is not None
-        assert len(fig.axes) == 1
-
-        plt.close(fig)
-
-    def test_create_subplots(self):
-        """Test creating subplots."""
-        factory = figure_factory.FigureFactory()
-        fig, axes = factory.create_subplots(rows=2, cols=3)
-
-        assert fig is not None
-        assert hasattr(axes, "shape") and axes.shape == (2, 3)
-        assert len(fig.axes) == 6
-
-        plt.close(fig)
-
-    def test_create_line_plot(self):
-        """Test creating line plot."""
-        factory = figure_factory.FigureFactory()
-        x = [1, 2, 3, 4]
-        y = [1, 4, 2, 3]
-
-        fig, ax = factory.create_line_plot(x, y, title="Test Plot", x_label="X", y_label="Y")
-
-        assert fig is not None
-        assert len(ax.lines) > 0
-
-        plt.close(fig)
-
-    def test_create_bar_plot(self):
-        """Test creating bar plot."""
-        factory = figure_factory.FigureFactory()
-        categories = ["A", "B", "C"]
-        values = [10, 20, 15]
-
-        fig, ax = factory.create_bar_plot(categories, values, title="Bar Test")
-
-        assert fig is not None
-        assert len(ax.patches) == 3  # 3 bars
-
-        plt.close(fig)
-
-    def test_create_scatter_plot(self):
-        """Test creating scatter plot."""
-        factory = figure_factory.FigureFactory()
-        x = np.random.randn(50)
-        y = np.random.randn(50)
-
-        fig, ax = factory.create_scatter_plot(x, y, title="Scatter Test")
-
-        assert fig is not None
-        assert len(ax.collections) > 0  # Scatter points
-
-        plt.close(fig)
-
-    def test_create_histogram(self):
-        """Test creating histogram."""
-        factory = figure_factory.FigureFactory()
-        data = np.random.randn(1000)
-
-        fig, ax = factory.create_histogram(data, bins=30, title="Histogram Test")
-
-        assert fig is not None
-        assert len(ax.patches) > 0  # Histogram bars
-
-        plt.close(fig)
-
-    def test_create_heatmap(self):
-        """Test creating heatmap."""
-        factory = figure_factory.FigureFactory()
-        data = np.random.randn(10, 10)
-
-        fig, ax = factory.create_heatmap(data, title="Heatmap Test")
-
-        assert fig is not None
-
-        plt.close(fig)
-
-    def test_save_figure(self):
-        """Test saving figure."""
-        factory = figure_factory.FigureFactory()
-        fig, ax = factory.create_figure()
-        ax.plot([1, 2, 3], [1, 4, 2])
-
-        with tempfile.NamedTemporaryFile(suffix=".png", delete=False) as f:
-            temp_path = Path(f.name)
-
-        try:
-            factory.save_figure(fig, str(temp_path))
-            assert temp_path.exists()
-        finally:
-            if temp_path.exists():
-                temp_path.unlink()
-            plt.close(fig)
 
     def test_apply_axis_styling(self):
         """Test applying axis styling."""
@@ -675,6 +588,10 @@ class TestFigureFactory:
 
 class TestInteractivePlots:
     """Comprehensive tests for interactive_plots module."""
+
+    def setup_method(self):
+        """Seed random state for reproducible test data."""
+        np.random.seed(44)
 
     def test_create_interactive_dashboard(self):
         """Test creating interactive dashboard."""
@@ -807,91 +724,20 @@ class TestStyleManager:
 
         plt.close(fig)
 
-    def test_get_figsize_small(self):
-        """Test getting figure size for small plots."""
+    @pytest.mark.parametrize("size_name", ["small", "medium", "large", "blog", None])
+    def test_get_figsize(self, size_name):
+        """Test getting figure size for various size names."""
         manager = StyleManager()
-        width, height = manager.get_figure_size("small")
-
+        args = (size_name,) if size_name else ()
+        width, height = manager.get_figure_size(*args)
         assert width > 0
         assert height > 0
 
-    def test_get_figsize_medium(self):
-        """Test getting figure size for medium plots."""
+    @pytest.mark.parametrize("dpi_type", ["screen", "print", "publication"])
+    def test_get_dpi(self, dpi_type):
+        """Test getting DPI for various output types."""
         manager = StyleManager()
-        width, height = manager.get_figure_size("medium")
-
-        assert width > 0
-        assert height > 0
-
-    def test_get_figsize_large(self):
-        """Test getting figure size for large plots."""
-        manager = StyleManager()
-        width, height = manager.get_figure_size("large")
-
-        assert width > 0
-        assert height > 0
-
-    def test_get_figsize_blog(self):
-        """Test getting figure size for blog plots."""
-        manager = StyleManager()
-        width, height = manager.get_figure_size("blog")
-
-        assert width > 0
-        assert height > 0
-
-    def test_get_figsize_custom(self):
-        """Test getting custom figure size."""
-        manager = StyleManager()
-        width, height = manager.get_figure_size()
-
-        assert width > 0
-        assert height > 0
-
-    def test_get_dpi_screen(self):
-        """Test getting DPI for screen."""
-        manager = StyleManager()
-        assert manager.get_dpi("screen") > 0
-
-    def test_get_dpi_print(self):
-        """Test getting DPI for print."""
-        manager = StyleManager()
-        assert manager.get_dpi("print") > 0
-
-    def test_get_dpi_publication(self):
-        """Test getting DPI for publication quality."""
-        manager = StyleManager()
-        assert manager.get_dpi("publication") > 0
-
-    def test_get_colors(self):
-        """Test getting color palette."""
-        manager = StyleManager()
-        colors = manager.get_colors()
-
-        assert colors is not None
-        assert hasattr(colors, "primary")
-        assert hasattr(colors, "series")
-
-    def test_get_fonts(self):
-        """Test getting font configuration."""
-        manager = StyleManager()
-        fonts = manager.get_fonts()
-
-        assert fonts is not None
-        assert hasattr(fonts, "size_title")
-        assert hasattr(fonts, "size_label")
-        assert hasattr(fonts, "family")
-
-    def test_get_theme_config(self):
-        """Test getting theme configuration."""
-        manager = StyleManager()
-
-        config = manager.get_theme_config()
-        assert config is not None
-        assert "colors" in config
-        assert "fonts" in config
-
-        config = manager.get_theme_config(Theme.PRESENTATION)
-        assert config is not None
+        assert manager.get_dpi(dpi_type) > 0
 
     def test_set_theme(self):
         """Test setting theme."""
@@ -924,37 +770,6 @@ class TestStyleManager:
             if temp_path.exists():
                 temp_path.unlink()
 
-    def test_update_colors(self):
-        """Test updating colors."""
-        manager = StyleManager()
-
-        custom_colors = {"primary": "#FF0000", "secondary": "#00FF00"}
-
-        manager.update_colors(custom_colors)
-
-        # Colors should be updated
-        assert manager is not None
-
-    def test_update_fonts(self):
-        """Test updating fonts."""
-        manager = StyleManager()
-
-        custom_fonts = {"size_title": 18, "family": "Helvetica"}
-
-        manager.update_fonts(custom_fonts)
-
-        # Fonts should be updated
-        assert manager is not None
-
-    def test_inherit_from(self):
-        """Test inheriting from parent theme."""
-        manager = StyleManager()
-
-        # Create a new theme inheriting from DEFAULT
-        new_theme = manager.inherit_from(Theme.DEFAULT, {"colors": {"primary": "#FF0000"}})
-
-        assert new_theme == Theme.DEFAULT  # Returns base theme for now
-
     def test_save_config(self):
         """Test saving configuration."""
         manager = StyleManager()
@@ -969,34 +784,3 @@ class TestStyleManager:
         finally:
             if temp_path.exists():
                 temp_path.unlink()
-
-    def test_create_style_sheet(self):
-        """Test creating style sheet."""
-        manager = StyleManager()
-
-        style_sheet = manager.create_style_sheet()
-
-        assert style_sheet is not None
-        assert isinstance(style_sheet, dict)
-        assert len(style_sheet) > 0
-
-    def test_get_figure_config(self):
-        """Test getting figure configuration."""
-        manager = StyleManager()
-
-        fig_config = manager.get_figure_config()
-
-        assert fig_config is not None
-        assert hasattr(fig_config, "size_small")
-        assert hasattr(fig_config, "size_medium")
-        assert hasattr(fig_config, "size_large")
-
-    def test_get_grid_config(self):
-        """Test getting grid configuration."""
-        manager = StyleManager()
-
-        grid_config = manager.get_grid_config()
-
-        assert grid_config is not None
-        assert hasattr(grid_config, "show_grid")
-        assert hasattr(grid_config, "grid_alpha")

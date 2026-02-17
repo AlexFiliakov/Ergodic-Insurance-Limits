@@ -327,9 +327,10 @@ class TestSlowTests:
         storage = TrajectoryStorage(config)
 
         # Simulate 10000 trajectories (scaled down from 100K for test speed)
+        rng = np.random.default_rng(42)
         n_years = 100
         for i in range(10000):
-            annual_losses = np.random.lognormal(10, 2, n_years).astype(np.float32)
+            annual_losses = rng.lognormal(10, 2, n_years).astype(np.float32)
             insurance_recoveries = annual_losses * 0.8
             retained_losses = annual_losses * 0.2
 
@@ -339,7 +340,7 @@ class TestSlowTests:
                 insurance_recoveries=insurance_recoveries,
                 retained_losses=retained_losses,
                 initial_assets=10_000_000.0,
-                final_assets=np.random.uniform(8_000_000, 12_000_000),
+                final_assets=rng.uniform(8_000_000, 12_000_000),
                 ruin_occurred=False,
             )
 
@@ -382,11 +383,12 @@ class TestSlowTests:
             """Mock chunk processing."""
             start, end, seed = chunk
             n_sims = end - start
+            rng = np.random.default_rng(seed)
             return {
-                "final_assets": np.random.normal(10_000_000, 1_000_000, n_sims),
-                "annual_losses": np.random.exponential(50_000, (n_sims, 5)),
-                "insurance_recoveries": np.random.exponential(25_000, (n_sims, 5)),
-                "retained_losses": np.random.exponential(25_000, (n_sims, 5)),
+                "final_assets": rng.normal(10_000_000, 1_000_000, n_sims),
+                "annual_losses": rng.exponential(50_000, (n_sims, 5)),
+                "insurance_recoveries": rng.exponential(25_000, (n_sims, 5)),
+                "retained_losses": rng.exponential(25_000, (n_sims, 5)),
             }
 
         # Use sequential run instead of parallel to avoid pickling issues in tests

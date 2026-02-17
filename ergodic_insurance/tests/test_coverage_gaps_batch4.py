@@ -99,35 +99,25 @@ class TestBusinessOptimizerRecommendations:
 
     # -- _generate_roe_recommendations --
 
-    def test_roe_recommendations_excellent_roe(self, optimizer: BusinessOptimizer):
-        """Line 1086: expected_roe > 0.20 triggers 'Excellent ROE' message."""
+    @pytest.mark.parametrize(
+        "roe,expected_substring",
+        [
+            pytest.param(0.25, "Excellent ROE", id="excellent_roe"),
+            pytest.param(0.18, "Strong ROE", id="strong_roe"),
+            pytest.param(0.10, "ROE below target", id="below_target"),
+        ],
+    )
+    def test_roe_recommendations_by_roe_level(
+        self, optimizer: BusinessOptimizer, roe, expected_substring
+    ):
+        """ROE recommendation message varies by expected_roe level (lines 1086-1094)."""
         recs = optimizer._generate_roe_recommendations(
             coverage_limit=5_000_000,
             deductible=100_000,
             premium_rate=0.02,
-            expected_roe=0.25,
+            expected_roe=roe,
         )
-        assert any("Excellent ROE" in r for r in recs)
-
-    def test_roe_recommendations_strong_roe(self, optimizer: BusinessOptimizer):
-        """Lines 1089-1090: 0.15 < expected_roe <= 0.20 triggers 'Strong ROE'."""
-        recs = optimizer._generate_roe_recommendations(
-            coverage_limit=5_000_000,
-            deductible=100_000,
-            premium_rate=0.02,
-            expected_roe=0.18,
-        )
-        assert any("Strong ROE" in r for r in recs)
-
-    def test_roe_recommendations_below_target(self, optimizer: BusinessOptimizer):
-        """Lines 1092-1094: expected_roe <= 0.15 triggers 'ROE below target'."""
-        recs = optimizer._generate_roe_recommendations(
-            coverage_limit=5_000_000,
-            deductible=100_000,
-            premium_rate=0.02,
-            expected_roe=0.10,
-        )
-        assert any("ROE below target" in r for r in recs)
+        assert any(expected_substring in r for r in recs)
 
     def test_roe_recommendations_high_premium_rate(self, optimizer: BusinessOptimizer):
         """Line 1097: premium_rate > 0.05 triggers 'High premium rate'."""
@@ -139,82 +129,70 @@ class TestBusinessOptimizerRecommendations:
         )
         assert any("High premium rate" in r for r in recs)
 
-    def test_roe_recommendations_low_deductible(self, optimizer: BusinessOptimizer):
-        """Line 1102: deductible < 50000 triggers 'Low deductible'."""
+    @pytest.mark.parametrize(
+        "deductible,expected_substring",
+        [
+            pytest.param(30_000, "Low deductible", id="low_deductible"),
+            pytest.param(600_000, "High deductible", id="high_deductible"),
+        ],
+    )
+    def test_roe_recommendations_deductible_warnings(
+        self, optimizer: BusinessOptimizer, deductible, expected_substring
+    ):
+        """Deductible recommendations vary by level (lines 1102, 1106)."""
         recs = optimizer._generate_roe_recommendations(
             coverage_limit=5_000_000,
-            deductible=30_000,
+            deductible=deductible,
             premium_rate=0.02,
             expected_roe=0.18,
         )
-        assert any("Low deductible" in r for r in recs)
+        assert any(expected_substring in r for r in recs)
 
-    def test_roe_recommendations_high_deductible(self, optimizer: BusinessOptimizer):
-        """Line 1106: deductible > 500_000 triggers 'High deductible exposes'."""
+    @pytest.mark.parametrize(
+        "coverage_limit,expected_substring",
+        [
+            pytest.param(3_000_000, "insufficient", id="low_coverage"),
+            pytest.param(20_000_000, "exceeds", id="high_coverage"),
+        ],
+    )
+    def test_roe_recommendations_coverage_ratio(
+        self, optimizer: BusinessOptimizer, coverage_limit, expected_substring
+    ):
+        """Coverage ratio recommendations (lines 1112, 1114)."""
         recs = optimizer._generate_roe_recommendations(
-            coverage_limit=5_000_000,
-            deductible=600_000,
-            premium_rate=0.02,
-            expected_roe=0.18,
-        )
-        assert any("High deductible" in r for r in recs)
-
-    def test_roe_recommendations_low_coverage_ratio(self, optimizer: BusinessOptimizer):
-        """Line 1112: coverage_ratio < 0.5 triggers 'insufficient'."""
-        recs = optimizer._generate_roe_recommendations(
-            coverage_limit=3_000_000,  # 3M / 10M = 0.3
+            coverage_limit=coverage_limit,
             deductible=100_000,
             premium_rate=0.02,
             expected_roe=0.18,
         )
-        assert any("insufficient" in r.lower() for r in recs)
-
-    def test_roe_recommendations_high_coverage_ratio(self, optimizer: BusinessOptimizer):
-        """Line 1114: coverage_ratio > 1.5 triggers 'exceeds actual exposure'."""
-        recs = optimizer._generate_roe_recommendations(
-            coverage_limit=20_000_000,  # 20M / 10M = 2.0
-            deductible=100_000,
-            premium_rate=0.02,
-            expected_roe=0.18,
-        )
-        assert any("exceeds" in r.lower() for r in recs)
+        assert any(expected_substring in r.lower() for r in recs)
 
     # -- _generate_risk_recommendations --
 
-    def test_risk_recommendations_excellent_risk(self, optimizer: BusinessOptimizer):
-        """Line 1129: bankruptcy_risk < 0.001 triggers 'Excellent risk profile'."""
+    @pytest.mark.parametrize(
+        "risk,expected_substring",
+        [
+            pytest.param(0.0005, "Excellent risk profile", id="excellent"),
+            pytest.param(0.005, "well-controlled", id="well_controlled"),
+            pytest.param(0.05, "Elevated bankruptcy risk", id="elevated"),
+        ],
+    )
+    def test_risk_recommendations_by_risk_level(
+        self, optimizer: BusinessOptimizer, risk, expected_substring
+    ):
+        """Risk recommendation message varies by bankruptcy_risk level (lines 1129-1133)."""
         recs = optimizer._generate_risk_recommendations(
             coverage_limit=5_000_000,
             deductible=100_000,
             premium_rate=0.02,
-            bankruptcy_risk=0.0005,
+            bankruptcy_risk=risk,
         )
-        assert any("Excellent risk profile" in r for r in recs)
-
-    def test_risk_recommendations_well_controlled(self, optimizer: BusinessOptimizer):
-        """Lines 1130-1131: 0.001 <= risk < 0.01 triggers 'well-controlled'."""
-        recs = optimizer._generate_risk_recommendations(
-            coverage_limit=5_000_000,
-            deductible=100_000,
-            premium_rate=0.02,
-            bankruptcy_risk=0.005,
-        )
-        assert any("well-controlled" in r for r in recs)
-
-    def test_risk_recommendations_elevated(self, optimizer: BusinessOptimizer):
-        """Line 1133: bankruptcy_risk >= 0.01 triggers 'Elevated bankruptcy risk'."""
-        recs = optimizer._generate_risk_recommendations(
-            coverage_limit=5_000_000,
-            deductible=100_000,
-            premium_rate=0.02,
-            bankruptcy_risk=0.05,
-        )
-        assert any("Elevated bankruptcy risk" in r for r in recs)
+        assert any(expected_substring in r for r in recs)
 
     def test_risk_recommendations_insufficient_coverage(self, optimizer: BusinessOptimizer):
         """Line 1138: coverage_limit < total_assets * 0.5 triggers tail risk warning."""
         recs = optimizer._generate_risk_recommendations(
-            coverage_limit=3_000_000,  # 3M / 10M = 0.3 < 0.5
+            coverage_limit=3_000_000,
             deductible=100_000,
             premium_rate=0.02,
             bankruptcy_risk=0.005,
@@ -223,7 +201,6 @@ class TestBusinessOptimizerRecommendations:
 
     def test_risk_recommendations_high_premium_cost(self, optimizer: BusinessOptimizer):
         """Line 1141: premium > 3% of revenue triggers cost warning."""
-        # premium_rate * coverage_limit > revenue * 0.03 => 0.05 * 5M = 250_000 > 5M * 0.03 = 150_000
         recs = optimizer._generate_risk_recommendations(
             coverage_limit=5_000_000,
             deductible=100_000,
@@ -234,88 +211,95 @@ class TestBusinessOptimizerRecommendations:
 
     # -- _generate_comprehensive_recommendations --
 
-    def test_comprehensive_exceptional_roe(self, optimizer: BusinessOptimizer):
-        """Line 1159: roe > 0.20 triggers 'Exceptional ROE'."""
+    @pytest.mark.parametrize(
+        "coverage_limit,deductible,premium_rate,objective_values,expected_substring",
+        [
+            pytest.param(
+                5_000_000,
+                100_000,
+                0.02,
+                {"ROE": 0.25, "bankruptcy_risk": 0.005, "growth_rate": 0.10},
+                "Exceptional ROE",
+                id="exceptional_roe",
+            ),
+            pytest.param(
+                5_000_000,
+                100_000,
+                0.02,
+                {"ROE": 0.05, "bankruptcy_risk": 0.005, "growth_rate": 0.10},
+                "below industry standards",
+                id="low_roe",
+            ),
+            pytest.param(
+                5_000_000,
+                100_000,
+                0.02,
+                {"ROE": 0.15, "bankruptcy_risk": 0.05, "growth_rate": 0.10},
+                "High bankruptcy risk",
+                id="high_risk",
+            ),
+            pytest.param(
+                5_000_000,
+                100_000,
+                0.02,
+                {"ROE": 0.15, "bankruptcy_risk": 0.005, "growth_rate": 0.20},
+                "Strong growth",
+                id="strong_growth",
+            ),
+            pytest.param(
+                1_000_000,
+                100_000,
+                0.01,
+                {"ROE": 0.15, "bankruptcy_risk": 0.005, "growth_rate": 0.10},
+                "Low insurance spend",
+                id="low_spend",
+            ),
+            pytest.param(
+                5_000_000,
+                600_000,
+                0.02,
+                {"ROE": 0.15, "bankruptcy_risk": 0.005, "growth_rate": 0.10},
+                "retention capacity",
+                id="high_deductible_to_assets",
+            ),
+            pytest.param(
+                5_000_000,
+                100_000,
+                0.02,
+                {"roe": 0.25, "bankruptcy_risk": 0.005, "growth_rate": 0.10},
+                "Exceptional ROE",
+                id="lowercase_roe_key",
+            ),
+        ],
+    )
+    def test_comprehensive_recommendations(
+        self,
+        optimizer: BusinessOptimizer,
+        coverage_limit,
+        deductible,
+        premium_rate,
+        objective_values,
+        expected_substring,
+    ):
+        """_generate_comprehensive_recommendations produces correct messages (lines 1159-1193)."""
         recs = optimizer._generate_comprehensive_recommendations(
-            coverage_limit=5_000_000,
-            deductible=100_000,
-            premium_rate=0.02,
-            objective_values={"ROE": 0.25, "bankruptcy_risk": 0.005, "growth_rate": 0.10},
+            coverage_limit=coverage_limit,
+            deductible=deductible,
+            premium_rate=premium_rate,
+            objective_values=objective_values,
         )
-        assert any("Exceptional ROE" in r for r in recs)
-
-    def test_comprehensive_low_roe(self, optimizer: BusinessOptimizer):
-        """Line 1161: roe < 0.10 triggers 'below industry standards'."""
-        recs = optimizer._generate_comprehensive_recommendations(
-            coverage_limit=5_000_000,
-            deductible=100_000,
-            premium_rate=0.02,
-            objective_values={"ROE": 0.05, "bankruptcy_risk": 0.005, "growth_rate": 0.10},
-        )
-        assert any("below industry standards" in r for r in recs)
-
-    def test_comprehensive_high_risk(self, optimizer: BusinessOptimizer):
-        """Line 1166: risk > 0.02 triggers 'High bankruptcy risk'."""
-        recs = optimizer._generate_comprehensive_recommendations(
-            coverage_limit=5_000_000,
-            deductible=100_000,
-            premium_rate=0.02,
-            objective_values={"ROE": 0.15, "bankruptcy_risk": 0.05, "growth_rate": 0.10},
-        )
-        assert any("High bankruptcy risk" in r for r in recs)
-
-    def test_comprehensive_strong_growth(self, optimizer: BusinessOptimizer):
-        """Line 1173: growth > 0.15 triggers 'Strong growth trajectory'."""
-        recs = optimizer._generate_comprehensive_recommendations(
-            coverage_limit=5_000_000,
-            deductible=100_000,
-            premium_rate=0.02,
-            objective_values={"ROE": 0.15, "bankruptcy_risk": 0.005, "growth_rate": 0.20},
-        )
-        assert any("Strong growth" in r for r in recs)
-
-    def test_comprehensive_low_insurance_spend(self, optimizer: BusinessOptimizer):
-        """Line 1188: premium_to_revenue < 0.01 triggers 'Low insurance spend'."""
-        # coverage_limit * premium_rate / revenue < 0.01 => 1M * 0.01 / 5M = 0.002
-        recs = optimizer._generate_comprehensive_recommendations(
-            coverage_limit=1_000_000,
-            deductible=100_000,
-            premium_rate=0.01,
-            objective_values={"ROE": 0.15, "bankruptcy_risk": 0.005, "growth_rate": 0.10},
-        )
-        assert any("Low insurance spend" in r for r in recs)
-
-    def test_comprehensive_high_deductible_to_assets(self, optimizer: BusinessOptimizer):
-        """Line 1193: deductible_to_assets > 0.05 triggers retention capacity warning."""
-        recs = optimizer._generate_comprehensive_recommendations(
-            coverage_limit=5_000_000,
-            deductible=600_000,  # 600k / 10M = 0.06
-            premium_rate=0.02,
-            objective_values={"ROE": 0.15, "bankruptcy_risk": 0.005, "growth_rate": 0.10},
-        )
-        assert any("retention capacity" in r for r in recs)
-
-    def test_comprehensive_uses_lowercase_roe_key(self, optimizer: BusinessOptimizer):
-        """Line 1156: objective_values uses lowercase 'roe' key."""
-        recs = optimizer._generate_comprehensive_recommendations(
-            coverage_limit=5_000_000,
-            deductible=100_000,
-            premium_rate=0.02,
-            objective_values={"roe": 0.25, "bankruptcy_risk": 0.005, "growth_rate": 0.10},
-        )
-        assert any("Exceptional ROE" in r for r in recs)
+        assert any(expected_substring in r for r in recs)
 
     def test_comprehensive_limits_to_five_recommendations(self, optimizer: BusinessOptimizer):
         """Line 1197: result is capped at 5 recommendations."""
-        # Trigger as many recommendations as possible
         recs = optimizer._generate_comprehensive_recommendations(
-            coverage_limit=1_000_000,  # low coverage ratio
-            deductible=600_000,  # high deductible to assets
-            premium_rate=0.01,  # low premium
+            coverage_limit=1_000_000,
+            deductible=600_000,
+            premium_rate=0.01,
             objective_values={
-                "ROE": 0.05,  # low ROE
-                "bankruptcy_risk": 0.05,  # high risk
-                "growth_rate": 0.20,  # strong growth
+                "ROE": 0.05,
+                "bankruptcy_risk": 0.05,
+                "growth_rate": 0.20,
             },
         )
         assert len(recs) <= 5
@@ -679,51 +663,42 @@ class TestExcelReporterGaps:
     Targets lines 140-144, 164-166, 508-509, 572-580, 589, 698, 982, 1044.
     """
 
-    def test_select_engine_auto_openpyxl_fallback(self):
-        """Lines 140-141: auto engine with xlsxwriter unavailable falls to openpyxl."""
+    @pytest.mark.parametrize(
+        "xlsxwriter_avail,openpyxl_avail,expected_engine",
+        [
+            pytest.param(False, True, "openpyxl", id="openpyxl_fallback"),
+            pytest.param(False, False, "pandas", id="no_libraries"),
+        ],
+    )
+    def test_select_engine_auto_fallbacks(self, xlsxwriter_avail, openpyxl_avail, expected_engine):
+        """Auto engine fallback chain: xlsxwriter -> openpyxl -> pandas (lines 140-144)."""
         config = ExcelReportConfig(engine="auto")
         reporter = ExcelReporter(config)
         with (
-            patch("ergodic_insurance.excel_reporter.XLSXWRITER_AVAILABLE", False),
-            patch("ergodic_insurance.excel_reporter.OPENPYXL_AVAILABLE", True),
+            patch("ergodic_insurance.excel_reporter.XLSXWRITER_AVAILABLE", xlsxwriter_avail),
+            patch("ergodic_insurance.excel_reporter.OPENPYXL_AVAILABLE", openpyxl_avail),
         ):
             reporter._select_engine()
-            assert reporter.engine == "openpyxl"
+            assert reporter.engine == expected_engine
 
-    def test_select_engine_auto_no_libraries(self):
-        """Lines 142-144: auto engine with both libraries unavailable falls to pandas."""
-        config = ExcelReportConfig(engine="auto")
-        reporter = ExcelReporter(config)
-        with (
-            patch("ergodic_insurance.excel_reporter.XLSXWRITER_AVAILABLE", False),
-            patch("ergodic_insurance.excel_reporter.OPENPYXL_AVAILABLE", False),
-        ):
-            reporter._select_engine()
-            assert reporter.engine == "pandas"
-
-    def test_get_pandas_engine_xlsxwriter_only(self):
-        """Lines 164-165: pandas fallback with only xlsxwriter available."""
+    @pytest.mark.parametrize(
+        "openpyxl_avail,xlsxwriter_avail,expected",
+        [
+            pytest.param(False, True, "xlsxwriter", id="xlsxwriter_only"),
+            pytest.param(False, False, None, id="none_available"),
+        ],
+    )
+    def test_get_pandas_engine_fallbacks(self, openpyxl_avail, xlsxwriter_avail, expected):
+        """Pandas engine fallback: openpyxl -> xlsxwriter -> None (lines 164-166)."""
         config = ExcelReportConfig(engine="pandas")
         reporter = ExcelReporter(config)
         reporter.engine = "pandas"
         with (
-            patch("ergodic_insurance.excel_reporter.OPENPYXL_AVAILABLE", False),
-            patch("ergodic_insurance.excel_reporter.XLSXWRITER_AVAILABLE", True),
+            patch("ergodic_insurance.excel_reporter.OPENPYXL_AVAILABLE", openpyxl_avail),
+            patch("ergodic_insurance.excel_reporter.XLSXWRITER_AVAILABLE", xlsxwriter_avail),
         ):
             result = reporter._get_pandas_engine()
-            assert result == "xlsxwriter"
-
-    def test_get_pandas_engine_none_available(self):
-        """Line 166: no library available returns None."""
-        config = ExcelReportConfig(engine="pandas")
-        reporter = ExcelReporter(config)
-        reporter.engine = "pandas"
-        with (
-            patch("ergodic_insurance.excel_reporter.OPENPYXL_AVAILABLE", False),
-            patch("ergodic_insurance.excel_reporter.XLSXWRITER_AVAILABLE", False),
-        ):
-            result = reporter._get_pandas_engine()
-            assert result is None
+            assert result == expected
 
     def test_categorize_metric_number_format(self):
         """Line 698: metric that falls through to 'number' format (not % or currency)."""

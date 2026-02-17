@@ -169,12 +169,13 @@ class TestParallelProcessing:
         # Mock logger to capture output
         with patch("ergodic_insurance.monte_carlo.logger") as mock_logger:
             # Create mock results with good convergence
+            rng = np.random.default_rng(42)
             mock_results = MonteCarloResults(
-                final_assets=np.random.normal(10_000_000, 100_000, 100),
+                final_assets=rng.normal(10_000_000, 100_000, 100),
                 annual_losses=np.zeros((100, 5)),
                 insurance_recoveries=np.zeros((100, 5)),
                 retained_losses=np.zeros((100, 5)),
-                growth_rates=np.random.normal(0.05, 0.001, 100),
+                growth_rates=rng.normal(0.05, 0.001, 100),
                 ruin_probability={"50": 0.01},
                 metrics={},
                 convergence={"growth_rate": Mock(r_hat=float("nan"), mcse=0.0001, converged=True)},

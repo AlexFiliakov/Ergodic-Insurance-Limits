@@ -166,7 +166,8 @@ class TestCalculateRollingMetrics:
 
     def test_rolling_metrics_window_start_end(self, calculator):
         """Verify window_start and window_end values are correct."""
-        returns = np.random.normal(0.05, 0.01, 20)
+        rng = np.random.default_rng(42)
+        returns = rng.normal(0.05, 0.01, 20)
         df = calculator.calculate_rolling_metrics(returns, window_size=5)
 
         assert df.iloc[0]["window_start"] == 0

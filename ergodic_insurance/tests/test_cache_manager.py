@@ -100,6 +100,10 @@ class TestCacheKey:
 class TestCacheManager:
     """Test cache manager functionality."""
 
+    def setup_method(self):
+        """Seed random state for reproducible test data."""
+        np.random.seed(42)
+
     @pytest.fixture
     def temp_cache_dir(self):
         """Create temporary cache directory."""
@@ -474,6 +478,10 @@ class TestCacheManager:
 class TestCachePerformance:
     """Test cache performance benchmarks."""
 
+    def setup_method(self):
+        """Seed random state for reproducible test data."""
+        np.random.seed(43)
+
     @pytest.fixture
     def perf_cache_manager(self):
         """Create cache manager for performance testing."""
@@ -562,6 +570,10 @@ class TestCachePerformance:
 
 class TestLocalStorageBackend:
     """Test LocalStorageBackend functionality."""
+
+    def setup_method(self):
+        """Seed random state for reproducible test data."""
+        np.random.seed(44)
 
     @pytest.fixture
     def temp_storage_dir(self):
@@ -711,6 +723,10 @@ class TestLocalStorageBackend:
 
 class TestCacheManagerAdvanced:
     """Advanced tests for CacheManager."""
+
+    def setup_method(self):
+        """Seed random state for reproducible test data."""
+        np.random.seed(45)
 
     @pytest.fixture
     def cache_manager(self):

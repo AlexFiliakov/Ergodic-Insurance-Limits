@@ -169,6 +169,10 @@ class TestReportConfig:
 class TestTableGenerator:
     """Test table generation functionality."""
 
+    def setup_method(self):
+        """Seed random state for reproducible test data."""
+        np.random.seed(42)
+
     def test_create_table_generator(self):
         """Test TableGenerator initialization."""
         gen = TableGenerator(default_format="markdown", precision=3, max_width=60)
@@ -396,6 +400,10 @@ class TestReportBuilder:
 class TestExecutiveReport:
     """Test executive report generation."""
 
+    def setup_method(self):
+        """Seed random state for reproducible test data."""
+        np.random.seed(43)
+
     def test_create_executive_report(self):
         """Test ExecutiveReport creation."""
         results = {"roe": 0.18, "ruin_probability": 0.01, "trajectories": np.random.randn(100, 100)}
@@ -447,6 +455,10 @@ class TestExecutiveReport:
 class TestTechnicalReport:
     """Test technical report generation."""
 
+    def setup_method(self):
+        """Seed random state for reproducible test data."""
+        np.random.seed(44)
+
     def test_create_technical_report(self):
         """Test TechnicalReport creation."""
         results = {
@@ -488,6 +500,10 @@ class TestTechnicalReport:
 
 class TestReportValidator:
     """Test report validation functionality."""
+
+    def setup_method(self):
+        """Seed random state for reproducible test data."""
+        np.random.seed(45)
 
     def test_validator_initialization(self):
         """Test ReportValidator initialization."""
@@ -595,6 +611,10 @@ class TestReportValidator:
 
 class TestIntegration:
     """Integration tests for the complete report generation system."""
+
+    def setup_method(self):
+        """Seed random state for reproducible test data."""
+        np.random.seed(46)
 
     def test_end_to_end_executive_report(self):
         """Test complete executive report generation."""

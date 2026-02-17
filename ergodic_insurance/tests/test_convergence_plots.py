@@ -192,7 +192,8 @@ class TestRealTimeConvergencePlotter:
 
     def test_generate_convergence_summary(self, plotter):
         """Test convergence summary generation."""
-        chains = np.random.randn(2, 100, 2)
+        rng = np.random.default_rng(300)
+        chains = rng.standard_normal((2, 100, 2))
         diagnostics = {"r_hat_0": [1.05], "r_hat_1": [1.12], "ess_0": [1200], "ess_1": [800]}
 
         summary = plotter._generate_convergence_summary(chains, diagnostics)
@@ -213,8 +214,9 @@ class TestRealTimeConvergencePlotter:
         plotter.setup_figure()
 
         # Add more data than buffer size
+        rng = np.random.default_rng(301)
         for i in range(20):
-            chains_data = np.random.randn(3, 2)
+            chains_data = rng.standard_normal((3, 2))
             plotter.update_data(i, chains_data)
 
         # Check buffers don't exceed max size (deque with maxlen automatically limits)
@@ -244,7 +246,8 @@ class TestRealTimeConvergencePlotter:
         """Test plotting without diagnostics."""
         plotter.setup_figure(show_diagnostics=False)
 
-        chains_data = np.random.randn(3, 2)
+        rng = np.random.default_rng(302)
+        chains_data = rng.standard_normal((3, 2))
         plotter.update_data(1, chains_data, diagnostics=None)
 
         # Should still update trace buffers
@@ -275,7 +278,8 @@ class TestRealTimeConvergencePlotter:
     def test_convergence_dashboard_edge_cases(self, plotter):
         """Test dashboard with edge cases."""
         # Single iteration chain
-        chains = np.random.randn(2, 1, 2)
+        rng = np.random.default_rng(303)
+        chains = rng.standard_normal((2, 1, 2))
         diagnostics: Dict[str, Any] = {}
 
         fig = plotter.create_convergence_dashboard(chains, diagnostics)
@@ -284,7 +288,7 @@ class TestRealTimeConvergencePlotter:
         plt.close(fig)
 
         # Empty diagnostics
-        chains = np.random.randn(2, 100, 2)
+        chains = rng.standard_normal((2, 100, 2))
         fig = plotter.create_convergence_dashboard(chains, {})
         assert isinstance(fig, Figure)
 
@@ -296,7 +300,9 @@ class TestRealTimeConvergencePlotter:
         fig = plotter.setup_figure()
         mock_show.assert_not_called()
 
-        fig = plotter.plot_static_convergence(np.random.randn(2, 100, 2))
+        fig = plotter.plot_static_convergence(
+            np.random.default_rng(304).standard_normal((2, 100, 2))
+        )
         mock_show.assert_not_called()
 
         plt.close("all")

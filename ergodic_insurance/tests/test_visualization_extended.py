@@ -129,6 +129,10 @@ class TestFormatterExtended:
 class TestLossDistributionExtended:
     """Test additional loss distribution functionality."""
 
+    def setup_method(self):
+        """Seed random state for reproducible test data."""
+        np.random.seed(42)
+
     def test_plot_loss_distribution_dataframe_without_amount_column(self):
         """Test loss distribution with DataFrame lacking 'amount' column."""
         # Create DataFrame with numeric column but not named 'amount'
@@ -163,6 +167,10 @@ class TestLossDistributionExtended:
 
 class TestReturnPeriodCurveExtended:
     """Test additional return period curve functionality."""
+
+    def setup_method(self):
+        """Seed random state for reproducible test data."""
+        np.random.seed(43)
 
     def test_plot_return_period_curve_dataframe_input(self):
         """Test return period curve with DataFrame input."""
@@ -206,6 +214,10 @@ class TestReturnPeriodCurveExtended:
 
 class TestInsuranceLayersExtended:
     """Test additional insurance layers functionality."""
+
+    def setup_method(self):
+        """Seed random state for reproducible test data."""
+        np.random.seed(46)
 
     def test_plot_insurance_layers_with_list_input(self):
         """Test insurance layers with list of dictionaries input."""
@@ -386,6 +398,10 @@ class TestParetoFrontier:
 class TestInteractiveDashboardExtended:
     """Test additional interactive dashboard functionality."""
 
+    def setup_method(self):
+        """Seed random state for reproducible test data."""
+        np.random.seed(44)
+
     def test_dashboard_with_dict_results(self):
         """Test dashboard with dictionary results."""
         results = {
@@ -510,6 +526,10 @@ class TestInteractiveParetoFrontier:
 
 class TestEdgeCasesExtended:
     """Test additional edge cases."""
+
+    def setup_method(self):
+        """Seed random state for reproducible test data."""
+        np.random.seed(45)
 
     def test_plot_functions_with_single_point(self):
         """Test plotting functions with single data point."""

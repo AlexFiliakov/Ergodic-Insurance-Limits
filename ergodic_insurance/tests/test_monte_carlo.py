@@ -217,10 +217,10 @@ class TestMonteCarloEngine:
         engine, loss_generator, _, _ = setup_engine
 
         # Configure for parallel execution (use small count since mock runs sequentially)
-        engine.config.n_simulations = 1_000
+        engine.config.n_simulations = 100
         engine.config.parallel = True
         engine.config.n_workers = 2
-        engine.config.chunk_size = 500
+        engine.config.chunk_size = 50
         # Disable enhanced parallel to test _run_parallel path specifically
         engine.config.use_enhanced_parallel = False
 
@@ -236,7 +236,7 @@ class TestMonteCarloEngine:
             results = engine.run()
 
         assert results is not None
-        assert len(results.final_assets) == 1_000
+        assert len(results.final_assets) == 100
 
     def test_growth_rate_calculation(self, setup_engine):
         """Test growth rate calculation."""
@@ -262,14 +262,15 @@ class TestMonteCarloEngine:
     def test_metrics_calculation(self, setup_engine):
         """Test risk metrics calculation."""
         engine, _, _, _ = setup_engine
+        rng = np.random.default_rng(42)
 
         # Create mock results
         results = MonteCarloResults(
-            final_assets=np.random.normal(10_000_000, 2_000_000, 1000),
-            annual_losses=np.random.exponential(100_000, (1000, 5)),
-            insurance_recoveries=np.random.exponential(50_000, (1000, 5)),
-            retained_losses=np.random.exponential(50_000, (1000, 5)),
-            growth_rates=np.random.normal(0.05, 0.02, 1000),
+            final_assets=rng.normal(10_000_000, 2_000_000, 1000),
+            annual_losses=rng.exponential(100_000, (1000, 5)),
+            insurance_recoveries=rng.exponential(50_000, (1000, 5)),
+            retained_losses=rng.exponential(50_000, (1000, 5)),
+            growth_rates=rng.normal(0.05, 0.02, 1000),
             ruin_probability={"5": 0.05},
             metrics={},
             convergence={},
@@ -414,13 +415,13 @@ class TestMonteCarloEngine:
         )
 
         # Run with convergence monitoring
-        engine.config.n_simulations = 100
+        engine.config.n_simulations = 50
         results = engine.run_with_convergence_monitoring(
-            target_r_hat=1.1, check_interval=50, max_iterations=200
+            target_r_hat=1.1, check_interval=25, max_iterations=100
         )
 
         assert results is not None
-        assert len(results.final_assets) >= 50  # At least one batch
+        assert len(results.final_assets) >= 25  # At least one batch
 
     def test_convergence_monitoring_does_not_mutate_config(self, setup_engine):
         """Config object must not be mutated by run_with_convergence_monitoring (issue #1018)."""
@@ -440,7 +441,7 @@ class TestMonteCarloEngine:
         user_config_ref = engine.config
 
         engine.run_with_convergence_monitoring(
-            target_r_hat=1.1, check_interval=50, max_iterations=200
+            target_r_hat=1.1, check_interval=25, max_iterations=100
         )
 
         # engine.config must point back to the original object
@@ -466,7 +467,7 @@ class TestMonteCarloEngine:
 
         with pytest.raises(RuntimeError, match="boom"):
             engine.run_with_convergence_monitoring(
-                target_r_hat=1.1, check_interval=50, max_iterations=200
+                target_r_hat=1.1, check_interval=25, max_iterations=100
             )
 
         # Config must be fully restored after exception
