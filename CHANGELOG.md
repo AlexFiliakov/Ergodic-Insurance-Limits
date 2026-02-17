@@ -7,6 +7,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 <!-- next-version -->
 
+## [0.13.3] - 2026-02-17
+
+### Fixed
+- updated hjb example notebook ([`7ce58e6`](https://github.com/AlexFiliakov/Ergodic-Insurance-Limits/commit/7ce58e6952de44c6fbba719eb070616fc15c7199))
+- core hjb solver to deal with large numbers ([`aebe7eb`](https://github.com/AlexFiliakov/Ergodic-Insurance-Limits/commit/aebe7ebbc7dc1ad0fd9438971df9eb0d04eb21b4))
+- allow log hjb solver and recalibrate noetbook ([`ecf4899`](https://github.com/AlexFiliakov/Ergodic-Insurance-Limits/commit/ecf4899cfc36011d1cbceb20d4ddc810ec16a449))
+- recalibrate notebook 07 insurance pricing to produce genuine SIR tradeoff ([`60f265d`](https://github.com/AlexFiliakov/Ergodic-Insurance-Limits/commit/60f265d050a2a19d35819b9cac39cbc0b10e7c25))
+- when retention is higher than certain layers, skip them during program definition. Also new HJB exploration. ([`76dab1d`](https://github.com/AlexFiliakov/Ergodic-Insurance-Limits/commit/76dab1ded50844a825b1fbc979cfa4e3cc33822c))
+- correct ergodic gap calculation in reconciliation notebook 07 ([`336c7b3`](https://github.com/AlexFiliakov/Ergodic-Insurance-Limits/commit/336c7b325f6facfc5b2ff34b53e2d58b25258548))
+
+[0.13.3]: https://github.com/AlexFiliakov/Ergodic-Insurance-Limits/compare/v0.13.2...v0.13.3
+
 ## [0.13.2] - 2026-02-15
 
 ### Fixed
