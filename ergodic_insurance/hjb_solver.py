@@ -477,10 +477,12 @@ class HJBSolver:
             if dx_min > 0:
                 advection_cfl = max(advection_cfl, drift_max * dt / dx_min)
 
-            if sigma_sq is not None and dx_mean > 0:
+            if sigma_sq is not None and dx_min > 0:
                 # Effective diffusion coefficient is D = 0.5 * sigma_sq
+                # Use dx_min (not dx_mean) — stability is governed by the
+                # smallest grid spacing, which matters for non-uniform grids.
                 sigma_sq_max = float(np.max(np.abs(sigma_sq[..., dim])))
-                diffusion_cfl = max(diffusion_cfl, 0.5 * sigma_sq_max * dt / (dx_mean**2))
+                diffusion_cfl = max(diffusion_cfl, 0.5 * sigma_sq_max * dt / (dx_min**2))
 
         return advection_cfl, diffusion_cfl
 
@@ -493,8 +495,16 @@ class HJBSolver:
         """Build the 1D spatial operator L as a sparse tridiagonal matrix.
 
         The operator represents: L(V)[i] = -rho*V[i] + drift*dV/dx + 0.5*sigma^2*d2V/dx2
-        using upwind first derivatives and central second derivatives, consistent
-        with the explicit scheme.
+        using upwind first derivatives and non-uniform central second
+        derivatives, consistent with the explicit scheme.
+
+        The non-uniform second-derivative stencil is:
+
+            d²V/dx²|_i = 2/(h_b+h_f) * [V[i+1]/h_f - V[i]*(1/h_b+1/h_f) + V[i-1]/h_b]
+
+        where h_b = x[i]-x[i-1] and h_f = x[i+1]-x[i].  This is exact for
+        quadratic functions and reduces to (V[i+1]-2V[i]+V[i-1])/h² on
+        uniform grids.
 
         Args:
             drift_1d: Drift values at each grid point, shape (N,).
@@ -507,7 +517,6 @@ class HJBSolver:
         """
         N = len(drift_1d)
         dx_arr = self.dx[dim]
-        dx_mean = float(np.mean(dx_arr))
         rho = self.problem.discount_rate
 
         # Sub-diagonal (V[i-1] coefficients), super-diagonal (V[i+1] coefficients),
@@ -522,18 +531,27 @@ class HJBSolver:
         drift_pos = np.maximum(drift_int, 0.0)
         drift_neg = np.minimum(drift_int, 0.0)
 
-        # dx for backward diff at point i: dx_arr[i-1]
+        # dx for backward diff at point i: dx_arr[i-1]  (h_b)
         dx_back = dx_arr[0 : N - 2]
-        # dx for forward diff at point i: dx_arr[i]
+        # dx for forward diff at point i: dx_arr[i]    (h_f)
         dx_fwd = dx_arr[1 : N - 1]
 
-        # Diffusion coefficient at interior points
+        # Diffusion coefficient at interior points: D = 0.5 * sigma^2
         if sigma_sq_1d is not None:
             D = 0.5 * sigma_sq_1d[interior]
         else:
             D = np.zeros(N - 2)
 
-        dx_sq = dx_mean**2
+        # Non-uniform diffusion stencil coefficients:
+        #   d²V/dx²|_i = c_lo*V[i-1] + c_mid*V[i] + c_hi*V[i+1]
+        # where:
+        #   c_lo  =  2 / (h_b * (h_b + h_f))
+        #   c_mid = -2 / (h_b * h_f)
+        #   c_hi  =  2 / (h_f * (h_b + h_f))
+        h_sum = dx_back + dx_fwd
+        diff_sub = D * 2.0 / (dx_back * h_sum)
+        diff_main = -D * 2.0 / (dx_back * dx_fwd)
+        diff_sup = D * 2.0 / (dx_fwd * h_sum)
 
         # Operator coefficients (consistent with _apply_upwind_scheme).
         #
@@ -543,9 +561,9 @@ class HJBSolver:
         # V_t + a*V_x = 0 with a = drift.  Concretely:
         #   drift > 0  =>  a < 0  =>  upwind = forward diff
         #   drift < 0  =>  a > 0  =>  upwind = backward diff
-        sub[interior] = -drift_neg / dx_back + D / dx_sq
-        main[interior] = -drift_pos / dx_fwd + drift_neg / dx_back - 2.0 * D / dx_sq - rho
-        sup[interior] = drift_pos / dx_fwd + D / dx_sq
+        sub[interior] = -drift_neg / dx_back + diff_sub
+        main[interior] = -drift_pos / dx_fwd + drift_neg / dx_back + diff_main - rho
+        sup[interior] = drift_pos / dx_fwd + diff_sup
 
         # Boundary rows are zero (will be handled after solve)
 
@@ -786,8 +804,15 @@ class HJBSolver:
     def _compute_second_derivatives(self, value: np.ndarray) -> np.ndarray:
         """Compute second derivatives d²V/dx_i² for each dimension.
 
-        Uses central finite differences for interior points. Boundary
-        values default to zero (no diffusion contribution at boundaries).
+        Uses the non-uniform central difference formula for interior points:
+
+            d²V/dx²|_i = 2/(h_b+h_f) * [(V[i+1]-V[i])/h_f - (V[i]-V[i-1])/h_b]
+
+        where h_b = x[i]-x[i-1] and h_f = x[i+1]-x[i].  This is exact for
+        quadratic functions on arbitrary grids and reduces to the standard
+        (V[i+1]-2V[i]+V[i-1])/h² on uniform grids.
+
+        Boundary values default to zero (no diffusion contribution at boundaries).
 
         Args:
             value: Value function on state grid
@@ -800,11 +825,9 @@ class HJBSolver:
 
         for dim in range(ndim):
             dx_array = self.dx[dim]
-            dx = float(np.mean(dx_array))
 
             d2v = np.zeros_like(value)
 
-            # Interior: (V[i+1] - 2*V[i] + V[i-1]) / dx²
             hi = [slice(None)] * ndim
             mid = [slice(None)] * ndim
             lo = [slice(None)] * ndim
@@ -812,8 +835,28 @@ class HJBSolver:
             mid[dim] = slice(1, -1)
             lo[dim] = slice(None, -2)
 
-            d2v[tuple(mid)] = (value[tuple(hi)] - 2 * value[tuple(mid)] + value[tuple(lo)]) / (
-                dx * dx
+            # Per-interval spacings for interior points i = 1..N-2
+            # h_f[i] = dx_array[i]   (forward: x[i+1] - x[i])
+            # h_b[i] = dx_array[i-1] (backward: x[i] - x[i-1])
+            n = value.shape[dim]
+            h_b = dx_array[0 : n - 2]  # backward spacing for interior points
+            h_f = dx_array[1 : n - 1]  # forward spacing for interior points
+
+            # Broadcast spacings for multi-dimensional arrays
+            bc_shape = [1] * ndim
+            bc_shape[dim] = n - 2
+            h_b_bc = h_b.reshape(bc_shape)
+            h_f_bc = h_f.reshape(bc_shape)
+
+            # Non-uniform central difference:
+            # d²V/dx² = 2/(h_b+h_f) * [(V[i+1]-V[i])/h_f - (V[i]-V[i-1])/h_b]
+            d2v[tuple(mid)] = (
+                2.0
+                / (h_b_bc + h_f_bc)
+                * (
+                    (value[tuple(hi)] - value[tuple(mid)]) / h_f_bc
+                    - (value[tuple(mid)] - value[tuple(lo)]) / h_b_bc
+                )
             )
 
             components.append(d2v)
@@ -1092,9 +1135,9 @@ class HJBSolver:
                         drift_max = float(np.max(np.abs(drift[..., dim])))
                         if dx_min > 0:
                             max_rate += drift_max / dx_min
-                        if sigma_sq is not None and dx_mean > 0:
+                        if sigma_sq is not None and dx_min > 0:
                             max_rate += (
-                                0.5 * float(np.max(np.abs(sigma_sq[..., dim]))) / (dx_mean**2)
+                                0.5 * float(np.max(np.abs(sigma_sq[..., dim]))) / (dx_min**2)
                             )
                     max_rate += self.problem.discount_rate
                     if max_rate > 0:
