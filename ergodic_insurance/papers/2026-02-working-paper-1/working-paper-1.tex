@@ -1,0 +1,87 @@
+\documentclass[11pt, a4paper]{article}
+\usepackage[utf8]{inputenc}
+\usepackage{geometry}
+\usepackage{amsmath}
+\usepackage{graphicx}
+\usepackage{hyperref}
+\usepackage{natbib}
+\usepackage{authblk}
+
+\geometry{left=2.5cm, right=2.5cm, top=2.5cm, bottom=2.5cm}
+
+\title{\textbf{Ergodic Insurance Limits:\\An Open Research Framework for\\Insurance Program Optimization}}
+\author{Alex Filiakov, ACAS}
+\date{\today}
+
+\begin{document}
+
+\maketitle
+
+\begin{abstract}
+Traditional insurance purchasing decisions often rely on ensemble-average metrics, such as Expected Value or Tail Value at Risk (TVaR), which implicitly assume that a corporate entity can access the average outcome of parallel universes. In reality, a firm lives through a single time trajectory, where the effects of volatility are multiplicative and cumulative. This paper introduces the \textit{Ergodic Insurance Limits} framework, an open-source Python library designed to optimize insurance programs for long-term time-average growth rates rather than static survival probabilities. I present the architecture of the framework and outline a roadmap for collaborative research. I invite the risk and finance communities, particularly Senior Actuaries (FCAS) and Certified Public Accountants (CPAs), to collaborate. Our goal for Version 1.0 is to validate both the actuarial methodologies and the financial ledger logic, ensuring that theoretical growth optimization is grounded in the realistic constraints of corporate accounting and cash flow solvency.
+\end{abstract}
+
+\section{Introduction}
+The divergence between ``time average" and ``ensemble average" is frequently overlooked in corporate insurance optimization. A risk-neutral decision-maker maximizing expected wealth (ensemble average) may accept risks that lead to ruin over time (time average) because they fail to account for the absorbing barrier of bankruptcy or the compounding drag of volatility.
+
+The \textit{Ergodic Insurance Limits} framework was built to address this gap. By simulating thousands of possible future trajectories for a corporate balance sheet, the framework allows actuaries to observe how different insurance features (retentions, limits, and premiums) impact the \textit{geometric} growth rate of firm value over time.
+
+This working paper serves as a high-level overview of the current toolset and an invitation for collaboration. I aim to evolve this framework from a single-author research tool into a robust community standard for stochastic insurance optimization.
+
+\section{The Open-Source Framework}
+The framework evaluates the impact of different insurance programs on a single insured. The codebase is structured as a modular discrete-event simulation engine, built in Python.
+
+\subsection{Core Modules}
+\begin{itemize}
+    \item \textbf{The Manufacturer:} A stochastic model of a firm's balance sheet, income statement, and free cash flow. It includes parameters for initial capital, profit margins, and fixed costs, allowing users to model the ``volatility drag" on growth.
+    \item \textbf{The Insurance Stack:} A flexible definition of insurance towers, allowing for multiple layers, attachment points, and limit structures. The framework currently supports primary, umbrella, and excess layers with configurable pricing mechanisms.
+    \item \textbf{The Market:} A module controlling a greatly simplified external environment, including hard/soft market cycles and the cost of capacity.
+    \item \textbf{Optimization Engine:} The framework integrates numerical methods to identify optimal policies at each renewal year. This allows for the determination of optimal dynamic retention strategies based on the firm's current financial state and business outlook.
+\end{itemize}
+
+\subsection{Illustration of Capabilities}
+The framework moves beyond static percentile reporting (e.g., ``the 99.9th percentile loss") to answer dynamic questions, including:
+\begin{itemize}
+    \item \textbf{Growth Optimization:} finding the insurance program that maximizes the Compound Annual Growth Rate (CAGR) of the firm.
+    \item \textbf{The ``Insurance Cliff":} identifying the critical capitalization thresholds where insurance becomes mandatory for survival versus optional for performance stabilization.
+    \item \textbf{Stochastic Tail Risk:} modeling uncertainty within the tail itself, recognizing that the `1-in-250 year event' is subject to parameter uncertainty and sampling variability, rather than being a static point estimate.
+\end{itemize}
+
+\section{Call for Collaboration}
+To mature this framework into a standard for the industry, I require expertise from across the actuarial and financial spectrum. I am specifically soliciting collaboration in the following five areas:
+
+\subsection{Actuarial Validity Review (Senior FCAS)}
+I invite experienced Fellows of the Casualty Actuarial Society (FCAS) to review the core logic of the simulation engine. While the ergodic theory application is novel, the underlying mechanics of loss development, IBNR calculation, and limit erosion must adhere to standard actuarial principles to ensure credibility. I welcome code reviews and theoretical audits of the \texttt{claim\_development} and \texttt{insurance\_pricing} modules.
+
+\subsection{Financial Modeling \& Accounting Validity (CPA/CFA)}
+While this framework relies on actuarial stochasticity, it lives within a strict accounting reality. I invite collaborations with Certified Public Accountants (CPAs) or corporate finance professionals to review the \texttt{ledger} and \texttt{financial\_statements} modules. Specific areas for review include:
+\begin{itemize}
+    \item \textbf{Tax Asset Dynamics:} Validating the logic for Net Operating Loss (NOL) carryforwards and deferred tax assets, which act as critical buffers against ruin.
+    \item \textbf{Cash Flow Timing:} Ensuring the simulation correctly separates accrual-based accounting (GAAP/IFRS) from physical cash flows, as liquidity constraints are the primary driver of the ``absorbing barrier" in ergodic economics.
+    \item \textbf{Insolvency Definitions:} Refining the definitions of technical insolvency versus liquidity crises within the simulation environment.
+\end{itemize}
+
+\subsection{Market Dynamics and Cycles}
+The current implementation of insurance market cycles (Hard vs. Soft markets) is a simplified stochastic process. I invite collaborators to implement more realistic, empirically grounded models of insurance pricing cycles.
+
+\subsection{Corporate Renewal Strategies}
+Real-world corporate insurance purchasing is not a continuous-time control problem; it occurs in discrete annual renewal cycles. I aim to build a new module for \textit{Carrier Renewal Strategies} that simulates the negotiation process, including response to loss experience, market conditions, and strategic considerations. This will allow us to test the robustness of optimal insurance programs under realistic renewal dynamics and to explore agentic underwriting.
+
+\subsection{Stress-Testing and Future Research}
+Finally, I encourage researchers to use this framework as a testbed for novel insurance concepts. Suggested areas for future research include:
+\begin{itemize}
+    \item \textbf{Multi-Year Parametric Adjustments:} Designing long-term policies where limits or retentions automatically adjust based on the insured's real-time financial health.
+    \item \textbf{Frequency \& Severity Interactions:} Modeling the relationship between frequency and severity of different claim types to better understand risk dynamics.
+    \item \textbf{Stochastic Inflation:} Stress-testing insurance program adequacy under regimes of volatile economic and social inflation.
+    \item \textbf{Agent-Based Market Models:} Modeling ground-up market dynamics via strategic interplay of insurers and insureds.
+\end{itemize}
+
+\section{Code Repository}
+The tools we use constrain the problems we can solve. By building an open, rigorous framework for insurance optimization, we can move the industry away from static survival metrics and toward dynamic growth optimization.
+
+\vspace{\baselineskip}
+
+The GitHub repository at \url{https://MostlyOptimal.com/GitHub}
+contains the complete framework implementation, along with documentation and examples. I have included a set of Jupyter notebooks that demonstrate how to use the framework for various research tasks, as well as a comprehensive test suite to ensure the integrity of the codebase. I welcome pull requests, issues, and theoretical discussions on the project repository.
+
+\end{document}
