@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 <!-- next-version -->
 
+## [0.13.7] - 2026-02-19
+
+[0.13.7]: https://github.com/AlexFiliakov/Ergodic-Insurance-Limits/compare/v0.13.6...v0.13.7
+
 ## [0.13.6] - 2026-02-19
 
 ### Fixed
