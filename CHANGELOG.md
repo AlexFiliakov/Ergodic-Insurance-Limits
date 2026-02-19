@@ -7,6 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 <!-- next-version -->
 
+## [0.13.4] - 2026-02-19
+
+### Changed
+- working paper inviting collab, useful prompts to refactor ([`4c44120`](https://github.com/AlexFiliakov/Ergodic-Insurance-Limits/commit/4c441208c061e14a010afddbc337a8b6020c9b89))
+- comprehensive test suite cleanup ([`dddd8a0`](https://github.com/AlexFiliakov/Ergodic-Insurance-Limits/commit/dddd8a04fa0bc4792ee7214bc83845b4b4a8a3a0))
+
+### Fixed
+- pareto analysis and fixed text in hjb example ([`38a6f11`](https://github.com/AlexFiliakov/Ergodic-Insurance-Limits/commit/38a6f11bb511941fe05115ff00effd6635ba646f))
+
+[0.13.4]: https://github.com/AlexFiliakov/Ergodic-Insurance-Limits/compare/v0.13.3...v0.13.4
+
 ## [0.13.3] - 2026-02-17
 
 ### Fixed
