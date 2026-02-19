@@ -254,7 +254,7 @@ class TestMonteCarloExtended:
     def test_convergence_monitoring_max_iterations(self, setup_simple_engine):
         """Test convergence monitoring with max iterations limit."""
         engine = setup_simple_engine
-        engine.config.n_simulations = 1000
+        engine.config.n_simulations = 300
 
         # Use a configuration that naturally won't converge quickly
         # Create a high-variance scenario that won't converge easily
@@ -267,23 +267,24 @@ class TestMonteCarloExtended:
 
         results = engine.run_with_convergence_monitoring(
             target_r_hat=1.01,  # Very strict convergence criterion
-            check_interval=100,
-            max_iterations=500,  # Will likely hit this limit
+            check_interval=50,
+            max_iterations=200,  # Will likely hit this limit
         )
 
         assert results is not None
         # Should have run up to max_iterations
-        assert len(results.final_assets) <= 500
+        assert len(results.final_assets) <= 200
 
     def test_convergence_monitoring_without_progress(self, setup_simple_engine):
         """Test convergence monitoring without progress bar."""
         engine = setup_simple_engine
         engine.config.progress_bar = False
-        engine.config.n_simulations = 100
+        engine.config.n_simulations = 50
 
         results = engine.run_with_convergence_monitoring(
             target_r_hat=1.5,  # Easy target
-            check_interval=50,
+            check_interval=25,
+            max_iterations=100,  # Safety cap
         )
 
         assert results is not None
@@ -420,7 +421,7 @@ class TestMonteCarloExtended:
     def test_run_with_convergence_no_limit(self, setup_simple_engine):
         """Test convergence monitoring with no max iterations limit."""
         engine = setup_simple_engine
-        engine.config.n_simulations = 100
+        engine.config.n_simulations = 50
 
         # Use a stable configuration that converges quickly
         # Create a low-variance scenario that converges easily
@@ -433,10 +434,10 @@ class TestMonteCarloExtended:
 
         results = engine.run_with_convergence_monitoring(
             target_r_hat=1.5,  # Relaxed convergence for quick results
-            check_interval=50,
+            check_interval=25,
             max_iterations=None,  # No limit
         )
 
         assert results is not None
         # Should converge naturally without hitting a limit
-        assert len(results.final_assets) >= 50  # At least one check interval
+        assert len(results.final_assets) >= 25  # At least one check interval

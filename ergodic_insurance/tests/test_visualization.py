@@ -15,15 +15,6 @@ from ergodic_insurance import visualization
 class TestVisualizationModule:
     """Test suite for the main visualization module."""
 
-    @pytest.fixture(autouse=True)
-    def setup(self):
-        """Setup test fixtures."""
-        plt.close("all")
-
-    def teardown_method(self):
-        """Clean up after each test."""
-        plt.close("all")
-
     def test_module_imports(self):
         """Test that required components are importable."""
         assert hasattr(visualization, "WSJ_COLORS")

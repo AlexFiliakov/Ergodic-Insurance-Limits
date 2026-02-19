@@ -195,7 +195,8 @@ class TestPMLEdgeCases:
 
     def test_pml_returns_float(self):
         """PML should return a float for typical usage."""
-        losses = np.random.lognormal(10, 1, 1000)
+        rng = np.random.default_rng(42)
+        losses = rng.lognormal(10, 1, 1000)
         metrics = RiskMetrics(losses)
         pml = metrics.pml(100)
         assert isinstance(pml, float)

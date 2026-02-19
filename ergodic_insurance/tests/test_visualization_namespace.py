@@ -316,12 +316,6 @@ class TestAllConsistency:
 class TestFigureFactoryDomainMethods:
     """Test FigureFactory has convenience methods for common plot types."""
 
-    def setup_method(self):
-        plt.close("all")
-
-    def teardown_method(self):
-        plt.close("all")
-
     def test_has_executive_methods(self):
         from ergodic_insurance.visualization import FigureFactory
 
@@ -354,7 +348,8 @@ class TestFigureFactoryDomainMethods:
         from ergodic_insurance.visualization import FigureFactory
 
         factory = FigureFactory()
-        losses = np.random.lognormal(10, 2, 500)
+        rng = np.random.default_rng(42)
+        losses = rng.lognormal(10, 2, 500)
         fig = factory.loss_distribution(losses, title="Test Distribution")
         assert fig is not None
         plt.close(fig)

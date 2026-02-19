@@ -1228,11 +1228,12 @@ def sample_validation_result():
 @pytest.fixture
 def mock_simulation_engine():
     """Create mock simulation engine."""
+    rng = np.random.default_rng(42)
     engine = Mock(spec=Simulation)
     results = Mock(spec=SimulationResults)
     results.calculate_time_weighted_roe.return_value = 0.12
     results.years = np.arange(5)
-    results.assets = np.random.lognormal(16, 0.1, 5)
-    results.roe = np.random.normal(0.12, 0.02, 5)
+    results.assets = rng.lognormal(16, 0.1, 5)
+    results.roe = rng.normal(0.12, 0.02, 5)
     engine.run_simulation.return_value = results
     return engine

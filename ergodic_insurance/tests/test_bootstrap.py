@@ -271,11 +271,12 @@ class TestBootstrapAnalyzer:
 
     def test_bootstrap_result_summary(self):
         """Test BootstrapResult summary generation."""
+        rng = np.random.default_rng(42)
         result = BootstrapResult(
             statistic=100.5,
             confidence_level=0.95,
             confidence_interval=(98.2, 102.8),
-            bootstrap_distribution=np.random.normal(100, 1, 1000),
+            bootstrap_distribution=rng.normal(100, 1, 1000),
             method="percentile",
             n_bootstrap=1000,
             bias=0.02,

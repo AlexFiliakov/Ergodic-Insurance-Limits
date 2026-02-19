@@ -152,6 +152,7 @@ class TestOptimalCoverageHeatmap:
         """Test heatmap without contour lines."""
         fig = plot_optimal_coverage_heatmap(show_contours=False)
         assert fig is not None
+        # TODO(tautology-review): sole assertion is `fig is not None`. Add check for axes count or contour absence.
         plt.close(fig)
 
 
@@ -178,12 +179,14 @@ class TestSensitivityTornado:
 
         fig = plot_sensitivity_tornado(sensitivity_data=sensitivity_data, baseline_value=0.10)
         assert fig is not None
+        # TODO(tautology-review): sole assertion is `fig is not None`. Add check for 5 bars or baseline line.
         plt.close(fig)
 
     def test_plot_sensitivity_tornado_no_percentages(self):
         """Test tornado chart without percentage labels."""
         fig = plot_sensitivity_tornado(show_percentages=False)
         assert fig is not None
+        # TODO(tautology-review): sole assertion is `fig is not None`. Verify percentage text absent from axes.
         plt.close(fig)
 
     def test_plot_sensitivity_tornado_custom_params(self):
@@ -239,12 +242,14 @@ class TestRobustnessHeatmap:
             robustness_data=robustness_data, frequency_range=(0.8, 1.2), severity_range=(0.8, 1.2)
         )
         assert fig is not None
+        # TODO(tautology-review): sole assertion is `fig is not None`. Add check for heatmap data range or colorbar.
         plt.close(fig)
 
     def test_plot_robustness_heatmap_no_reference(self):
         """Test robustness heatmap without reference point."""
         fig = plot_robustness_heatmap(show_reference=False)
         assert fig is not None
+        # TODO(tautology-review): sole assertion is `fig is not None`. Verify reference marker is absent.
         plt.close(fig)
 
     def test_plot_robustness_heatmap_custom_ranges(self):
@@ -342,6 +347,7 @@ class TestPremiumMultiplier:
 
         fig = plot_premium_multiplier(optimization_results=results, company_sizes=[5_000_000.0])
         assert fig is not None
+        # TODO(tautology-review): sole assertion is `fig is not None`. Verify single company size renders one axes panel.
         plt.close(fig)
 
     def test_premium_multiplier_annotations(self):

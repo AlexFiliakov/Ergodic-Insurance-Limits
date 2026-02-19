@@ -16,6 +16,10 @@ See pull request # which has failing tests. Investigate the failing tests thorou
 
 See pull request # which has failing tests. The resolution approach is described in the pull request comments. Use parallel subagents as needed to fix the failing test, then test the repairs, but don't run a full test-suite because it will time out. Once relevant tests pass, commit and push the fixes.
 
+## Refactor Tests
+
+Set up a team as described in the deaiiled prompt `docs\test-refactor-team-prompt.md` and execute exactly what the prompt says.
+
 ## Backlog Prioritization
 
 Review the GitHub issues backlog for issues labeled "priority-high" and create an implementation roadmap using the Mikado Method for parallel implementation on Claude Opus 4.6 models. I will be running up to 6 Claude Code sessions in parallel, so partition the work into batches of tasks up to 6 in parallel that won't touch the same files, with more critical items being done first. Your output should be a roadmap in `docs\reviews\ROADMAP_2026_02_12.md`. Each batch of issues should begin with a section heading summarizing the overall issues in the batch in a one-sentence heading. The section heading should be followed by a table of parallel tasks consisting of the following columns: | Issue Number | Change Title | Files Affected |

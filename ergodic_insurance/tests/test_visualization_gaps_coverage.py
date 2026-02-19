@@ -54,9 +54,6 @@ from ergodic_insurance.visualization.style_manager import (
 class TestAnnotationBox:
     """Tests for AnnotationBox dataclass methods."""
 
-    def teardown_method(self):
-        plt.close("all")
-
     def test_get_bounds(self):
         """Cover line 387: AnnotationBox.get_bounds()."""
         box = AnnotationBox(text="Test", position=(0.5, 0.6), width=0.15, height=0.08)
@@ -124,9 +121,6 @@ class TestSmartAnnotationPlacer:
     """Tests for SmartAnnotationPlacer class covering init, candidate positions,
     find_best_position, add_smart_callout, add_smart_annotations,
     _get_preferred_quadrant, _get_non_conflicting_color."""
-
-    def teardown_method(self):
-        plt.close("all")
 
     def test_init(self):
         """Cover lines 421-425: SmartAnnotationPlacer.__init__()."""
@@ -416,60 +410,25 @@ class TestSmartAnnotationPlacer:
         # High priority should be placed first (it gets best position)
         assert len(placer.placed_annotations) >= 3
 
-    def test_get_preferred_quadrant_sw_to_ne(self):
-        """Cover lines 771-787: _get_preferred_quadrant for SW point -> NE."""
+    @pytest.mark.parametrize(
+        "point,expected_quadrant",
+        [
+            pytest.param((1.0, 1.0), "NE", id="sw_to_ne"),
+            pytest.param((8.0, 1.0), "NW", id="se_to_nw"),
+            pytest.param((1.0, 8.0), "SE", id="nw_to_se"),
+            pytest.param((8.0, 8.0), "SW", id="ne_to_sw"),
+            pytest.param((5.0, 5.0), None, id="center_returns_none"),
+        ],
+    )
+    def test_get_preferred_quadrant(self, point, expected_quadrant):
+        """Cover lines 771-787: _get_preferred_quadrant for various positions."""
         fig, ax = plt.subplots()
         ax.set_xlim(0, 10)
         ax.set_ylim(0, 10)
 
         placer = SmartAnnotationPlacer(ax)
-        # Point in SW (x_ratio < 0.3, y_ratio < 0.3)
-        result = placer._get_preferred_quadrant((1.0, 1.0))
-        assert result == "NE"
-
-    def test_get_preferred_quadrant_se_to_nw(self):
-        """Cover lines 780-781: _get_preferred_quadrant for SE point -> NW."""
-        fig, ax = plt.subplots()
-        ax.set_xlim(0, 10)
-        ax.set_ylim(0, 10)
-
-        placer = SmartAnnotationPlacer(ax)
-        # Point in SE (x_ratio > 0.7, y_ratio < 0.3)
-        result = placer._get_preferred_quadrant((8.0, 1.0))
-        assert result == "NW"
-
-    def test_get_preferred_quadrant_nw_to_se(self):
-        """Cover lines 782-783: _get_preferred_quadrant for NW point -> SE."""
-        fig, ax = plt.subplots()
-        ax.set_xlim(0, 10)
-        ax.set_ylim(0, 10)
-
-        placer = SmartAnnotationPlacer(ax)
-        # Point in NW (x_ratio < 0.3, y_ratio > 0.7)
-        result = placer._get_preferred_quadrant((1.0, 8.0))
-        assert result == "SE"
-
-    def test_get_preferred_quadrant_ne_to_sw(self):
-        """Cover lines 784-785: _get_preferred_quadrant for NE point -> SW."""
-        fig, ax = plt.subplots()
-        ax.set_xlim(0, 10)
-        ax.set_ylim(0, 10)
-
-        placer = SmartAnnotationPlacer(ax)
-        # Point in NE (x_ratio > 0.7, y_ratio > 0.7)
-        result = placer._get_preferred_quadrant((8.0, 8.0))
-        assert result == "SW"
-
-    def test_get_preferred_quadrant_center_returns_none(self):
-        """Cover line 787: _get_preferred_quadrant for center point -> None."""
-        fig, ax = plt.subplots()
-        ax.set_xlim(0, 10)
-        ax.set_ylim(0, 10)
-
-        placer = SmartAnnotationPlacer(ax)
-        # Point in center (0.3 < ratio < 0.7)
-        result = placer._get_preferred_quadrant((5.0, 5.0))
-        assert result is None
+        result = placer._get_preferred_quadrant(point)
+        assert result == expected_quadrant
 
     def test_get_non_conflicting_color_no_conflict(self):
         """Cover lines 792-833: _get_non_conflicting_color with no conflicts."""
@@ -575,9 +534,6 @@ class TestCreateLeaderLine:
     """Tests for create_leader_line covering all styles.
     Covers lines 856-907."""
 
-    def teardown_method(self):
-        plt.close("all")
-
     def test_straight_leader_line(self):
         """Cover lines 858-866: straight leader line."""
         fig, ax = plt.subplots()
@@ -657,8 +613,9 @@ class TestAutoAnnotatePeaksValleys:
     """Tests for auto_annotate_peaks_valleys function.
     Covers lines 945-999."""
 
-    def teardown_method(self):
-        plt.close("all")
+    def setup_method(self):
+        """Seed random state for reproducible test data."""
+        np.random.seed(42)
 
     def test_auto_annotate_peaks_valleys_basic(self):
         """Cover lines 945-999: basic peak/valley annotation."""
@@ -761,9 +718,6 @@ class TestAutoAnnotatePeaksValleys:
 
 class TestBatchPlotsGaps:
     """Tests for uncovered lines in batch_plots module."""
-
-    def teardown_method(self):
-        plt.close("all")
 
     def _create_mock_aggregated_results(self, with_sensitivity=True):
         """Create mock AggregatedResults for testing."""
@@ -1173,9 +1127,6 @@ class TestBatchPlotsGaps:
 class TestExportGaps:
     """Tests for uncovered lines in export module."""
 
-    def teardown_method(self):
-        plt.close("all")
-
     def test_save_figure_default_formats(self):
         """Cover line 52: formats defaults to ['png'] when None."""
         fig, ax = plt.subplots()
@@ -1348,6 +1299,10 @@ class TestExportGaps:
 class TestInteractivePlotsGaps:
     """Tests for uncovered lines in interactive_plots module."""
 
+    def setup_method(self):
+        """Seed random state for reproducible test data."""
+        np.random.seed(43)
+
     def test_time_series_dashboard_with_forecast(self):
         """Cover lines 239-260: forecast with confidence bands."""
         data = pd.DataFrame(
@@ -1508,9 +1463,6 @@ class TestInteractivePlotsGaps:
 
 class TestStyleManagerGaps:
     """Tests for uncovered lines in style_manager module."""
-
-    def teardown_method(self):
-        plt.close("all")
 
     def test_init_with_config_path(self):
         """Cover line 184: load_config called from __init__."""

@@ -269,6 +269,10 @@ class TestStyleManager:
 class TestFigureFactory:
     """Test suite for FigureFactory class."""
 
+    def setup_method(self):
+        """Seed random state for reproducible test data."""
+        np.random.seed(42)
+
     def test_initialization(self):
         """Test FigureFactory initialization."""
         factory = FigureFactory()

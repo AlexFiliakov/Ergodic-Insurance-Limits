@@ -253,7 +253,8 @@ class TestPercentileTracker:
     def test_reset_functionality(self):
         """Test reset functionality."""
         tracker = PercentileTracker([50])
-        tracker.update(np.random.randn(100))
+        rng = np.random.default_rng(42)
+        tracker.update(rng.standard_normal(100))
 
         assert tracker.total_count == 100
 
@@ -385,9 +386,10 @@ class TestHierarchicalAggregator:
     def test_two_level_hierarchy(self):
         """Test two-level hierarchical aggregation."""
         # Create sample hierarchical data
+        rng = np.random.default_rng(42)
         data = {
-            "scenario1": {"year1": np.random.randn(100), "year2": np.random.randn(100)},
-            "scenario2": {"year1": np.random.randn(100), "year2": np.random.randn(100)},
+            "scenario1": {"year1": rng.standard_normal(100), "year2": rng.standard_normal(100)},
+            "scenario2": {"year1": rng.standard_normal(100), "year2": rng.standard_normal(100)},
         }
 
         aggregator = HierarchicalAggregator(["scenario", "year"])
@@ -400,7 +402,8 @@ class TestHierarchicalAggregator:
 
     def test_leaf_level_aggregation(self):
         """Test aggregation at leaf level."""
-        data = {"item1": np.random.randn(100), "item2": np.random.randn(100)}
+        rng = np.random.default_rng(43)
+        data = {"item1": rng.standard_normal(100), "item2": rng.standard_normal(100)}
 
         aggregator = HierarchicalAggregator(["level1"])
         results = aggregator.aggregate_hierarchy(data)

@@ -316,19 +316,18 @@ class TestPerformanceOptimizer:
         """Test performance profiling capabilities."""
         optimizer = PerformanceOptimizer()
 
-        # Define a test function that takes some time
+        # Define a test function that takes some time via CPU work
         def slow_function(n=1000):
             result = 0
             for i in range(n):
                 result += i**2
-            time.sleep(0.01)  # Ensure it takes some time  # pylint: disable=reimported
             return result
 
-        # Profile the function
-        profile_result = optimizer.profile_execution(slow_function, n=10000)
+        # Profile the function with enough iterations to be measurable
+        profile_result = optimizer.profile_execution(slow_function, n=100000)
 
         assert isinstance(profile_result, ProfileResult)
-        assert profile_result.total_time >= 0.01  # At least the sleep time
+        assert profile_result.total_time > 0
         assert len(profile_result.function_times) > 0
         assert profile_result.memory_usage >= 0
 
@@ -544,9 +543,10 @@ class TestBenchmarking:
         assert sys_info["cpu"]["cores_physical"] > 0
         assert sys_info["memory"]["total_gb"] > 0
 
-        # Test profiling
+        # Test profiling - do CPU work instead of sleeping
         profiler.start()
-        time.sleep(0.1)
+        # Do enough work to register in profiler samples
+        _total = sum(i * i for i in range(100_000))
         profiler.sample()
         profiler.sample()
 

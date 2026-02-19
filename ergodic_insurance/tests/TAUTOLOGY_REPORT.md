@@ -193,10 +193,123 @@ The following newly-added test files were all reviewed and found **clean**:
 
 All 35 `*_coverage.py` and `test_coverage_gaps_*` files were examined. Despite being generated to fill coverage gaps, they are **well-written** with meaningful assertions testing specific code paths, edge cases, and error conditions. Only 1 tautological pattern was found across all coverage files (test_misc_gaps_coverage.py line 551).
 
+## Extended Analysis (2026-02-17)
+
+A deeper automated scan using AST analysis found **357 test functions where every assertion is trivial** (only `is not None`, `isinstance`, `> 0`, or `len() > 0`). Additionally, **17 tests have mock-only assertions** (only `mock.assert_called*()` with no real `assert` statements).
+
+### Trivial-Only Tests by Pattern
+
+| Pattern | Count | Notes |
+|---------|------:|-------|
+| `assert X is not None` only | 109 | Mostly visualization smoke tests |
+| `assert isinstance(X, Type)` only | 106 | Factory/constructor return type checks |
+| `assert X > 0` / `len(X) > 0` only | 86 | Existence checks without value verification |
+| Mixed trivial patterns | 56 | Combinations of above |
+
+### Top Files by Trivial Test Count
+
+| File | Trivial Tests | Notes |
+|------|-------------:|-------|
+| test_visualization_gaps_coverage.py | 47 | Coverage-filling smoke tests |
+| test_visualization_comprehensive.py | 29 | Comprehensive viz module tests |
+| test_misc_gaps_coverage.py | 21 | Mixed module coverage gaps |
+| test_figure_factory.py | 17 | Figure creation tests |
+| test_technical_plots.py | 10 | Technical plot generation |
+| test_executive_visualizations.py | 9 | Executive viz functions |
+
+### Mock-Only Tests (17 total)
+
+Tests with only `mock.assert_called*()` and no `assert` statements:
+
+| File | Count | Example |
+|------|------:|---------|
+| test_gpu_backend.py | 4 | test_to_gpu_calls_cupy_asarray |
+| test_batch_processor_coverage.py | 3 | test_export_financial_calls_reporter |
+| test_monte_carlo_worker_config.py | 2 | test_default_step_params_passed |
+| test_parallel_executor_coverage.py | 2 | test_del_calls_cleanup_when_enabled |
+| Others (6 files) | 6 | Various delegation/wiring tests |
+
+### Action Taken
+
+**TODO comments added** to the most concentrated files (see below). These mark tests that should be strengthened with behavioral assertions.
+
+No tests were deleted in this pass. While these tests are weak, they still serve as crash-detection smoke tests and maintain code coverage. The proper fix is to strengthen them, not remove them.
+
+### TODO Comments Added
+
+Files where `# TODO(tautology-review)` comments were added to flag trivial-only tests:
+
+1. `test_executive_visualizations.py` - 9 visualization smoke tests
+2. `test_misc_gaps_coverage.py` - FigureFactory and ParameterSweep tests
+3. `test_coverage_gaps_batch3.py` - Sensitivity visualization tests
+4. `test_reporting_coverage.py` - Placeholder visualization tests
+
+## Second Pass: Self-Fulfilling & Snapshot-Without-Framework Analysis (2026-02-17)
+
+A targeted second pass was performed on the 14 largest test files (21,748 total lines)
+looking for two specific anti-patterns:
+
+### 1. Self-Fulfilling Assertions
+
+**Pattern**: Tests where both sides of an `assert ==` call the same production function,
+or where the expected value is computed by the same code path being tested.
+
+**Tools used**: AST-based analysis scanning for:
+- Both sides of `==` calling the same function name
+- Variables named `expected*` and `result*` assigned via calls to the same function
+- Variables named `expected*` computed using functions imported from `ergodic_insurance.*`
+
+**Results**: 22 initial hits, **0 genuine issues** after manual review.
+
+The scanner flagged patterns like:
+- `assert np.mean(results_low["growth_rates"]) > np.mean(results_high["growth_rates"])` - flagged
+  because `np.mean` appears on both sides, but these compare *different simulation outputs*
+  (low-tax vs high-tax). These are legitimate comparative tests.
+- `assert len(result.layers) == len(expected_layers)` - flagged because `len()` appears on both
+  sides. These are legitimate structural checks.
+- `expected_liability = to_decimal(100_000) * lae_factor` in test_manufacturer.py (16 instances) -
+  `to_decimal()` is a type conversion utility, not the code under test. The expected values are
+  computed with simple arithmetic and then compared against the production function's output.
+
+### 2. Snapshot-Without-Framework Tests
+
+**Pattern**: Tests where the expected value is a highly specific hardcoded number that was
+clearly copied from a prior run (e.g., `assert result == 0.123456789`).
+
+**Tools used**: Three scanners:
+1. Float comparisons with 5+ significant digits in assertions
+2. Float comparisons with 4+ decimal places (regex-based)
+3. Dict literal comparisons with 3+ numeric values
+
+**Results**: 12 initial hits, **0 genuine issues** after manual review.
+
+The scanner found:
+- `test_claim_development.py`: 9 float comparisons, all hand-derived from input parameters
+  (e.g., CDF = product of input LDFs). The expected values have clear mathematical derivations
+  visible in comments.
+- `test_decision_engine.py`: 2 dict literal comparisons, both testing config defaults
+  (`{"growth": 0.4, "risk": 0.4, "cost": 0.2}`). These are intentional API tests.
+- `test_misc_gaps_coverage.py`: 1 epsilon constant (`0.000001`) in a cache size test.
+
+### Conclusion
+
+The 14 largest test files in this codebase do **not** exhibit self-fulfilling or
+snapshot-without-framework anti-patterns. Expected values are either:
+1. Hand-calculated from known inputs with derivations shown in comments
+2. Config defaults being verified against documented specifications
+3. Type conversion utilities (`to_decimal()`) used for consistency, not as code-under-test
+4. Comparative tests where the same aggregation function (`np.mean`, `len`) is applied
+   to different data sources
+
+This is a positive finding: the most complex and important test files have well-grounded
+expected values.
+
 ## Recommendations
 
-1. **No systemic issues**: The test suite does not have a tautological test problem.
-2. **Visualization tests**: The `assert fig is not None` pattern is pervasive but justified. Future tests should prefer `assert isinstance(fig, plt.Figure)` for stronger typing.
+1. **No systemic issues**: The test suite does not have a tautological test problem. The 357 trivial-only tests are smoke tests, not tautologies.
+2. **Visualization tests**: The `assert fig is not None` pattern is pervasive but justified. Future tests should prefer `assert isinstance(fig, plt.Figure)` for stronger typing, plus at least one content assertion (e.g., `assert len(fig.axes) == expected_panels`).
 3. **Import tests**: The dedicated `test_imports.py` file is valuable for CI smoke testing. Its import-style assertions are appropriate for that purpose.
 4. **Conditional assertions**: Avoid patterns like `if x: assert x`. When asserting inside a conditional, ensure the assertion checks something DIFFERENT from the condition.
 5. **`or isinstance` pattern**: Never append `or isinstance(result, type)` as a fallback to a content assertion - it makes the content check unreachable.
+6. **Mock-only tests**: Supplement mock call verification with at least one assertion on actual output or state. Testing that a function was called is less valuable than testing what it produced.
+7. **Coverage gap files**: The `*_coverage.py` and `test_coverage_gaps_batch*.py` files are the largest source of trivial tests. When main test files are strengthened to cover the same lines, these files can be pruned.

@@ -670,7 +670,8 @@ class TestIntegration:
     def test_memory_efficiency(self):
         """Test memory efficiency with large datasets."""
         # Create large shared data
-        large_matrix = np.random.randn(1000, 1000)
+        rng = np.random.default_rng(42)
+        large_matrix = rng.standard_normal((1000, 1000))
 
         def process_row(row_idx, **kwargs):
             matrix = kwargs["matrix"]

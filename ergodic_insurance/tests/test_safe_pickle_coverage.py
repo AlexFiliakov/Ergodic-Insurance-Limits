@@ -462,69 +462,49 @@ class TestRestrictedUnpicklerFindClass:
 
     # --- Blocked classes ---
 
-    def test_blocks_os_system(self):
-        """os.system is rejected."""
+    @pytest.mark.parametrize(
+        "module,name",
+        [
+            pytest.param("os", "system", id="os_system"),
+            pytest.param("subprocess", "Popen", id="subprocess_popen"),
+            pytest.param("nt", "system", id="nt_system"),
+            pytest.param("posix", "system", id="posix_system"),
+        ],
+    )
+    def test_blocks_dangerous_modules(self, module, name):
+        """Dangerous module classes are rejected."""
         with pytest.raises(pickle.UnpicklingError, match="blocked"):
-            self._make_unpickler().find_class("os", "system")
+            self._make_unpickler().find_class(module, name)
 
-    def test_blocks_subprocess_popen(self):
-        """subprocess.Popen is rejected."""
-        with pytest.raises(pickle.UnpicklingError, match="blocked"):
-            self._make_unpickler().find_class("subprocess", "Popen")
-
-    def test_blocks_nt_system(self):
-        """nt.system (Windows os.system) is rejected."""
-        with pytest.raises(pickle.UnpicklingError, match="blocked"):
-            self._make_unpickler().find_class("nt", "system")
-
-    def test_blocks_posix_system(self):
-        """posix.system (Unix os.system) is rejected."""
-        with pytest.raises(pickle.UnpicklingError, match="blocked"):
-            self._make_unpickler().find_class("posix", "system")
-
-    def test_blocks_builtins_exec(self):
-        """builtins.exec is rejected."""
-        with pytest.raises(pickle.UnpicklingError, match="blocked.*exec"):
-            self._make_unpickler().find_class("builtins", "exec")
-
-    def test_blocks_builtins_eval(self):
-        """builtins.eval is rejected."""
-        with pytest.raises(pickle.UnpicklingError, match="blocked.*eval"):
-            self._make_unpickler().find_class("builtins", "eval")
-
-    def test_blocks_builtins_getattr(self):
-        """builtins.getattr (attribute-chain attack vector) is rejected."""
-        with pytest.raises(pickle.UnpicklingError, match="blocked.*getattr"):
-            self._make_unpickler().find_class("builtins", "getattr")
-
-    def test_blocks_builtins_import(self):
-        """builtins.__import__ is rejected."""
-        with pytest.raises(pickle.UnpicklingError, match="blocked.*__import__"):
-            self._make_unpickler().find_class("builtins", "__import__")
-
-    def test_blocks_builtins_open(self):
-        """builtins.open is rejected."""
-        with pytest.raises(pickle.UnpicklingError, match="blocked.*open"):
-            self._make_unpickler().find_class("builtins", "open")
-
-    def test_blocks_builtins_compile(self):
-        """builtins.compile is rejected."""
-        with pytest.raises(pickle.UnpicklingError, match="blocked.*compile"):
-            self._make_unpickler().find_class("builtins", "compile")
+    @pytest.mark.parametrize(
+        "name",
+        [
+            pytest.param("exec", id="exec"),
+            pytest.param("eval", id="eval"),
+            pytest.param("getattr", id="getattr"),
+            pytest.param("__import__", id="import"),
+            pytest.param("open", id="open"),
+            pytest.param("compile", id="compile"),
+        ],
+    )
+    def test_blocks_builtins_dangerous(self, name):
+        """Dangerous builtins are rejected."""
+        with pytest.raises(pickle.UnpicklingError, match=f"blocked.*{name}"):
+            self._make_unpickler().find_class("builtins", name)
 
     # --- Allowed classes ---
 
-    def test_allows_builtins_dict(self):
-        """builtins.dict is permitted."""
-        assert self._make_unpickler().find_class("builtins", "dict") is dict
-
-    def test_allows_builtins_set(self):
-        """builtins.set is permitted."""
-        assert self._make_unpickler().find_class("builtins", "set") is set
-
-    def test_allows_builtins_int(self):
-        """builtins.int is permitted."""
-        assert self._make_unpickler().find_class("builtins", "int") is int
+    @pytest.mark.parametrize(
+        "name,expected",
+        [
+            pytest.param("dict", dict, id="dict"),
+            pytest.param("set", set, id="set"),
+            pytest.param("int", int, id="int"),
+        ],
+    )
+    def test_allows_builtins_safe(self, name, expected):
+        """Safe builtins are permitted."""
+        assert self._make_unpickler().find_class("builtins", name) is expected
 
     def test_allows_numpy_ndarray(self):
         """numpy.ndarray is permitted."""

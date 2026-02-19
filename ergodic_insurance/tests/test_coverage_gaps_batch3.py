@@ -706,6 +706,7 @@ class TestTwoWaySensitivityPercentFormat:
             fmt=".2%",
         )
         assert fig is not None
+        # TODO(tautology-review): sole assertion is `fig is not None`. Verify contour labels use % format.
         plt.close(fig)
 
     def test_old_style_format_string(self, two_way_result):
@@ -717,6 +718,7 @@ class TestTwoWaySensitivityPercentFormat:
             fmt="%.3f",
         )
         assert fig is not None
+        # TODO(tautology-review): sole assertion is `fig is not None`. Verify contour labels use old-style format.
         plt.close(fig)
 
     def test_empty_format_string_fallback(self, two_way_result):
@@ -728,6 +730,7 @@ class TestTwoWaySensitivityPercentFormat:
             fmt="",
         )
         assert fig is not None
+        # TODO(tautology-review): sole assertion is `fig is not None`. Verify fallback format is applied.
         plt.close(fig)
 
 

@@ -46,18 +46,19 @@ from ergodic_insurance.statistical_tests import (
 class TestInsuranceRecoveryDecimalConversion:
     """Test __post_init__ Decimal conversion in InsuranceRecovery (lines 39, 41)."""
 
-    def test_float_amount_converted_to_decimal(self):
-        """Passing a float for amount triggers the isinstance branch and converts to Decimal (line 39)."""
-        recovery = InsuranceRecovery(amount=100.0, claim_id="C1", year_approved=2024)  # type: ignore[arg-type]
+    @pytest.mark.parametrize(
+        "amount,expected",
+        [
+            pytest.param(100.0, Decimal("100.0"), id="float"),
+            pytest.param(250, Decimal("250"), id="int"),
+            pytest.param(Decimal("100.00"), Decimal("100.00"), id="decimal_unchanged"),
+        ],
+    )
+    def test_amount_converted_to_decimal(self, amount, expected):
+        """Amount field (float/int/Decimal) should always be stored as Decimal (line 39)."""
+        recovery = InsuranceRecovery(amount=amount, claim_id="C1", year_approved=2024)
         assert isinstance(recovery.amount, Decimal)
-        # Verify the numeric value is correct after conversion
-        assert recovery.amount == Decimal("100.0")
-
-    def test_int_amount_converted_to_decimal(self):
-        """Passing an int for amount triggers the isinstance branch and converts to Decimal (line 39)."""
-        recovery = InsuranceRecovery(amount=250, claim_id="C2", year_approved=2024)  # type: ignore[arg-type]
-        assert isinstance(recovery.amount, Decimal)
-        assert recovery.amount == Decimal("250")
+        assert recovery.amount == expected
 
     def test_float_amount_received_converted_to_decimal(self):
         """Passing a float for amount_received triggers conversion to Decimal (line 41)."""
@@ -83,52 +84,36 @@ class TestInsuranceRecoveryDecimalConversion:
         assert recovery.amount == Decimal("200.0")
         assert recovery.amount_received == Decimal("75.0")
 
-    def test_decimal_amount_remains_unchanged(self):
-        """Passing a Decimal for amount should leave it unchanged (no conversion needed)."""
-        recovery = InsuranceRecovery(
-            amount=Decimal("100.00"),
-            claim_id="C4",
-            year_approved=2024,
-        )
-        assert isinstance(recovery.amount, Decimal)
-        assert recovery.amount == Decimal("100.00")
-
 
 class TestInsuranceAccountingDecimalConversion:
     """Test __post_init__ Decimal conversion in InsuranceAccounting (lines 97, 99, 101)."""
 
-    def test_float_prepaid_insurance_converted(self):
-        """Passing float for prepaid_insurance triggers Decimal conversion (line 97)."""
-        acct = InsuranceAccounting(prepaid_insurance=1000.0)  # type: ignore[arg-type]
-        assert isinstance(acct.prepaid_insurance, Decimal)
+    @pytest.mark.parametrize(
+        "field,value",
+        [
+            pytest.param("prepaid_insurance", 1000.0, id="float_prepaid"),
+            pytest.param("monthly_expense", 100.0, id="float_monthly"),
+            pytest.param("annual_premium", 1200.0, id="float_annual"),
+        ],
+    )
+    def test_single_float_field_converted(self, field, value):
+        """Passing a float for any field triggers Decimal conversion (lines 97, 99, 101)."""
+        acct = InsuranceAccounting(**{field: value})
+        assert isinstance(getattr(acct, field), Decimal)
 
-    def test_float_monthly_expense_converted(self):
-        """Passing float for monthly_expense triggers Decimal conversion (line 99)."""
-        acct = InsuranceAccounting(monthly_expense=100.0)  # type: ignore[arg-type]
-        assert isinstance(acct.monthly_expense, Decimal)
-
-    def test_float_annual_premium_converted(self):
-        """Passing float for annual_premium triggers Decimal conversion (line 101)."""
-        acct = InsuranceAccounting(annual_premium=1200.0)  # type: ignore[arg-type]
-        assert isinstance(acct.annual_premium, Decimal)
-
-    def test_all_float_fields_converted(self):
-        """All three float fields should be converted to Decimal (lines 97, 99, 101)."""
+    @pytest.mark.parametrize(
+        "input_type,values",
+        [
+            pytest.param("float", (1000.0, 100.0, 1200.0), id="all_floats"),
+            pytest.param("int", (1000, 100, 1200), id="all_ints"),
+        ],
+    )
+    def test_all_fields_converted(self, input_type, values):
+        """All three fields as float/int should be converted to Decimal (lines 97, 99, 101)."""
         acct = InsuranceAccounting(
-            prepaid_insurance=1000.0,  # type: ignore[arg-type]
-            monthly_expense=100.0,  # type: ignore[arg-type]
-            annual_premium=1200.0,  # type: ignore[arg-type]
-        )
-        assert isinstance(acct.prepaid_insurance, Decimal)
-        assert isinstance(acct.monthly_expense, Decimal)
-        assert isinstance(acct.annual_premium, Decimal)
-
-    def test_int_values_converted(self):
-        """Integer values should also be converted to Decimal (lines 97, 99, 101)."""
-        acct = InsuranceAccounting(
-            prepaid_insurance=1000,  # type: ignore[arg-type]
-            monthly_expense=100,  # type: ignore[arg-type]
-            annual_premium=1200,  # type: ignore[arg-type]
+            prepaid_insurance=values[0],
+            monthly_expense=values[1],
+            annual_premium=values[2],
         )
         assert isinstance(acct.prepaid_insurance, Decimal)
         assert isinstance(acct.monthly_expense, Decimal)
@@ -610,32 +595,42 @@ class TestHypothesisTestResultSummary:
 class TestStatisticalTestsInvalidAlternative:
     """Test ValueError for invalid alternative parameter (lines 329, 415, 524)."""
 
-    def test_ratio_of_metrics_test_invalid_alternative(self):
-        """ratio_of_metrics_test should raise ValueError for unrecognized alternative (line 329)."""
-        sample1 = np.array([1.0, 2.0, 3.0])
-        sample2 = np.array([1.5, 2.5, 3.5])
-
+    @pytest.mark.parametrize(
+        "func_name,call",
+        [
+            pytest.param(
+                "ratio_of_metrics_test",
+                lambda: ratio_of_metrics_test(
+                    np.array([1.0, 2.0, 3.0]),
+                    np.array([1.5, 2.5, 3.5]),
+                    alternative="invalid",
+                ),
+                id="ratio_of_metrics",
+            ),
+            pytest.param(
+                "paired_comparison_test",
+                lambda: paired_comparison_test(
+                    np.array([0.1, -0.2, 0.3, 0.15]),
+                    alternative="invalid",
+                ),
+                id="paired_comparison",
+            ),
+            pytest.param(
+                "bootstrap_hypothesis_test",
+                lambda: bootstrap_hypothesis_test(
+                    np.array([1.0, 2.0, 3.0, 4.0, 5.0]),
+                    null_hypothesis=lambda x: x - np.mean(x),
+                    test_statistic=np.mean,
+                    alternative="invalid",
+                ),
+                id="bootstrap_hypothesis",
+            ),
+        ],
+    )
+    def test_invalid_alternative_raises_value_error(self, func_name, call):
+        """Statistical test functions should raise ValueError for unrecognized alternative."""
         with pytest.raises(ValueError, match="Alternative must be"):
-            ratio_of_metrics_test(sample1, sample2, alternative="invalid")
-
-    def test_paired_comparison_test_invalid_alternative(self):
-        """paired_comparison_test should raise ValueError for unrecognized alternative (line 415)."""
-        differences = np.array([0.1, -0.2, 0.3, 0.15])
-
-        with pytest.raises(ValueError, match="Alternative must be"):
-            paired_comparison_test(differences, alternative="invalid")
-
-    def test_bootstrap_hypothesis_test_invalid_alternative(self):
-        """bootstrap_hypothesis_test should raise ValueError for unrecognized alternative (line 524)."""
-        data = np.array([1.0, 2.0, 3.0, 4.0, 5.0])
-
-        with pytest.raises(ValueError, match="Alternative must be"):
-            bootstrap_hypothesis_test(
-                data,
-                null_hypothesis=lambda x: x - np.mean(x),
-                test_statistic=np.mean,
-                alternative="invalid",
-            )
+            call()
 
 
 class TestMultipleComparisonCorrectionInvalidMethod:
@@ -795,40 +790,44 @@ class TestResultExporterWriteToHdf5WithArrays:
 class TestHierarchicalAggregatorLeafTypes:
     """Test HierarchicalAggregator with non-dict/non-array leaf data (line 576)."""
 
-    def test_non_dict_non_array_leaf_returned_as_is(self):
-        """When past all levels and data is not dict or ndarray, return data as-is (line 576).
-
-        The aggregate_hierarchy method has a fallback at line 576 for data types
-        that are neither dict nor np.ndarray when the recursion has reached
-        beyond all defined levels.
-        """
-        aggregator = HierarchicalAggregator(levels=["scenario"])
-        data = {"scenario_a": 42.0, "scenario_b": 99.0}
-
+    @pytest.mark.parametrize(
+        "levels,data,key,expected",
+        [
+            pytest.param(
+                ["scenario"],
+                {"scenario_a": 42.0, "scenario_b": 99.0},
+                "scenario_a",
+                42.0,
+                id="numeric_leaf",
+            ),
+            pytest.param(
+                ["category"],
+                {"cat_a": "text_value"},
+                "cat_a",
+                "text_value",
+                id="string_leaf",
+            ),
+            pytest.param(
+                ["level"],
+                {"item": None},
+                "item",
+                None,
+                id="none_leaf",
+            ),
+            pytest.param(
+                ["level"],
+                {"item": {"key": "value", "count": 5}},
+                "item",
+                {"key": "value", "count": 5},
+                id="dict_leaf",
+            ),
+        ],
+    )
+    def test_leaf_returned_as_is(self, levels, data, key, expected):
+        """Non-ndarray leaf data should pass through line 576 unchanged."""
+        aggregator = HierarchicalAggregator(levels=levels)
         result = aggregator.aggregate_hierarchy(data)
-
-        # The numeric leaf values should pass through line 576
-        assert result["items"]["scenario_a"] == 42.0
-        assert result["items"]["scenario_b"] == 99.0
-
-    def test_string_leaf_returned_as_is(self):
-        """String leaf data should be returned unchanged via line 576."""
-        aggregator = HierarchicalAggregator(levels=["category"])
-        data = {"cat_a": "text_value", "cat_b": "other_value"}
-
-        result = aggregator.aggregate_hierarchy(data)
-
-        assert result["items"]["cat_a"] == "text_value"
-        assert result["items"]["cat_b"] == "other_value"
-
-    def test_none_leaf_returned_as_is(self):
-        """None leaf data should be returned unchanged via line 576."""
-        aggregator = HierarchicalAggregator(levels=["level"])
-        data = {"item": None}
-
-        result = aggregator.aggregate_hierarchy(data)
-
-        assert result["items"]["item"] is None
+        assert result["items"][key] == expected
 
     def test_ndarray_leaf_is_aggregated(self):
         """np.ndarray leaf data should be aggregated (not returned raw)."""
@@ -841,15 +840,6 @@ class TestHierarchicalAggregatorLeafTypes:
         aggregated = result["items"]["scenario_a"]
         assert isinstance(aggregated, dict)
         assert "mean" in aggregated
-
-    def test_dict_leaf_returned_as_is(self):
-        """Dict leaf data at terminal level should be returned unchanged."""
-        aggregator = HierarchicalAggregator(levels=["level"])
-        data = {"item": {"key": "value", "count": 5}}
-
-        result = aggregator.aggregate_hierarchy(data)
-
-        assert result["items"]["item"] == {"key": "value", "count": 5}
 
     def test_empty_levels_with_scalar_data(self):
         """With no levels defined, scalar data should be returned directly (line 576)."""
