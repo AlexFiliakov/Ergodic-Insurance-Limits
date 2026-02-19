@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 <!-- next-version -->
 
+## [0.13.6] - 2026-02-19
+
+### Fixed
+- added sensitivity to pareto analysis ([`b6371ac`](https://github.com/AlexFiliakov/Ergodic-Insurance-Limits/commit/b6371ac23f5bd09976a7e808bfbd747d7c8d7182))
+
+[0.13.6]: https://github.com/AlexFiliakov/Ergodic-Insurance-Limits/compare/v0.13.5...v0.13.6
+
 ## [0.13.5] - 2026-02-19
 
 [0.13.5]: https://github.com/AlexFiliakov/Ergodic-Insurance-Limits/compare/v0.13.4...v0.13.5
