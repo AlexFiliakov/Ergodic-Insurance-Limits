@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 <!-- next-version -->
 
+## [0.13.8] - 2026-02-20
+
+### Fixed
+- notebooks metadata.widgets issue causing them to not display in GitHub ([`d72ac4d`](https://github.com/AlexFiliakov/Ergodic-Insurance-Limits/commit/d72ac4d868f0687d60bee302ae633dd1b001e7af))
+
+[0.13.8]: https://github.com/AlexFiliakov/Ergodic-Insurance-Limits/compare/v0.13.7...v0.13.8
+
 ## [0.13.7] - 2026-02-19
 
 [0.13.7]: https://github.com/AlexFiliakov/Ergodic-Insurance-Limits/compare/v0.13.6...v0.13.7
