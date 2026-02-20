@@ -114,12 +114,58 @@ The framework models a **widget manufacturer**, a deliberately generic business 
 ---
 
 ## Reproducible Research
-
+<!--
 ### [Ergodic Insurance Under Volatility](ergodic_insurance/notebooks/reproducible_research_2026_02_02_basic_volatility/)
 
-Traditional insurance analysis says companies should self-insure whenever premiums exceed expected losses. A 250,000-path Monte Carlo simulation over 50-year horizons shows this advice is **directionally wrong**: the strategy that minimizes expected costs (no insurance) produces the worst actual compound growth, while guaranteed cost insurance achieves the highest growth despite costing the most. The mechanism is the Volatility Tax, where large losses destroy more growth than their expected value suggests because wealth compounds multiplicatively. Without insurance, 37.8% of simulated firms go insolvent; with full coverage, just 0.01% do. The entire experiment is reproducible on Google Colab for ~$25. See the [project README](ergodic_insurance/notebooks/reproducible_research_2026_02_02_basic_volatility/README.md) for setup instructions and parameters to tweak.
+Traditional insurance analysis says companies should self-insure whenever premiums exceed expected losses. A 250,000-path Monte Carlo simulation over 50-year horizons shows this advice is **directionally wrong**: the strategy that minimizes expected costs (no insurance) produces the worst actual compound growth, while guaranteed cost insurance achieves the highest growth despite costing the most. The mechanism is the Volatility Tax, where large losses destroy more growth than their expected value suggests because wealth compounds multiplicatively. Without insurance, 37.8% of simulated firms go insolvent; with full coverage, just 0.01% do. The entire experiment is reproducible on Google Colab for ~$25. See the [project README](ergodic_insurance/notebooks/reproducible_research_2026_02_02_basic_volatility/README.md) for setup instructions and parameters to tweak. -->
 
-### Published Results
+### [Pareto Frontier Analysis](https://github.com/AlexFiliakov/Ergodic-Insurance-Limits/blob/main/ergodic_insurance/notebooks/optimization/03_pareto_analysis.ipynb)
+
+![Pareto Frontier](https://github.com/AlexFiliakov/Ergodic-Insurance-Limits/raw/main/assets/results/pareto_frontier_1.png)
+
+There is no single “right” deductible for a business.
+
+When you frame insurance purchasing as multi-objective optimization, balancing long-term growth rate against bankruptcy risk, something interesting emerges:
+
+The optimal deductible shifts significantly depending on how much weight the decision-maker places on growth versus safety. Sure, most retentions are strictly dominated (worse on every dimension simultaneously), but there is usually a wide range worth considering.
+
+I built a Pareto frontier experiment for a fictional middle-market manufacturer (\$5M assets, \$10M revenue) using 50,000 Monte Carlo paths. The visualization below shows a decision surface: as you shift from pure ruin minimization (left) to pure growth maximization (right), the black line indicates where the optimal deductible lies.
+
+The “right” retention isn’t a number; it’s a conversation about risk appetite.
+
+### [Pareto Analysis with Sensitivity](https://github.com/AlexFiliakov/Ergodic-Insurance-Limits/blob/main/ergodic_insurance/notebooks/optimization/03_pareto_analysis_with_sensitivity.ipynb)
+
+![Pareto Sensitivity](https://github.com/AlexFiliakov/Ergodic-Insurance-Limits/raw/main/assets/results/pareto_sensitivity.gif)
+
+I built a Pareto frontier experiment for a fictional middle-market manufacturer (\$5M assets, \$10M revenue) using 5,000 Monte Carlo paths across 100 draws from a gamma-distributed large-loss variance. The visualization above shows a decision cloud: as you shift from a high-variability assumption (left) to nearly deterministic losses (right), a valley emerges:
+
+It seems that at the two extremes of loss variability, optimal retention goes up. Why? My guess is that once the losses are nearly deterministic, you might as well retain them and not pay the premium fees. On the other hand, when losses are highly volatile, the impact around the expected value isn’t frequent enough to affect ruin or growth, so all you really need is tail protection.
+
+The bottom line is the “right” retention isn’t a number; it’s a conversation about risk appetite and assumptions.
+
+### [Hamilton-Jacobi-Bellman (HJB) Optimal Control](https://github.com/AlexFiliakov/Ergodic-Insurance-Limits/blob/main/ergodic_insurance/notebooks/optimization/07_hjb_insurance_optimization.ipynb)
+
+![Hamilton-JAcobi-Bellman Optimization](https://github.com/AlexFiliakov/Ergodic-Insurance-Limits/raw/main/assets/results/hjb_optimization.png)
+
+This experiment demonstrates that HJB can be a viable mechanism for optimizing long-term retention strategies. While insurance policies are typically bound for one year, HJB facilitates the evaluation of multi-year strategies under dynamic conditions with realistic business constraints.
+
+The main use case I see is evaluating the ROI of a given insurance program when static strategies don’t offer a nuanced long-term view. To make this evaluation more complete, framework enhancements are needed for more realistic insurance market cycles and carrier renewal negotiation strategies, which can be incorporated as additional simulation dynamics. Pull requests are welcome.
+
+### [Optimization Under Volatility](https://github.com/AlexFiliakov/Ergodic-Insurance-Limits/blob/main/ergodic_insurance/notebooks/optimization/03_pareto_analysis_with_loss_and_vol_sens.ipynb)
+
+![Volatility Optimization](https://github.com/AlexFiliakov/Ergodic-Insurance-Limits/raw/main/assets/results/deductible_vs_volatility.png)
+
+In my next experiment, I explore optimal deductibles under two volatility assumptions: operational volatility and loss volatility. I set up a deductible optimizer with two objectives: maximize growth while minimizing growth volatility (did you think I'd run out of volatilities to analyze?).
+
+I also added a constraint: risk of ruin cannot exceed 1%. To give us a nice fat tail, I set inverse Gaussian Bayesian priors on the volatility assumptions.
+
+That's right: inverse Gaussian Bayesian priors on the loss Pareto alpha, plotted in Euclidean space with Lanczos interpolation. I hope that's enough name-dropping for one post.
+
+No Hamilton-Jacobi-Bellman this time. I showed restraint.
+
+Above is a heatmap of the results. The findings reinforce the last experiment, but the setup is more flexible, and honestly, it was just fun to build.
+
+### Blog Posts
 
 - [Ergodic Insurance Part 1: From Cost Center to Growth Engine: When N=1](https://medium.com/@alexfiliakov/ergodic-insurance-part-1-from-cost-center-to-growth-engine-when-n-1-52c17b048a94)
 - [Insurance Limit Selection Through Ergodicity: When the 99.9th Percentile Isn't Enough](https://applications.mostlyoptimal.com/insurance-limit-selection-through-ergodicity-when-the-99p9th-percentile-isnt-enough)
