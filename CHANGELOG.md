@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 <!-- next-version -->
 
+## [0.13.9] - 2026-02-20
+
+### Fixed
+- tower experiment results ([`318ff4f`](https://github.com/AlexFiliakov/Ergodic-Insurance-Limits/commit/318ff4fea055b0aea9f49012967d2d8bba4ff048))
+- initial tower experiment sketch ([`16dd97c`](https://github.com/AlexFiliakov/Ergodic-Insurance-Limits/commit/16dd97cac8df5a2acd44016725208813810aae61))
+
+[0.13.9]: https://github.com/AlexFiliakov/Ergodic-Insurance-Limits/compare/v0.13.8...v0.13.9
+
 ## [0.13.8] - 2026-02-20
 
 ### Fixed
