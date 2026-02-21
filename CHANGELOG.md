@@ -7,6 +7,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 <!-- next-version -->
 
+## [0.13.10] - 2026-02-21
+
+### Changed
+- optimization 09 results and 10 setup ([`23f9029`](https://github.com/AlexFiliakov/Ergodic-Insurance-Limits/commit/23f90297fdf7addb9e725f3d2633ebfc4c111724))
+- optimization 09 and 10 experiments are set up to run ([`7a8f59c`](https://github.com/AlexFiliakov/Ergodic-Insurance-Limits/commit/7a8f59c768d7d1ae29b63c65a8cae9964e50a44a))
+- 09 tower demand experiment improvements ([`3b66108`](https://github.com/AlexFiliakov/Ergodic-Insurance-Limits/commit/3b661086d82b87839202f300887519761e146221))
+- 10 hollow tower experiment improvements ([`a00e799`](https://github.com/AlexFiliakov/Ergodic-Insurance-Limits/commit/a00e799db753a1cfc64d54c23e3e787a6b959103))
+- 09 tower demand preliminary experiment result ([`a1bbf3d`](https://github.com/AlexFiliakov/Ergodic-Insurance-Limits/commit/a1bbf3d3962003e2b68389b5c06c83f908f33ddd))
+- 09 run and 10 hollow tower setup ([`f9e87b3`](https://github.com/AlexFiliakov/Ergodic-Insurance-Limits/commit/f9e87b37cb42896a4bc14c50e1886654782533ff))
+- 10 hollow tower demand curve initial sketch ([`8e0b743`](https://github.com/AlexFiliakov/Ergodic-Insurance-Limits/commit/8e0b743274b6b5d8390a24f38c9042596eacd7a1))
+- 09 demand curve update and klein bottle exploration ([`7cf2b35`](https://github.com/AlexFiliakov/Ergodic-Insurance-Limits/commit/7cf2b35128e340897f83101cfda018e579ad6298))
+- 09 demand curve updated notebook ([`f8e9b70`](https://github.com/AlexFiliakov/Ergodic-Insurance-Limits/commit/f8e9b7022d7373cfa95240c831fc7e63e82273b5))
+- 09 demand curve initial experiment sketch ([`c88eed4`](https://github.com/AlexFiliakov/Ergodic-Insurance-Limits/commit/c88eed4f5b2945a0e6fd164a2234f51448406dae))
+
+### Fixed
+- opt 09 & 10 minor experiment patches ([`ccb09b6`](https://github.com/AlexFiliakov/Ergodic-Insurance-Limits/commit/ccb09b65749d48ec453932325ee947c0540eb599))
+
+[0.13.10]: https://github.com/AlexFiliakov/Ergodic-Insurance-Limits/compare/v0.13.9...v0.13.10
+
 ## [0.13.9] - 2026-02-20
 
 ### Fixed
