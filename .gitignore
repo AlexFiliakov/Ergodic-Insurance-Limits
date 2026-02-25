@@ -478,3 +478,5 @@ ergodic_insurance/papers/2025-09-research-paper-1/final draft - revision 1/
 
 # Experiments
 !/ergodic_insurance/notebooks/optimization/cache
+ergodic_insurance/notebooks/optimization/cache/sensitivity/
+ergodic_insurance/notebooks/optimization/cache/parameter_sweeps/
