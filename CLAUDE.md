@@ -56,7 +56,8 @@ You have access to the `log_activity` tool. Use it to record your activities aft
 5. Use the TodoWrite tool to track your work progress
 
 ## Documentation Layout
-The documentation is split between three parts:
+The documentation is split between four parts:
+- "docs\Codebase Onboarding Guide.md" contains a high-level overview you can use to onboard
 - "ergodic_insurance\docs\tutorials\" which has the tutorials on specific important features.
 - "ergodic_insurance\docs\user_guide\" which has the Quick Start guide and a general overview of the project.
 - "ergodic_insurance\notebooks\" which provides specific and comprehensive examples of how to use the code.
