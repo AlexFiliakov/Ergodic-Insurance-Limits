@@ -6,7 +6,7 @@ The Ergodic Insurance Limits framework analyzes insurance decisions using time-a
 
 ### Simplified System Architecture
 
-```{mermaid}
+```mermaid
 flowchart LR
        %% Simplified Executive View
        INPUT[("📊 Market Data<br/>& Configuration")]
@@ -36,7 +36,7 @@ flowchart LR
 
 The actual implementation follows a sophisticated multi-layer architecture:
 
-```{mermaid}
+```mermaid
 graph TB
        %% Input Layer
        subgraph Inputs["📥 Input Layer"]
@@ -124,7 +124,7 @@ The PNG diagram shows the simplified flow, while the detailed architecture above
 
 This diagram shows the overall architecture of the Ergodic Insurance Limits framework, including the main components, external dependencies, and data flow between major modules.
 
-```{mermaid}
+```mermaid
 flowchart TB
        %% External Inputs and Configurations
        subgraph External["External Inputs"]
@@ -327,7 +327,7 @@ The Ergodic Insurance Limits framework is designed as a modular, high-performanc
 
 The financial accounting subsystem was introduced to provide GAAP-compliant financial tracking within the simulation. This subsystem is internal to the `WidgetManufacturer` and consists of four tightly integrated components:
 
-```{mermaid}
+```mermaid
 flowchart LR
        MANU["WidgetManufacturer"] --> LEDGER["Ledger"]
        MANU --> ACCRUAL["AccrualManager"]
@@ -358,7 +358,7 @@ flowchart LR
 
 The insurance subsystem provides two complementary paths for modeling coverage:
 
-```{mermaid}
+```mermaid
 flowchart TB
        subgraph Deprecated["Deprecated"]
            INSPOL["InsurancePolicy"]
@@ -394,7 +394,7 @@ flowchart TB
 
 The exposure and trend system models how insurance risks evolve dynamically during simulation:
 
-```{mermaid}
+```mermaid
 flowchart LR
        MANU["WidgetManufacturer<br/>(implements protocol)"] -.-> FSPROV["FinancialStateProvider<br/>(Protocol)"]
        FSPROV --> EXPBASE["ExposureBase<br/>(Dynamic Frequency)"]

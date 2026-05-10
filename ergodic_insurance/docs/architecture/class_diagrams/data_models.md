@@ -6,7 +6,7 @@ This document shows the data structures and analysis models used throughout the 
 
 The ergodic analysis subsystem implements Ole Peters' ergodic economics framework, comparing time-average versus ensemble-average growth rates to demonstrate how insurance transforms business growth dynamics.
 
-```{mermaid}
+```mermaid
 classDiagram
     class ErgodicAnalyzer {
         -convergence_threshold: float
@@ -63,7 +63,7 @@ classDiagram
 
 The optimization subsystem uses ergodic metrics to find insurance strategies that maximize real business outcomes such as ROE, growth rate, and survival probability.
 
-```{mermaid}
+```mermaid
 classDiagram
     class BusinessOptimizer {
         -manufacturer: WidgetManufacturer
@@ -136,7 +136,7 @@ classDiagram
 
 Risk metrics and ruin probability analysis provide the quantitative foundation for evaluating tail risk and insurance value.
 
-```{mermaid}
+```mermaid
 classDiagram
     class RiskMetrics {
         -losses: ndarray
@@ -213,7 +213,7 @@ classDiagram
 
 Convergence analysis ensures Monte Carlo simulations have run long enough to produce reliable results.
 
-```{mermaid}
+```mermaid
 classDiagram
     class ConvergenceDiagnostics {
         -r_hat_threshold: float
@@ -248,7 +248,7 @@ classDiagram
 
 The loss modeling subsystem uses a composite pattern to combine attritional, large, and catastrophic loss generators into a unified manufacturing risk model.
 
-```{mermaid}
+```mermaid
 classDiagram
     class LossDistribution {
         <<abstract>>
@@ -320,7 +320,7 @@ classDiagram
 
 The manufacturing loss generator uses the Composite pattern to combine multiple loss layer generators, each with independent frequency and severity models.
 
-```{mermaid}
+```mermaid
 classDiagram
     class ManufacturingLossGenerator {
         +attritional: AttritionalLossGenerator
@@ -387,7 +387,7 @@ classDiagram
 
 Sensitivity tools analyze how parameter changes affect optimization outcomes, with built-in caching for computational efficiency.
 
-```{mermaid}
+```mermaid
 classDiagram
     class SensitivityAnalyzer {
         -base_config: dict
@@ -434,7 +434,7 @@ classDiagram
 
 The financial statement subsystem generates GAAP-compliant Balance Sheet, Income Statement, and Cash Flow Statement from simulation data, with support for both indirect and direct (ledger-based) cash flow methods.
 
-```{mermaid}
+```mermaid
 classDiagram
     class FinancialStatementGenerator {
         -manufacturer: WidgetManufacturer
@@ -477,7 +477,7 @@ classDiagram
 
 ## Data Flow Sequence
 
-```{mermaid}
+```mermaid
 sequenceDiagram
     participant LG as ManufacturingLossGenerator
     participant Sim as Simulation

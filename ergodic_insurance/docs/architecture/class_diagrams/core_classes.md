@@ -7,7 +7,7 @@ loss generation, and simulation subsystems.
 
 ## Overview Diagram
 
-```{mermaid}
+```mermaid
 classDiagram
     direction TB
 
@@ -104,7 +104,7 @@ classDiagram
 This diagram shows the internal structure of the manufacturer model, including
 the financial ledger, tax handling, claim liabilities, and accounting modules.
 
-```{mermaid}
+```mermaid
 classDiagram
     class WidgetManufacturer {
         +config: ManufacturerConfig
@@ -210,7 +210,7 @@ classDiagram
 This diagram shows the primary insurance path (`InsuranceProgram` / `EnhancedInsuranceLayer` / `LayerState`)
 and the deprecated basic path (`InsurancePolicy` / `InsuranceLayer`).
 
-```{mermaid}
+```mermaid
 classDiagram
     class InsurancePolicy {
         <<deprecated>>
@@ -305,7 +305,7 @@ This diagram shows the composite loss generator pattern and the loss event model
 `ManufacturingLossGenerator` composes three specialized generators for different
 severity bands: attritional, large, and catastrophic.
 
-```{mermaid}
+```mermaid
 classDiagram
     class ManufacturingLossGenerator {
         +attritional: AttritionalLossGenerator
@@ -393,7 +393,7 @@ classDiagram
 This diagram shows the simulation orchestration layer, including both the
 single-path `Simulation` class and the multi-path `MonteCarloEngine`.
 
-```{mermaid}
+```mermaid
 classDiagram
     class Simulation {
         +manufacturer: WidgetManufacturer
@@ -488,7 +488,7 @@ classDiagram
 
 ## Class Interactions
 
-```{mermaid}
+```mermaid
 sequenceDiagram
     participant MC as MonteCarloEngine
     participant S as Simulation

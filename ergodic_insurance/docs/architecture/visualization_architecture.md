@@ -4,7 +4,7 @@ This document describes the comprehensive visualization module architecture, sup
 
 ## Module Overview
 
-```{mermaid}
+```mermaid
 graph TB
     %% Input Layer
     subgraph Input["Data Sources"]
@@ -126,7 +126,7 @@ graph TB
 
 ## Class Architecture
 
-```{mermaid}
+```mermaid
 classDiagram
     %% Core Classes
     class FigureFactory {
@@ -349,7 +349,7 @@ classDiagram
 
 ## Visualization Pipeline
 
-```{mermaid}
+```mermaid
 sequenceDiagram
     participant User
     participant Data
@@ -457,7 +457,7 @@ Scenario comparison and parameter sensitivity functions:
 
 ## Style Management
 
-```{mermaid}
+```mermaid
 graph LR
     %% Theme Components
     subgraph Themes["Theme Enum"]

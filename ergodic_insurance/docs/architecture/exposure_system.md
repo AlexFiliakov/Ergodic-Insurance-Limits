@@ -4,7 +4,7 @@ This document describes the state-driven exposure base system that dynamically c
 
 ## System Overview
 
-```{mermaid}
+```mermaid
 graph TB
     %% State Provider
     subgraph Provider["State Provider"]
@@ -83,7 +83,7 @@ graph TB
 
 ## Inheritance Hierarchy
 
-```{mermaid}
+```mermaid
 classDiagram
     class FinancialStateProvider {
         <<Protocol>>
@@ -200,7 +200,7 @@ classDiagram
 
 The exposure base system queries real-time financial state from providers instead of using artificial growth projections:
 
-```{mermaid}
+```mermaid
 sequenceDiagram
     participant Sim as Simulation
     participant Gen as LossGenerator

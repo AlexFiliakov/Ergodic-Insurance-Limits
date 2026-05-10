@@ -4,7 +4,7 @@ This document describes the architecture of the comprehensive reporting module, 
 
 ## Module Overview
 
-```{mermaid}
+```mermaid
 graph TB
     %% Entry Points
     subgraph Entry["Entry Points"]
@@ -109,7 +109,7 @@ graph TB
 
 ## Class Structure
 
-```{mermaid}
+```mermaid
 classDiagram
     %% Configuration Classes (Pydantic Models)
     class ReportConfig {
@@ -489,7 +489,7 @@ classDiagram
 
 ## Data Flow Sequence
 
-```{mermaid}
+```mermaid
 sequenceDiagram
     participant User
     participant Config as ReportConfig

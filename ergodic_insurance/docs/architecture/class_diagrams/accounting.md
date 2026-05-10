@@ -21,7 +21,7 @@ class owns instances of each component and routes every financial operation thro
 The diagram below shows the four accounting classes, their enumerations, and the
 ownership relationships maintained by `WidgetManufacturer`.
 
-```{mermaid}
+```mermaid
 classDiagram
     direction LR
 
@@ -281,7 +281,7 @@ the initial cash outflow through monthly amortization. It shows how three subsys
 collaborate: the `WidgetManufacturer` orchestrates, `InsuranceAccounting` tracks the
 prepaid asset, and `Ledger` records every transaction as balanced double entries.
 
-```{mermaid}
+```mermaid
 sequenceDiagram
     autonumber
     participant WM as WidgetManufacturer
@@ -348,7 +348,7 @@ This flowchart shows the internal decision path when `Ledger.record_double_entry
 called. It highlights validation, zero-amount short-circuiting, account name resolution,
 and the O(1) balance cache update.
 
-```{mermaid}
+```mermaid
 flowchart TD
     A([record_double_entry called]) --> B{amount == 0?}
     B -- Yes --> C([Return None, None])

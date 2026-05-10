@@ -2,7 +2,7 @@
 
 This diagram shows the detailed module structure and dependencies within the Ergodic Insurance framework.
 
-```{mermaid}
+```mermaid
 graph LR
        %% Configuration Layer
        subgraph Config["Configuration Management"]
