@@ -423,12 +423,8 @@ class FigureFactory:
             from scipy import stats
 
             kde = stats.gaussian_kde(data)
-            if isinstance(data, (list, np.ndarray, pd.Series)):
-                data_array = np.array(data) if isinstance(data, list) else data
-                x_range = np.linspace(float(np.min(data_array)), float(np.max(data_array)), 100)
-            else:
-                # Should never reach here but keeping for type safety
-                x_range = np.linspace(0, 100, 100)  # type: ignore[unreachable]
+            data_array = np.array(data) if isinstance(data, list) else data
+            x_range = np.linspace(float(np.min(data_array)), float(np.max(data_array)), 100)
             kde_values = kde(x_range)
 
             # Scale KDE to match histogram

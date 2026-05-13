@@ -86,8 +86,8 @@ class TestStyleManager:
         fig_config = manager.get_figure_config()
 
         assert isinstance(fig_config, FigureConfig)
-        assert fig_config.size_blog == (8, 6)
-        assert fig_config.size_technical == (10, 8)
+        assert fig_config.size_blog == (8.0, 6.0)
+        assert fig_config.size_technical == (10.0, 8.0)
         assert fig_config.dpi_web == 150
         assert fig_config.dpi_print == 300
 
