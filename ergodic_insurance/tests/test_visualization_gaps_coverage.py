@@ -1701,8 +1701,8 @@ class TestStyleManagerGaps:
         )
 
         assert fig_config.dpi_screen == 200
-        assert fig_config.size_small == (5, 3)
-        assert fig_config.size_medium == (9, 7)
+        assert fig_config.size_small == (5.0, 3.0)
+        assert fig_config.size_medium == (9.0, 7.0)
 
     def test_update_figure_component_non_size_keys(self):
         """Cover lines 544-546: non-size keys are set directly."""

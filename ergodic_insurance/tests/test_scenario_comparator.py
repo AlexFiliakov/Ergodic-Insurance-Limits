@@ -98,9 +98,9 @@ class TestScenarioComparison:
         assert "metric1" in comparison.rankings
         rankings = comparison.rankings["metric1"]
         assert len(rankings) == 3
-        assert rankings[0] == ("s2", 20)  # Highest
-        assert rankings[1] == ("s3", 15)  # Middle
-        assert rankings[2] == ("s1", 10)  # Lowest
+        assert rankings[0] == ("s2", 20.0)  # Highest
+        assert rankings[1] == ("s3", 15.0)  # Middle
+        assert rankings[2] == ("s1", 10.0)  # Lowest
 
 
 class TestScenarioComparator:

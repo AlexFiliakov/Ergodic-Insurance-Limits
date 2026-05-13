@@ -6,7 +6,7 @@ This document shows the service layer components that provide infrastructure sup
 
 The batch processing subsystem coordinates parallel execution of multiple simulation scenarios with checkpointing and result aggregation.
 
-```{mermaid}
+```mermaid
 classDiagram
     class BatchProcessor {
         -loss_generator: ManufacturingLossGenerator
@@ -81,7 +81,7 @@ classDiagram
 
 Monitoring services track simulation progress, convergence behavior, and provide real-time feedback during long-running computations.
 
-```{mermaid}
+```mermaid
 classDiagram
     class ProgressMonitor {
         -total_iterations: int
@@ -136,7 +136,7 @@ classDiagram
 
 Storage services handle memory-efficient persistence of simulation trajectories and time-series data using memory-mapped arrays or HDF5.
 
-```{mermaid}
+```mermaid
 classDiagram
     class TrajectoryStorage {
         -config: StorageConfig
@@ -181,7 +181,7 @@ classDiagram
 
 Parameter sweep services enable systematic exploration of the parameter space through grid search, adaptive refinement, and scenario comparison.
 
-```{mermaid}
+```mermaid
 classDiagram
     class ParameterSweeper {
         -optimizer: Optional~BusinessOptimizer~
@@ -221,7 +221,7 @@ classDiagram
 
 Performance services provide profiling, benchmarking, and optimization capabilities to ensure simulations run within target times and memory budgets.
 
-```{mermaid}
+```mermaid
 classDiagram
     class PerformanceOptimizer {
         -config: OptimizationConfig
@@ -268,7 +268,7 @@ classDiagram
 
 Validation services ensure numerical accuracy and strategy performance through reference implementations, statistical tests, and backtesting.
 
-```{mermaid}
+```mermaid
 classDiagram
     class AccuracyValidator {
         -tolerance: float
@@ -322,7 +322,7 @@ classDiagram
 
 Reporting services aggregate simulation results and produce formatted Excel reports with financial statements, charts, and dashboards.
 
-```{mermaid}
+```mermaid
 classDiagram
     class ExcelReporter {
         -config: ExcelReportConfig
@@ -388,7 +388,7 @@ classDiagram
 
 Visualization services create and style charts and figures with multiple themes and export formats for reports, blogs, and presentations.
 
-```{mermaid}
+```mermaid
 classDiagram
     class FigureFactory {
         -style_manager: StyleManager
@@ -445,7 +445,7 @@ classDiagram
 
 This sequence diagram shows the typical flow when a batch processing job is submitted and executed.
 
-```{mermaid}
+```mermaid
 sequenceDiagram
     participant Client
     participant BP as BatchProcessor

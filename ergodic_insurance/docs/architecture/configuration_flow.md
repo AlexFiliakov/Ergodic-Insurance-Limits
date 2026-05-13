@@ -20,7 +20,7 @@ The primary entry point is `ConfigManager.load_profile()`, which orchestrates th
 
 This sequence diagram shows the complete lifecycle of a `load_profile()` call, from the caller through `ConfigManager`, into the file system, and back through validation into a fully resolved `Config` object.
 
-```{mermaid}
+```mermaid
 sequenceDiagram
     participant Caller as Caller
     participant CM as ConfigManager
@@ -110,7 +110,7 @@ sequenceDiagram
 
 This flowchart shows how a profile request is resolved through the inheritance chain, module overlay, preset application, and runtime override stages.
 
-```{mermaid}
+```mermaid
 flowchart TD
     START([load_profile called]) --> RESOLVE_PATH
 
@@ -200,7 +200,7 @@ A custom profile `custom/client_abc.yaml` with `extends: conservative` triggers 
 
 This flowchart documents how the legacy 12-file configuration system maps to the current architecture, and shows the automated migration tool (`ConfigMigrator`).
 
-```{mermaid}
+```mermaid
 flowchart TB
     subgraph Legacy["Legacy System (data/parameters/)"]
         B_YAML["baseline.yaml"]
@@ -300,7 +300,7 @@ flowchart TB
 
 This class diagram shows the `Config` model and all of its sub-models. Required fields are shown with solid borders; optional modules have dashed borders.
 
-```{mermaid}
+```mermaid
 classDiagram
     class Config {
         +ProfileMetadata profile

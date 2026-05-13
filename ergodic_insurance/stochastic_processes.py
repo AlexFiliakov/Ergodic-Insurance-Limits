@@ -8,7 +8,7 @@ revenue and growth modeling in the manufacturing simulation.
 
 from abc import ABC, abstractmethod
 import logging
-from typing import Optional
+from typing import Dict, Optional
 
 import numpy as np
 from pydantic import BaseModel, Field
@@ -263,7 +263,7 @@ def create_stochastic_process(
         volatility=volatility, drift=drift, random_seed=random_seed, time_step=time_step
     )
 
-    process_map = {
+    process_map: Dict[str, type[StochasticProcess]] = {
         "gbm": GeometricBrownianMotion,
         "geometric_brownian": GeometricBrownianMotion,
         "lognormal": LognormalVolatility,
@@ -280,4 +280,4 @@ def create_stochastic_process(
     process_class = process_map[process_type_lower]
     logger.info(f"Created {process_class.__name__} with volatility={volatility:.3f}")
 
-    return process_class(config)  # type: ignore[no-any-return]
+    return process_class(config)

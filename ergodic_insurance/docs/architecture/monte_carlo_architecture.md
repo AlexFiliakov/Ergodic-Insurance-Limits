@@ -26,7 +26,7 @@ This flowchart shows the complete lifecycle from configuration through result de
 The engine decides at runtime which execution path to take based on the `MonteCarloConfig`
 flags `parallel` and `use_enhanced_parallel`.
 
-```{mermaid}
+```mermaid
 flowchart TD
     A[MonteCarloConfig] --> B[MonteCarloEngine.__init__]
     B --> C{cache_results?}
@@ -95,7 +95,7 @@ This sequence diagram shows how `MonteCarloEngine` spawns workers through the st
 parallel path (`_run_parallel`) and collects results. The enhanced parallel path follows
 a similar pattern but routes through `ParallelExecutor.map_reduce` instead.
 
-```{mermaid}
+```mermaid
 sequenceDiagram
     participant Client
     participant MCEngine as MonteCarloEngine
@@ -162,7 +162,7 @@ sequenceDiagram
 This diagram shows the relationships between the core classes involved in Monte Carlo
 simulation.
 
-```{mermaid}
+```mermaid
 classDiagram
     class MonteCarloConfig {
         +int n_simulations
@@ -333,7 +333,7 @@ Each worker process (whether invoked via `run_chunk_standalone` in the standard 
 `_simulate_path_enhanced` in the enhanced path) follows the same core simulation logic.
 This flowchart details the `run_chunk_standalone` function.
 
-```{mermaid}
+```mermaid
 flowchart TD
     A[run_chunk_standalone called<br>with chunk, loss_gen, ins_prog,<br>manufacturer, config_dict] --> B[Unpack chunk:<br>start_idx, end_idx, seed]
 
@@ -408,7 +408,7 @@ The enhanced parallel path uses `ParallelExecutor` which provides shared memory 
 read-only data and adaptive chunking. This diagram shows how data flows through the
 enhanced path.
 
-```{mermaid}
+```mermaid
 flowchart TD
     A[MonteCarloEngine._run_enhanced_parallel] --> B[Test multiprocessing<br>with _test_worker_function]
 
@@ -461,7 +461,7 @@ statistically reliable results. The engine supports two convergence monitoring m
 inline monitoring via `run_with_progress_monitoring` and iterative batch monitoring via
 `run_with_convergence_monitoring`.
 
-```{mermaid}
+```mermaid
 flowchart TD
     A[run_with_progress_monitoring<br>or run_with_convergence_monitoring] --> B[Initialize ProgressMonitor<br>total_iterations, check_intervals,<br>convergence_threshold]
 
@@ -527,7 +527,7 @@ flowchart TD
 The `BatchProcessor` sits above the `MonteCarloEngine` and manages execution of
 multiple scenario configurations with checkpoint/resume support.
 
-```{mermaid}
+```mermaid
 flowchart TD
     A[BatchProcessor.process_batch<br>scenarios list] --> B{resume_from_checkpoint?}
 
@@ -587,7 +587,7 @@ flowchart TD
 This diagram summarizes how data flows from configuration through to final results
 across all the major components.
 
-```{mermaid}
+```mermaid
 flowchart LR
     subgraph Input
         SC[MonteCarloConfig]

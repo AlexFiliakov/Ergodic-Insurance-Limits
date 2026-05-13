@@ -21,7 +21,7 @@ A claim in the framework follows a multi-stage lifecycle:
 This diagram shows the complete flow from loss generation through final payment,
 identifying which classes are responsible for each stage.
 
-```{mermaid}
+```mermaid
 flowchart TB
     subgraph Generation["Loss Generation"]
         direction TB
@@ -120,7 +120,7 @@ This sequence diagram shows the detailed interaction when a claim is processed t
 the multi-layer insurance program, including deductible application, layer responses,
 and reinstatement mechanics.
 
-```{mermaid}
+```mermaid
 sequenceDiagram
     participant Caller as Caller<br/>(Simulation)
     participant IP as InsuranceProgram
@@ -183,7 +183,7 @@ sequenceDiagram
 
 When a layer's aggregate limit is exhausted, the reinstatement mechanism activates:
 
-```{mermaid}
+```mermaid
 sequenceDiagram
     participant IP as InsuranceProgram
     participant LS as LayerState<br/>(Aggregate Type)
@@ -236,7 +236,7 @@ sequenceDiagram
 This state diagram shows the lifecycle states a claim transitions through,
 from initial generation to final settlement.
 
-```{mermaid}
+```mermaid
 stateDiagram-v2
     [*] --> Generated : LossEvent created by<br/>ManufacturingLossGenerator
 
@@ -308,7 +308,7 @@ This diagram shows how exposure-based frequency scaling works, connecting the
 financial state of the business to the frequency of loss events through the
 `ExposureBase` hierarchy.
 
-```{mermaid}
+```mermaid
 flowchart LR
     subgraph BusinessState["Business Financial State"]
         WM["WidgetManufacturer<br/>(implements FinancialStateProvider)"]
@@ -400,7 +400,7 @@ For attritional losses with `revenue_scaling_exponent = 0.5`, doubling revenue i
 This diagram shows how insurance claim processing flows through the accounting
 subsystem, covering ledger entries, accrual management, and claim liability tracking.
 
-```{mermaid}
+```mermaid
 flowchart TB
     subgraph ClaimInput["Claim Processing Input"]
         CA["claim_amount"]
@@ -489,7 +489,7 @@ flowchart TB
 The following diagram summarizes the key classes and their relationships across
 all stages of the claim lifecycle.
 
-```{mermaid}
+```mermaid
 flowchart TB
     subgraph LossGen["Loss Generation Module<br/>loss_distributions.py"]
         LossDistribution["LossDistribution (ABC)"]

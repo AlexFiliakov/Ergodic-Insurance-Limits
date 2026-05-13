@@ -15,7 +15,7 @@ The configuration system provides a modern, flexible, and maintainable approach 
 
 ## Architecture Diagram
 
-```{mermaid}
+```mermaid
 graph TB
     %% Main Components
     subgraph ConfigSystem["Configuration System"]
@@ -130,7 +130,7 @@ graph TB
 
 ## Configuration Architecture
 
-```{mermaid}
+```mermaid
 graph LR
     %% Tier 1: Profiles
     subgraph Tier1["Tier 1: Profiles"]
@@ -195,7 +195,7 @@ graph LR
 
 The following sequence diagram shows the full lifecycle of a configuration load request, including cache check, inheritance resolution, module application, preset application, and runtime overrides.
 
-```{mermaid}
+```mermaid
 sequenceDiagram
     participant User
     participant CM as ConfigManager
@@ -246,7 +246,7 @@ sequenceDiagram
 
 Profiles support single inheritance through the `extends` field. When a profile extends another, the parent is loaded first (recursively if it also extends a parent), and the child's values are deep-merged on top.
 
-```{mermaid}
+```mermaid
 graph TD
     subgraph InheritanceChain["Inheritance Resolution"]
         CUSTOM_CLIENT["custom/client_abc.yaml<br/>extends: conservative"]
@@ -685,7 +685,7 @@ This model is separate from the main `Config` hierarchy and is consumed directly
 
 ## Class Diagram
 
-```{mermaid}
+```mermaid
 classDiagram
     class ConfigManager {
         +config_dir: Path
