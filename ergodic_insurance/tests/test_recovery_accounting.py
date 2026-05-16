@@ -5,6 +5,10 @@ from decimal import Decimal
 import pytest
 
 from ergodic_insurance.config import ManufacturerConfig
+from ergodic_insurance.insurance_program import (
+    EnhancedInsuranceLayer,
+    InsuranceProgram,
+)
 from ergodic_insurance.ledger import AccountName
 from ergodic_insurance.manufacturer import WidgetManufacturer
 
@@ -315,3 +319,130 @@ class TestInsuranceReceivableLedgerIntegrity:
 
         assert ledger_balance == 2_500_000
         assert ledger_balance == accounting_balance
+
+
+class TestInsuranceClaimNetEconomicEffect:
+    """End-to-end economic-impact tests for insured vs uninsured claims.
+
+    Compares period-end equity change against the expected impact under
+    proper GAAP recognition (gross loss recognized, recovery offsets it,
+    net = deductible).  Catches double-counting bugs in operating-income
+    calculation (e.g., recording loss = deductible while crediting full
+    recovery as revenue, which produces phantom income from claims).
+
+    Configuration uses tax_rate=0 and retention_ratio=1.0 to remove tax
+    and dividend noise from the equity-delta arithmetic.
+    """
+
+    @pytest.fixture
+    def cfg(self) -> ManufacturerConfig:
+        return ManufacturerConfig(
+            initial_assets=5_000_000,
+            asset_turnover_ratio=2.0,
+            base_operating_margin=0.15,
+            tax_rate=0.0,
+            retention_ratio=1.0,
+            ppe_ratio=0.25,
+            working_capital_facility_limit=2_000_000,
+        )
+
+    @pytest.fixture
+    def manufacturer(self, cfg: ManufacturerConfig) -> WidgetManufacturer:
+        return WidgetManufacturer(cfg)
+
+    @staticmethod
+    def _baseline_op_income(cfg: ManufacturerConfig) -> float:
+        return (
+            float(cfg.initial_assets)
+            * float(cfg.asset_turnover_ratio)
+            * float(cfg.base_operating_margin)
+        )
+
+    def test_no_claim_baseline(self, manufacturer: WidgetManufacturer, cfg: ManufacturerConfig):
+        """One step with no claim should change equity by ~op_income (= +$1.5M)."""
+        eq0 = float(manufacturer.equity)
+        manufacturer.step(letter_of_credit_rate=0.015, apply_stochastic=False)
+        delta = float(manufacturer.equity) - eq0
+        assert delta == pytest.approx(self._baseline_op_income(cfg), rel=0.01)
+
+    def test_uninsured_claim_costs_full_claim_plus_lae(
+        self, manufacturer: WidgetManufacturer, cfg: ManufacturerConfig
+    ):
+        """An uninsured $3M claim should cost equity ~$3.36M ($3M + 12% LAE)
+        relative to the no-claim baseline.
+        """
+        manufacturer.process_uninsured_claim(3_000_000)
+        manufacturer.step(letter_of_credit_rate=0.015, apply_stochastic=False)
+        delta = float(manufacturer.equity) - float(cfg.initial_assets)
+        net_cost = self._baseline_op_income(cfg) - delta
+        lae_ratio = float(getattr(cfg, "lae_ratio", 0.12))
+        assert net_cost == pytest.approx(3_000_000 * (1 + lae_ratio), rel=0.02)
+
+    def test_insured_claim_costs_only_deductible_plus_lae(
+        self, manufacturer: WidgetManufacturer, cfg: ManufacturerConfig
+    ):
+        """An insured $3M claim with $100K SIR and sufficient tower limit should
+        cost equity ~$112K ($100K SIR + 12% LAE on company portion) relative
+        to baseline.  This catches the recovery-double-counting bug — current
+        behavior shows the company GAINING ~$3.7M from a $3M claim because the
+        gross loss is never recognized while the recovery is credited as
+        revenue (see manufacturer_income.py:calculate_operating_income).
+        """
+        layers = [
+            EnhancedInsuranceLayer(attachment_point=100_000, limit=4_900_000, base_premium_rate=0.0)
+        ]
+        program = InsuranceProgram(layers=layers, deductible=100_000, name="test")
+        result = program.process_claim(3_000_000)
+        manufacturer.process_insurance_claim(
+            claim_amount=3_000_000,
+            deductible_amount=result.deductible_paid,
+            insurance_recovery=result.insurance_recovery,
+            record_period_loss=True,
+        )
+        manufacturer.step(letter_of_credit_rate=0.015, apply_stochastic=False)
+        delta = float(manufacturer.equity) - float(cfg.initial_assets)
+        net_cost = self._baseline_op_income(cfg) - delta
+        lae_ratio = float(getattr(cfg, "lae_ratio", 0.12))
+        # Absolute slack ($20K) absorbs LoC interest on collateral & Decimal rounding.
+        assert net_cost == pytest.approx(100_000 * (1 + lae_ratio), abs=20_000), (
+            f"Insured claim should cost ~${100_000 * (1 + lae_ratio):,.0f}, "
+            f"got ${net_cost:,.0f}.  A negative or very large positive value "
+            f"indicates phantom income from recovery being recognized without "
+            f"offsetting gross-loss expense."
+        )
+
+    def test_insured_pl_equals_uninsured_pl_plus_net_recovery(self, cfg: ManufacturerConfig):
+        """Equity delta(insured) - Equity delta(uninsured) should equal the
+        insurance recovery, grossed up for the LAE saved on the recovered
+        portion: $2.9M * (1 + 12%) = $3.248M.
+
+        Cross-checks the two single-case tests against each other — if both
+        are off by a consistent offset (e.g., uniform tax effect), this test
+        still constrains their difference.
+        """
+        # Uninsured baseline
+        mfr_u = WidgetManufacturer(cfg)
+        mfr_u.process_uninsured_claim(3_000_000)
+        mfr_u.step(letter_of_credit_rate=0.015, apply_stochastic=False)
+        delta_u = float(mfr_u.equity) - float(cfg.initial_assets)
+
+        # Insured with full coverage above $100K SIR
+        mfr_i = WidgetManufacturer(cfg)
+        layers = [
+            EnhancedInsuranceLayer(attachment_point=100_000, limit=4_900_000, base_premium_rate=0.0)
+        ]
+        program = InsuranceProgram(layers=layers, deductible=100_000, name="test")
+        result = program.process_claim(3_000_000)
+        mfr_i.process_insurance_claim(
+            claim_amount=3_000_000,
+            deductible_amount=result.deductible_paid,
+            insurance_recovery=result.insurance_recovery,
+            record_period_loss=True,
+        )
+        mfr_i.step(letter_of_credit_rate=0.015, apply_stochastic=False)
+        delta_i = float(mfr_i.equity) - float(cfg.initial_assets)
+
+        diff = delta_i - delta_u
+        lae_ratio = float(getattr(cfg, "lae_ratio", 0.12))
+        expected_benefit = (3_000_000 - 100_000) * (1 + lae_ratio)
+        assert diff == pytest.approx(expected_benefit, rel=0.05)
