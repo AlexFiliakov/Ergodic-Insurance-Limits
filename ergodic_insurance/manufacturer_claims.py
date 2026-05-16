@@ -411,6 +411,23 @@ class ClaimProcessingMixin:
 
         # Insurance payment creates a receivable
         if insurance_payment > ZERO:
+            # Recognize the gross loss attributable to the insured portion per
+            # ASC 410-30 (Issue #1564).  The deductible/SIR portion was already
+            # recognized as INSURANCE_LOSS against CLAIM_LIABILITIES above; this
+            # entry recognizes the remaining gross loss with INSURANCE_RECOVERY
+            # as the offsetting credit.  Without it, net P&L would only deduct
+            # the deductible while crediting the full recovery as revenue,
+            # producing phantom income equal to (recovery − deductible).
+            self.ledger.record_double_entry(
+                date=self.current_year,
+                debit_account=AccountName.INSURANCE_LOSS,
+                credit_account=AccountName.INSURANCE_RECOVERY,
+                amount=insurance_payment,
+                transaction_type=TransactionType.INSURANCE_CLAIM,
+                description="Gross loss recognition on insured portion (ASC 410-30)",
+                month=self.current_month,
+            )
+
             claim_id = f"CLAIM_{self.current_year}_{len(self.claim_liabilities)}"
             self.insurance_accounting.record_claim_recovery(
                 recovery_amount=insurance_payment, claim_id=claim_id, year=self.current_year
@@ -434,9 +451,13 @@ class ClaimProcessingMixin:
             self.period_insurance_recoveries += insurance_payment
             logger.info(f"Insurance covering ${insurance_payment:,.2f} - recorded as receivable")
 
-        # Optionally record the loss in the income statement
-        if record_period_loss and company_payment > ZERO:
-            self.record_insurance_loss(company_payment)
+        # Optionally record the loss in the income statement.
+        # Issue #1564: record the gross claim so period_insurance_losses
+        # mirrors the INSURANCE_LOSS ledger account.  Net P&L impact in
+        # calculate_operating_income becomes -gross + recovery = -deductible
+        # per ASC 410-30.
+        if record_period_loss and claim > ZERO:
+            self.record_insurance_loss(claim)
 
         logger.info(
             f"Total claim: ${claim_amount:,.2f} (Company: ${company_payment:,.2f}, Insurance: ${insurance_payment:,.2f})"

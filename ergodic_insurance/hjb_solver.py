@@ -367,6 +367,32 @@ class HJBProblem:
     diffusion: Optional[Callable[[np.ndarray, np.ndarray, float], np.ndarray]] = None
     """Optional callback returning σ²(x,u,t) with same shape as dynamics output.
     When provided, the solver includes the ½σ²·∇²V diffusion term."""
+    jump_term: Optional[
+        Callable[[np.ndarray, np.ndarray, float, np.ndarray, List[np.ndarray]], np.ndarray]
+    ] = None
+    """Optional PIDE jump term.
+
+    Signature: ``jump_term(state, control, t, value_function, state_grids)``
+    returning a scalar contribution per evaluation point (shape ``state.shape[:-1]``).
+
+    Mathematically this is::
+
+        lambda(x, u) * E_X[ V(x - L(X, u)) - V(x) ]
+
+    evaluated at each (state, control) point. The solver passes the current
+    value function array (shape ``state_space.shape``) and the list of state
+    grids so the callback can interpolate V at post-jump states without
+    needing closure access to solver-internal state. Used to model
+    compound-Poisson losses exactly under multiplicative wealth dynamics,
+    bypassing the diffusion approximation's underestimate of jump penalties
+    when L/w is non-trivial.
+
+    Treated explicitly (IMEX) in the implicit/Crank-Nicolson time-stepping
+    paths: the jump term is evaluated at the previous V_old and added to
+    the RHS, so the local advection-diffusion operator stays tridiagonal.
+    Stability requires lambda*dt < 1, which is easily satisfied for typical
+    insurance frequencies and time steps.
+    """
 
     def __post_init__(self):
         """Validate problem specification."""
@@ -972,6 +998,41 @@ class HJBSolver:
             new_v = new_v + dt * advection
         return new_v
 
+    def _evaluate_jump_term(
+        self,
+        state_points: np.ndarray,
+        control_array: np.ndarray,
+        value: np.ndarray,
+    ) -> np.ndarray:
+        """Evaluate the user-supplied PIDE jump term and reduce to a scalar field.
+
+        Wraps the callback so the same shape-coercion logic lives in one place
+        for both ``_policy_evaluation`` (state-grid-shaped output) and
+        ``_policy_improvement`` (flat-per-(combo,state) output).
+
+        Args:
+            state_points: State coordinates of shape (n, ndim).
+            control_array: Controls of shape (n, n_controls).
+            value: Current value function on the state grid, shape state_space.shape.
+
+        Returns:
+            Flat array of shape (n,) giving the scalar jump contribution per point.
+        """
+        assert self.problem.jump_term is not None
+        raw = self.problem.jump_term(
+            state_points,
+            control_array,
+            0.0,
+            value,
+            self.problem.state_space.grids,
+        )
+        arr = np.asarray(raw)
+        # Tolerate (n, 1) trailing axis even though the documented contract is
+        # scalar-per-point — squeezes a common user mistake without surprises.
+        if arr.ndim > 1 and arr.shape[-1] == 1:
+            arr = arr[..., 0]
+        return arr.ravel()
+
     def _apply_diffusion_term(
         self,
         value: np.ndarray,
@@ -1120,6 +1181,14 @@ class HJBSolver:
             if self.problem.diffusion is not None:
                 sigma_sq_raw = self.problem.diffusion(state_points, control_array, 0.0)
                 sigma_sq = sigma_sq_raw.reshape(self.problem.state_space.shape + (-1,))
+
+            # PIDE jump term (IMEX): evaluate at V_old and fold into the running
+            # cost.  Adding to `cost` is exactly the explicit RHS treatment used
+            # by both the implicit theta-step and the explicit Euler step --
+            # neither scheme needs to factorize a non-local jump operator.
+            if self.problem.jump_term is not None:
+                jump_vals = self._evaluate_jump_term(state_points, control_array, old_v)
+                cost = cost + jump_vals.reshape(cost.shape)
 
             # CFL stability check for explicit scheme (#452)
             if scheme == TimeSteppingScheme.EXPLICIT and _ == 0:
@@ -1396,6 +1465,15 @@ class HJBSolver:
                 )
                 hamiltonian_2d += diff_term.reshape(n_chunk, n_states)
 
+            # Add PIDE jump term -- evaluated at the current V; depends on
+            # control because the post-jump wealth uses the user's retained-loss
+            # function (a function of SIR or other controls).
+            if self.problem.jump_term is not None and self.value_function is not None:
+                jump_vals = self._evaluate_jump_term(
+                    states_tiled, controls_tiled, self.value_function
+                )
+                hamiltonian_2d += jump_vals.reshape(n_chunk, n_states)
+
             # Find best combo per state within this chunk
             chunk_best_idx = np.argmax(hamiltonian_2d, axis=0)  # (n_states,)
             chunk_best_vals = hamiltonian_2d[chunk_best_idx, np.arange(n_states)]
@@ -1450,6 +1528,12 @@ class HJBSolver:
                 sigma_sq = np.asarray(sigma_sq).reshape(n_states, -1)
                 n_diff = min(sigma_sq.shape[1], d2V_flat.shape[1], n_dims)
                 hamiltonian += 0.5 * np.sum(sigma_sq[:, :n_diff] * d2V_flat[:, :n_diff], axis=1)
+
+            if self.problem.jump_term is not None and self.value_function is not None:
+                jump_vals = self._evaluate_jump_term(
+                    state_points, control_broadcast, self.value_function
+                )
+                hamiltonian = hamiltonian + jump_vals
 
             improved = hamiltonian > best_values
             best_values[improved] = hamiltonian[improved]
@@ -1702,8 +1786,17 @@ class HJBSolver:
             diffusion_term = self._apply_diffusion_term(self.value_function, sigma_sq_reshaped)
             diffusion_flat = diffusion_term.ravel()
 
+        # Include PIDE jump term in residual if present
+        jump_flat = np.zeros_like(v_flat)
+        if self.problem.jump_term is not None:
+            jump_flat = self._evaluate_jump_term(state_points, control_array, self.value_function)
+
         residual = np.abs(
-            -self.problem.discount_rate * v_flat + cost_flat + advection_flat + diffusion_flat
+            -self.problem.discount_rate * v_flat
+            + cost_flat
+            + advection_flat
+            + diffusion_flat
+            + jump_flat
         )
 
         # Check for NaN/Inf (#453)
