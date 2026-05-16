@@ -1480,3 +1480,123 @@ class TestRuinPenaltyDirichlet:
         # w_min=1.0, ruin_penalty=10.0
         expected_v0 = np.log(1.0) / 0.03 + 0.10 / 0.03**2 - 10.0 / 0.03
         assert v[0] == pytest.approx(expected_v0, rel=1e-9, abs=1e-9)
+
+
+class TestInteriorOptimumRegression:
+    """Regression test guarding against the boundary-pinning bug from notebook 07.
+
+    The notebook-07 HJB solve was returning policies that oscillated between the
+    extreme corner SIRs ($10K and $4M) at every wealth, even though an interior
+    optimum was financially plausible (issue #1572). The root causes were a mix
+    of (a) unconverged solver, (b) piecewise-affine Hamiltonian from coarse atom
+    discretization, and (c) thin premium loading that flattened the cost-of-
+    coverage curve. The fix shipped in issue #1572 R1-R6 addresses each
+    component; this test guards against regressions in the most generic of
+    those components -- the Hamiltonian-assembly + policy-improvement loop.
+
+    Test problem: classical Merton portfolio. A risk-averse agent with log
+    utility allocates fraction u of wealth to a risky asset and 1-u to a
+    risk-free asset. The closed-form optimal stationary allocation is
+    u* = (mu - r) / sigma^2 (Merton, 1969). For mu=0.08, r=0.03, sigma=0.30,
+    u* = 0.556 -- comfortably interior in [0, 1].
+
+    If this test fails by returning u ~= 0 or u ~= 1, the solver is boundary-
+    pinning and the notebook-07 bug has regressed in the underlying solver
+    machinery, not in the notebook's HJB problem specification.
+    """
+
+    @staticmethod
+    def _merton_problem(mu=0.08, r=0.03, sigma=0.30, rho=0.05, n_w=200, n_u=50):
+        """Build a Merton portfolio HJB problem.
+
+        Parameters chosen so the closed-form Merton fraction
+        u* = (mu - r) / sigma^2 = 0.556 is interior in [0, 1].
+        """
+        state_var = StateVariable(
+            name="wealth",
+            min_value=1.0,
+            max_value=1000.0,
+            num_points=n_w,
+            log_scale=True,
+            boundary_lower=BoundaryCondition.ABSORBING,
+            boundary_upper=BoundaryCondition.ABSORBING,
+        )
+        control_var = ControlVariable(
+            name="u",
+            min_value=0.0,
+            max_value=1.0,
+            num_points=n_u,
+            log_scale=False,
+        )
+        state_space = StateSpace([state_var])
+
+        def dynamics(state, control, t):
+            w = state[..., 0]
+            u = control[..., 0]
+            return (w * (r + u * (mu - r)))[..., np.newaxis]
+
+        def diffusion(state, control, t):
+            w = state[..., 0]
+            u = control[..., 0]
+            return ((w * u * sigma) ** 2)[..., np.newaxis]
+
+        def running_cost(state, control, t):
+            return np.log(state[..., 0])
+
+        return HJBProblem(
+            state_space=state_space,
+            control_variables=[control_var],
+            utility_function=LogUtility(),
+            dynamics=dynamics,
+            running_cost=running_cost,
+            diffusion=diffusion,
+            discount_rate=rho,
+        )
+
+    def test_merton_interior_optimum(self):
+        """The HJB solver returns the closed-form Merton fraction at midrange wealth.
+
+        Regression test for the notebook-07 boundary-pinning bug (issue #1572).
+        If the solver pins to u=0 or u=1, the policy improvement, Hamiltonian
+        assembly, or value-function relaxation has regressed.
+        """
+        mu, r, sigma, rho = 0.08, 0.03, 0.30, 0.05
+        expected_u_star = (mu - r) / sigma**2  # = 0.5556 -- interior in [0, 1]
+
+        problem = self._merton_problem(mu=mu, r=r, sigma=sigma, rho=rho)
+        config = HJBSolverConfig(
+            time_step=0.01,
+            max_iterations=200,
+            inner_max_iterations=2000,
+            tolerance=1e-5,
+            scheme=TimeSteppingScheme.IMPLICIT,
+            verbose=False,
+        )
+        solver = HJBSolver(problem, config)
+        solver.solve()
+
+        # Sample u at three midrange wealth points (avoiding boundary cells)
+        assert solver.optimal_policy is not None
+        n_w = problem.state_space.grids[0].size
+        sample_idxs = [n_w // 4, n_w // 2, 3 * n_w // 4]
+        sampled_u = [float(solver.optimal_policy["u"][i]) for i in sample_idxs]
+
+        # Primary check: u* matches Merton closed form at midrange wealth
+        for i, u_solved in zip(sample_idxs, sampled_u):
+            assert abs(u_solved - expected_u_star) < 0.10 * expected_u_star, (
+                f"HJB picked u={u_solved:.4f} at wealth idx {i}, expected "
+                f"u*={expected_u_star:.4f} (Merton 1969). "
+                f"Likely boundary-pinning regression -- see issue #1572 / notebook 07."
+            )
+
+        # Hard boundary-pinning check: none of the sampled u should be at the
+        # control-grid corners. This is the smoking gun for the notebook-07
+        # bug class: even if the closed-form check above passes by luck, u
+        # values at 0.0 or 1.0 indicate the solver is making a corner choice
+        # rather than an interior optimization.
+        for i, u_solved in zip(sample_idxs, sampled_u):
+            assert 0.05 < u_solved < 0.95, (
+                f"u={u_solved:.4f} at wealth idx {i} is pinned to a corner of "
+                f"[0, 1]; expected interior Merton optimum u*={expected_u_star:.4f}. "
+                f"See issue #1572 / notebook 07 boundary-pinning bug."
+            )
