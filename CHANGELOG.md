@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 <!-- next-version -->
 
+## [0.15.0] - 2026-05-16
+
+### Added
+- HJB enhancements and optimization #7 notebook parallelization ([`2e9dd73`](https://github.com/AlexFiliakov/Ergodic-Insurance-Limits/commit/2e9dd73a4cbddaf33bc85900dede6d68578ded70))
+- HJB enhancements ([`c443c4f`](https://github.com/AlexFiliakov/Ergodic-Insurance-Limits/commit/c443c4f468d4d3e5bcc839500eff379675518ffb))
+
+[0.15.0]: https://github.com/AlexFiliakov/Ergodic-Insurance-Limits/compare/v0.14.0...v0.15.0
+
 ## [0.14.0] - 2026-05-16
 
 ### Added
