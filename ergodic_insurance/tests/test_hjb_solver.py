@@ -529,6 +529,319 @@ class TestModuleConstants:
         assert _GAMMA_TOLERANCE == 1e-10
 
 
+class TestInitialValueFunction:
+    """Test ``HJBProblem.initial_value_function`` warm-start (Issue #1570).
+
+    The warm-start lets callers seed the solver's value function with a
+    user-supplied callback instead of zeros (infinite horizon) or the
+    terminal value (finite horizon). The tests cover:
+
+      - Override of the default zero initialization (infinite horizon).
+      - Override of the terminal value with logged warning (finite horizon).
+      - Capture by the Dirichlet boundary machinery so the warm-start
+        values at the lower/upper boundaries are preserved through the solve.
+      - Correct stacked-grid shape passed to the callback.
+    """
+
+    @staticmethod
+    def _make_degenerate_problem(
+        initial_value_function, time_horizon=None, terminal_value=None, boundary_lower=None
+    ):
+        """Build a 1D problem whose dynamics, cost, and discount are all zero.
+
+        For zero dynamics + zero cost + zero discount, the HJB fixed point IS
+        the initial value (V_t+1 = V_t identically), so after a couple of
+        iterations the warm-start should be preserved exactly.
+        """
+        if boundary_lower is None:
+            sv = StateVariable(name="wealth", min_value=1.0, max_value=10.0, num_points=7)
+        else:
+            sv = StateVariable(
+                name="wealth",
+                min_value=1.0,
+                max_value=10.0,
+                num_points=7,
+                boundary_lower=boundary_lower,
+            )
+        state_space = StateSpace([sv])
+        control_variables = [ControlVariable("u", 0.0, 1.0, 3)]
+
+        return HJBProblem(
+            state_space=state_space,
+            control_variables=control_variables,
+            utility_function=ExpectedWealth(),
+            dynamics=lambda x, u, t: np.zeros_like(x),
+            running_cost=lambda x, u, t: np.zeros(x.shape[:-1]),
+            discount_rate=0.0,
+            initial_value_function=initial_value_function,
+            time_horizon=time_horizon,
+            terminal_value=terminal_value,
+        )
+
+    def test_initial_value_function_overrides_zero_init(self):
+        """Infinite-horizon: warm-start replaces the default zero initialization."""
+
+        def warm(x):
+            return np.full(x.shape[:-1], 7.5)
+
+        problem = self._make_degenerate_problem(initial_value_function=warm)
+        config = HJBSolverConfig(time_step=0.01, max_iterations=2, tolerance=1.0, verbose=False)
+        solver = HJBSolver(problem, config)
+        v, _ = solver.solve()
+        # With zero dynamics/cost/discount, the warm-start is the fixed point
+        # and the solver should report it exactly.
+        np.testing.assert_allclose(v, 7.5, atol=1e-9)
+
+    def test_initial_value_function_overrides_terminal_value(self, caplog):
+        """Finite-horizon: warm-start beats terminal_value with a logged warning."""
+        import logging
+
+        def warm(x):
+            return np.full(x.shape[:-1], 3.25)
+
+        def terminal(x):
+            return np.full(x.shape[:-1], 99.0)
+
+        problem = self._make_degenerate_problem(
+            initial_value_function=warm,
+            time_horizon=1.0,
+            terminal_value=terminal,
+        )
+        config = HJBSolverConfig(time_step=0.01, max_iterations=2, tolerance=1.0, verbose=False)
+        solver = HJBSolver(problem, config)
+        with caplog.at_level(logging.WARNING, logger="ergodic_insurance.hjb_solver"):
+            v, _ = solver.solve()
+        # Warning was emitted with the expected fragment
+        assert any(
+            "initial_value_function provided for a finite-horizon problem" in record.message
+            for record in caplog.records
+        ), f"Expected warning not found in caplog records: {[r.message for r in caplog.records]}"
+        # Warm-start value (3.25) wins over terminal value (99.0)
+        np.testing.assert_allclose(v, 3.25, atol=1e-9)
+
+    def test_initial_value_function_captured_by_dirichlet(self):
+        """Dirichlet boundary captures the warm-start value at index 0."""
+
+        # Distinctive value at index 0 (lowest wealth point), zero elsewhere.
+        def warm(x):
+            # x has shape (n, 1) for 1D state space (after stacking)
+            wealth = x[..., 0]
+            wealth_min = 1.0  # matches StateVariable min_value
+            out = np.zeros(wealth.shape)
+            out[wealth == wealth_min] = 42.0
+            return out
+
+        problem = self._make_degenerate_problem(
+            initial_value_function=warm,
+            boundary_lower=BoundaryCondition.DIRICHLET,
+        )
+        config = HJBSolverConfig(time_step=0.01, max_iterations=2, tolerance=1.0, verbose=False)
+        solver = HJBSolver(problem, config)
+        v, _ = solver.solve()
+        # Boundary value captured from warm-start
+        assert solver._boundary_values is not None
+        assert 0 in solver._boundary_values
+        assert solver._boundary_values[0]["lower"] == pytest.approx(42.0)
+        # And the Dirichlet enforcement preserves V[0] = 42.0 through the solve.
+        assert v[0] == pytest.approx(42.0)
+
+    def test_initial_value_function_state_grid_shape(self):
+        """2D problem: callback receives a stacked grid of correct shape."""
+        n1, n2 = 5, 4
+        sv1 = StateVariable("x", 0.0, 1.0, n1)
+        sv2 = StateVariable("y", 0.0, 1.0, n2)
+        state_space = StateSpace([sv1, sv2])
+        control_variables = [ControlVariable("u", 0.0, 1.0, 2)]
+
+        captured = {}
+
+        def warm(x):
+            captured["input_shape"] = x.shape
+            out = np.zeros(x.shape[:-1])
+            captured["output_shape"] = out.shape
+            return out
+
+        problem = HJBProblem(
+            state_space=state_space,
+            control_variables=control_variables,
+            utility_function=ExpectedWealth(),
+            dynamics=lambda x, u, t: np.zeros_like(x),
+            running_cost=lambda x, u, t: np.zeros(x.shape[:-1]),
+            discount_rate=0.0,
+            initial_value_function=warm,
+        )
+        config = HJBSolverConfig(time_step=0.01, max_iterations=1, tolerance=1.0, verbose=False)
+        solver = HJBSolver(problem, config)
+        solver.solve()
+
+        assert captured["input_shape"] == (n1, n2, 2)
+        assert captured["output_shape"] == (n1, n2)
+        # And the resulting value_function has the right shape
+        assert solver.value_function is not None
+        assert solver.value_function.shape == (n1, n2)
+
+
+class TestBoundaryAwareResidual:
+    """Test ``compute_convergence_metrics`` boundary/interior split (Issue #1569).
+
+    ``compute_convergence_metrics`` builds the HJB residual via finite-
+    difference stencils that zero-pad at boundary cells.  At those cells the
+    derivative-balancing terms vanish, so the residual reduces to
+    ``|-rho V + cost + jump|`` with no derivative term to cancel against.
+    The boundary value is set by a separate mechanism (ABSORBING linear
+    extrapolation or DIRICHLET) with no obligation to satisfy the local PDE
+    balance, so including those cells in the convergence max conflates
+    boundary-imposition noise with interior under-convergence.
+
+    The fix exposes ``max_residual_interior`` / ``max_residual_boundary`` as
+    separate keys; ``max_residual`` is retained for backward compatibility.
+    """
+
+    @staticmethod
+    def _make_linear_solution_problem(boundary_lower=BoundaryCondition.ABSORBING):
+        """Manufactured-solution problem with V(x) = x as the exact solution.
+
+        For V(x) = x:
+          - V_x = 1 everywhere (upwind forward diff is exact for linear V).
+          - V_xx = 0 (central second-derivative stencil is exact).
+        Choosing dynamics=drift_const, diffusion=0, and
+        cost(x) = rho*x - drift_const balances the PDE rho*V = drift*V_x + cost
+        exactly at every interior cell.
+
+        Critical detail: drift > 0 means the upwind scheme uses the FORWARD
+        difference at every interior point, so the test's perturbation of
+        ``V[0]`` doesn't leak into interior advection (which would only
+        happen if drift < 0 selected the backward difference).  Diffusion is
+        off, so the central second-derivative stencil (which DOES use V[0]
+        at i=1) is multiplied by sigma^2 = 0 and contributes nothing.
+        """
+        rho = 0.05
+        drift_const = 0.1
+        state_space = StateSpace(
+            [
+                StateVariable(
+                    "x",
+                    min_value=1.0,
+                    max_value=10.0,
+                    num_points=11,
+                    boundary_lower=boundary_lower,
+                )
+            ]
+        )
+        controls = [ControlVariable("u", 0.0, 1.0, 2)]
+
+        def dynamics(s, c, t):
+            return np.full_like(s[..., 0:1], drift_const)
+
+        def running_cost(s, c, t):
+            x = s[..., 0]
+            return rho * x - drift_const
+
+        problem = HJBProblem(
+            state_space=state_space,
+            control_variables=controls,
+            utility_function=ExpectedWealth(),
+            dynamics=dynamics,
+            running_cost=running_cost,
+            discount_rate=rho,
+        )
+        return problem, state_space.grids[0]
+
+    def test_residual_split_keys_present(self):
+        """All new metric keys are present alongside legacy ones."""
+        problem, grid = self._make_linear_solution_problem()
+        config = HJBSolverConfig(verbose=False)
+        solver = HJBSolver(problem, config)
+        solver.value_function = grid.copy()
+        solver.optimal_policy = {"u": np.full(grid.shape, 0.5)}
+
+        metrics = solver.compute_convergence_metrics()
+
+        for key in (
+            "max_residual",  # legacy
+            "mean_residual",  # legacy
+            "max_residual_all_cells",
+            "max_residual_interior",
+            "mean_residual_interior",
+            "max_residual_boundary",
+            "mean_residual_boundary",
+            "argmax_residual_index",
+            "argmax_residual_is_boundary",
+        ):
+            assert key in metrics, f"missing key {key} in metrics: {sorted(metrics)}"
+
+    def test_residual_split_excludes_boundary(self):
+        """Setting V[0] to a wildly wrong value spikes the boundary residual
+        but leaves the interior residual at machine precision."""
+        problem, grid = self._make_linear_solution_problem()
+        config = HJBSolverConfig(verbose=False)
+        solver = HJBSolver(problem, config)
+        # Seed V to the exact closed-form solution V(x) = x.
+        solver.value_function = grid.copy()
+        solver.optimal_policy = {"u": np.full(grid.shape, 0.5)}
+        # Deliberately corrupt the lower boundary.  Drift > 0 means upwind
+        # uses forward diff (which doesn't touch V[0] at interior cells);
+        # diffusion is off, so the central second-derivative stencil's
+        # contribution from V[0] at i=1 is multiplied by sigma^2 = 0.
+        solver.value_function[0] = 1e10
+
+        metrics = solver.compute_convergence_metrics()
+
+        # Interior residual is unaffected by the boundary corruption.
+        assert metrics["max_residual_interior"] < 1e-9, (
+            f"Expected interior residual ≈ 0, got " f"{metrics['max_residual_interior']:.4e}"
+        )
+        # Boundary residual reflects the wildly wrong V[0]: dominated by
+        # |-rho * 1e10| ~ 5e8 plus the contaminated forward-diff term.
+        assert metrics["max_residual_boundary"] > 1e8
+        # Argmax classification correctly flags the boundary spike.
+        assert metrics["argmax_residual_is_boundary"] is True
+        assert metrics["argmax_residual_index"] == (0,)
+        # Legacy max_residual is contaminated by the boundary spike.
+        assert metrics["max_residual"] == metrics["max_residual_all_cells"]
+        assert metrics["max_residual"] >= metrics["max_residual_boundary"]
+
+    def test_residual_closed_form_known_solution(self):
+        """V(x) = x is the exact closed-form solution; interior residual
+        is at machine precision regardless of boundary-condition choice.
+
+        Acceptance criterion from #1569: ``max_residual_interior < 1e-3``
+        for a problem with a known closed-form interior solution, regardless
+        of boundary condition.  We tighten that to 1e-9 since the stencils
+        are exact for linear V.
+        """
+        for bc in (BoundaryCondition.ABSORBING, BoundaryCondition.DIRICHLET):
+            problem, grid = self._make_linear_solution_problem(boundary_lower=bc)
+            config = HJBSolverConfig(verbose=False)
+            solver = HJBSolver(problem, config)
+            solver.value_function = grid.copy()
+            solver.optimal_policy = {"u": np.full(grid.shape, 0.5)}
+
+            metrics = solver.compute_convergence_metrics()
+            assert metrics["max_residual_interior"] < 1e-9, (
+                f"BC={bc}: expected exact interior residual, got "
+                f"{metrics['max_residual_interior']:.4e}"
+            )
+
+    def test_residual_argmax_interior_classification(self):
+        """Argmax in the interior is reported as is_boundary=False."""
+        problem, grid = self._make_linear_solution_problem()
+        config = HJBSolverConfig(verbose=False)
+        solver = HJBSolver(problem, config)
+        # Perturb a single interior cell, leave boundaries at the exact
+        # closed-form values.
+        solver.value_function = grid.copy()
+        solver.optimal_policy = {"u": np.full(grid.shape, 0.5)}
+        solver.value_function[5] = 1e6  # interior cell
+
+        metrics = solver.compute_convergence_metrics()
+        assert metrics["argmax_residual_is_boundary"] is False
+        # Argmax could be at index 5 or a neighboring cell whose stencil
+        # references V[5]; verify it's somewhere in the interior.
+        argmax_idx = metrics["argmax_residual_index"]
+        assert argmax_idx[0] not in (0, len(grid) - 1)
+
+
 class TestJumpTerm:
     """Test PIDE jump-term support added in Issue #1565.
 
