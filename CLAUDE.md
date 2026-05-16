@@ -6,7 +6,7 @@ The model is intended to be used with public financial data to model a real busi
 1. Build a complete simulation framework for ergodic insurance optimization
 2. Generate compelling evidence for blog posts demonstrating ergodic advantages
 3. Provide actuaries, CFOs, and risk managers with practical Python tools for insurance decision-making
-4. Validate that optimal insurance premiums can exceed expected losses by 200-500% while enhancing growth
+4. Characterize the regimes (loss distribution, premium loading, wealth, growth) in which insurance enhances long-run growth under the ergodic (time-average) frame. The threshold at which premium-above-expected-loss flips from value-creating to value-destroying is something the framework should derive empirically per scenario, not assume a priori.
 
 Primary Language: Python 3.12+
 Version Control: Never commit directly to `main` branch - use feature branches and make pull requests to `develop` branch
