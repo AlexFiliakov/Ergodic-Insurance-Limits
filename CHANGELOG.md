@@ -7,6 +7,51 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 <!-- next-version -->
 
+## [0.14.0] - 2026-05-16
+
+### Added
+- implement jump-aware HJB ([`e7a60fe`](https://github.com/AlexFiliakov/Ergodic-Insurance-Limits/commit/e7a60fe4d89b87acb1110322d4cf13a5ad68f5ac))
+
+### Changed
+- failing accounting tests around recoveries ([`e8b40a7`](https://github.com/AlexFiliakov/Ergodic-Insurance-Limits/commit/e8b40a768f6499955405094341146040a0196786))
+- HJB intermediate enhancement, but fundamental flaw in the setup ([`1e3059f`](https://github.com/AlexFiliakov/Ergodic-Insurance-Limits/commit/1e3059f72168aa7048182298901f0822b352a315))
+- HJB experiment enhance search grid ([`b1c3ab7`](https://github.com/AlexFiliakov/Ergodic-Insurance-Limits/commit/b1c3ab7a3fda8b244e4dd82f8f5a1285cdb2d42c))
+- HJB experiment #7 updates ([`4fae216`](https://github.com/AlexFiliakov/Ergodic-Insurance-Limits/commit/4fae216f32b8080fdf0d9f68d5437821661b5c28))
+- update HJB notebook to use EE terminology rather than EUT ([`1d0e2af`](https://github.com/AlexFiliakov/Ergodic-Insurance-Limits/commit/1d0e2af0e97cadb4ccd68a34684f495cef59fc99))
+- fixed rendering mermaid diagrams ([`de66371`](https://github.com/AlexFiliakov/Ergodic-Insurance-Limits/commit/de66371ebad8709ed78069be76b6a48f17dea990))
+- rec 15 infinite moments experiment ([`f8a49bb`](https://github.com/AlexFiliakov/Ergodic-Insurance-Limits/commit/f8a49bb97c546345ad4dbb3ebf7951fe31ed24a6))
+- rec 15 infinite moments sketch ([`d4ac805`](https://github.com/AlexFiliakov/Ergodic-Insurance-Limits/commit/d4ac805abfad3d394d6856a158598c0e2661535a))
+- opt 03 sensitivity add charts ([`f37441d`](https://github.com/AlexFiliakov/Ergodic-Insurance-Limits/commit/f37441dbd7da07a73656102105c2098d0b9b0c9c))
+- opt update pareto analyses ([`7b97f00`](https://github.com/AlexFiliakov/Ergodic-Insurance-Limits/commit/7b97f00e7a3458ec9c3cffe4bf3363f36c630a1c))
+- rec 11 shadow mean added extra plots ([`4d08d18`](https://github.com/AlexFiliakov/Ergodic-Insurance-Limits/commit/4d08d18a94efafe2f49b4d8f13e530332ccda964))
+- rec 14 expectile study result ([`2c1adee`](https://github.com/AlexFiliakov/Ergodic-Insurance-Limits/commit/2c1adee97fb88fdc1371223756c05af5962bcbc1))
+- rec 14 expectile ([`29b867c`](https://github.com/AlexFiliakov/Ergodic-Insurance-Limits/commit/29b867cb8da7cec142741375d98913cf3e019601))
+- rec 13 risk measure sensitivity experiment results ([`857e9b5`](https://github.com/AlexFiliakov/Ergodic-Insurance-Limits/commit/857e9b55a42430e10b03d3ad44391c053dcf5da2))
+- rec 13 risk measure sensitivity experiment ([`8f4ed2c`](https://github.com/AlexFiliakov/Ergodic-Insurance-Limits/commit/8f4ed2c4b6de5d0290829bfb2f9d1a2fd611b589))
+- opt 12 drags experiment results ([`ff9faed`](https://github.com/AlexFiliakov/Ergodic-Insurance-Limits/commit/ff9faedd1ed368602e117ae4ab310b828d253e57))
+- claude and two experiment sketches ([`12e0a1a`](https://github.com/AlexFiliakov/Ergodic-Insurance-Limits/commit/12e0a1a59e8667f302bb580a0704d90fea182902))
+- opt 11 market cycles experiment completed ([`1adec3b`](https://github.com/AlexFiliakov/Ergodic-Insurance-Limits/commit/1adec3b9d30f33a1abd94ff49367c0768d121bc0))
+- opt 11 market cycles continuing to calibrate experiment setup ([`b50290c`](https://github.com/AlexFiliakov/Ergodic-Insurance-Limits/commit/b50290c98e0dd856ccbead17f3e9edf38163bbc2))
+- opt 11 market cycle tweaking config ([`91feff8`](https://github.com/AlexFiliakov/Ergodic-Insurance-Limits/commit/91feff8ca20531a77dd4f0c893605427959878b9))
+- opt 11 market cycle tweaking experiment, still a bit rough ([`c807723`](https://github.com/AlexFiliakov/Ergodic-Insurance-Limits/commit/c807723bca1ce7c81b5eaf40ae61ccb60b3ccbfc))
+- opt 11 market cycle set up experiment ([`3af2ede`](https://github.com/AlexFiliakov/Ergodic-Insurance-Limits/commit/3af2ede2dee2bb1b755c34e564a2d915ab9d57da))
+- ran early optimization experiments, set up experiment opt 11, hid more .gitignore cache ([`9db6fef`](https://github.com/AlexFiliakov/Ergodic-Insurance-Limits/commit/9db6feff62645287defad9a0e76c8fc289d8e102))
+- recon 11 severity distribution nicer example ([`ee10042`](https://github.com/AlexFiliakov/Ergodic-Insurance-Limits/commit/ee10042d6cd3069e4063d417547aab9e42d24fcf))
+- recon 11 severity distribution example ([`4a98a14`](https://github.com/AlexFiliakov/Ergodic-Insurance-Limits/commit/4a98a140afb2de7b6327188f3384360b513b6207))
+- recon 11 severity distribution still needs validation ([`9ed70cb`](https://github.com/AlexFiliakov/Ergodic-Insurance-Limits/commit/9ed70cbc012ecbfc94c9bb1a4372d55ea0092cfe))
+- 10 hollow tower demand curve results ([`8cb9ced`](https://github.com/AlexFiliakov/Ergodic-Insurance-Limits/commit/8cb9ceddf611ef58a2c8f55bb132a92eb0b13d19))
+- 11 hollow tower demand curve results ([`1a9a2da`](https://github.com/AlexFiliakov/Ergodic-Insurance-Limits/commit/1a9a2dad50ead898b0ee32df93a71524a02fb14f))
+- recon 11 severity distribution study draft ([`740cccb`](https://github.com/AlexFiliakov/Ergodic-Insurance-Limits/commit/740cccb61dba8891db71f203c5185de558b59857))
+- recon 11 severity distribution notebook experiment frame ([`9264305`](https://github.com/AlexFiliakov/Ergodic-Insurance-Limits/commit/9264305a6e2554aba6a24ed5f05907b2b0037e30))
+- recon 11 severity distribution initial notebook ([`a4eb588`](https://github.com/AlexFiliakov/Ergodic-Insurance-Limits/commit/a4eb588a6d577306d5332dffd34d5ed46edaebe9))
+- fixing mypy issues ([`efb74f4`](https://github.com/AlexFiliakov/Ergodic-Insurance-Limits/commit/efb74f4d7b61ae561726b847c381a3d3cd903f96))
+- added valid cell IDs to notebooks as required by the new Jupyter format. ([`06745fe`](https://github.com/AlexFiliakov/Ergodic-Insurance-Limits/commit/06745fe4aa22c1ba4fa512759154f4268279e7d8))
+
+### Fixed
+- clarify insurance receivables and gross loss recognition per ASC 410-30 ([`05a4cb8`](https://github.com/AlexFiliakov/Ergodic-Insurance-Limits/commit/05a4cb88005b74a2f59d6854fd158922d3fb9a9f))
+
+[0.14.0]: https://github.com/AlexFiliakov/Ergodic-Insurance-Limits/compare/v0.13.10...v0.14.0
+
 ## [0.13.10] - 2026-02-21
 
 ### Changed
