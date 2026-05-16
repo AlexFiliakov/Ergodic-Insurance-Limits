@@ -393,6 +393,33 @@ class HJBProblem:
     Stability requires lambda*dt < 1, which is easily satisfied for typical
     insurance frequencies and time steps.
     """
+    initial_value_function: Optional[Callable[[np.ndarray], np.ndarray]] = None
+    """Optional initial guess for V on the state grid (warm-start).
+
+    When provided, ``HJBSolver.solve()`` uses this callback to initialize the
+    value function instead of zeros (infinite horizon) or the terminal value
+    (finite horizon).
+
+    **Precedence rule**: If both ``initial_value_function`` and
+    ``terminal_value`` are provided for a finite-horizon problem,
+    ``initial_value_function`` wins and ``terminal_value`` is ignored
+    (with a logged warning). Note that ``__post_init__`` auto-fills
+    ``terminal_value`` with a zero function for finite-horizon problems
+    when not explicitly set, so the warning will fire whenever
+    ``initial_value_function`` is set on a finite-horizon problem.
+
+    For infinite-horizon problems, ``initial_value_function`` replaces the
+    default zero initialization.
+
+    The callback receives a stacked grid of shape
+    ``(n_pts_dim1, ..., n_pts_dimD, D)`` and must return shape
+    ``(n_pts_dim1, ..., n_pts_dimD)``. The returned array is reshaped to
+    match ``state_space.shape`` before being assigned to ``value_function``.
+
+    Captured by the Dirichlet boundary machinery: warm-start values at
+    ``V[0]`` / ``V[-1]`` along Dirichlet-bounded dimensions are used as
+    the boundary values throughout the solve.
+    """
 
     def __post_init__(self):
         """Validate problem specification."""
@@ -898,7 +925,17 @@ class HJBSolver:
         logger.info("Starting HJB solution with policy iteration")
 
         # Initialize value function
-        if self.problem.time_horizon is not None:
+        if self.problem.initial_value_function is not None:
+            if self.problem.time_horizon is not None and self.problem.terminal_value is not None:
+                logger.warning(
+                    "initial_value_function provided for a finite-horizon problem; "
+                    "ignoring terminal_value (which may have been auto-generated as "
+                    "zero by HJBProblem.__post_init__ if not explicitly set)."
+                )
+            state_points = np.stack(self.problem.state_space.meshgrid, axis=-1)
+            init_v = self.problem.initial_value_function(state_points)
+            self.value_function = init_v.reshape(self.problem.state_space.shape)
+        elif self.problem.time_horizon is not None:
             # Finite horizon: start from terminal condition
             state_points = np.stack(self.problem.state_space.flat_grids, axis=-1)
             if self.problem.terminal_value is not None:
@@ -1802,10 +1839,68 @@ class HJBSolver:
         # Check for NaN/Inf (#453)
         has_nan_inf = not np.all(np.isfinite(self.value_function))
 
+        # Build interior mask: True where all dimensions are strictly interior.
+        # The finite-difference operators (_apply_upwind_scheme,
+        # _compute_second_derivatives) zero-pad at boundaries, so the residual
+        # at boundary cells reduces to |-rho*V + cost + jump| with no derivative
+        # term to balance against. The boundary value is set by a separate
+        # mechanism (ABSORBING extrapolation or DIRICHLET) with no obligation
+        # to satisfy the local PDE balance — including those cells in the max
+        # residual conflates boundary-imposition noise with interior convergence.
+        # See issue #1569 for full motivation.
+        state_shape = self.problem.state_space.shape
+        interior_mask = np.ones(state_shape, dtype=bool)
+        for dim in range(self.problem.state_space.ndim):
+            slicer: List[Any] = [slice(None)] * self.problem.state_space.ndim
+            slicer[dim] = 0
+            interior_mask[tuple(slicer)] = False
+            slicer[dim] = -1
+            interior_mask[tuple(slicer)] = False
+        interior_flat = interior_mask.ravel()
+        boundary_flat = ~interior_flat
+
+        # Argmax location and boundary classification (for diagnostics).
+        argmax_flat = int(np.argmax(residual))
+        argmax_idx = np.unravel_index(argmax_flat, state_shape)
+        argmax_is_boundary = bool(boundary_flat[argmax_flat])
+
+        # Interior residual statistics (the convergence target).
+        if np.any(interior_flat):
+            max_residual_interior = float(np.max(residual[interior_flat]))
+            mean_residual_interior = float(np.mean(residual[interior_flat]))
+        else:
+            # Degenerate case: grid too small to have interior cells.
+            max_residual_interior = float("nan")
+            mean_residual_interior = float("nan")
+
+        # Boundary residual statistics (diagnostic only — not a convergence
+        # criterion; useful for spotting when imposed Dirichlet values are far
+        # from local PDE equilibrium).
+        if np.any(boundary_flat):
+            max_residual_boundary = float(np.max(residual[boundary_flat]))
+            mean_residual_boundary = float(np.mean(residual[boundary_flat]))
+        else:
+            max_residual_boundary = float("nan")
+            mean_residual_boundary = float("nan")
+
         return {
             "has_nan_inf": has_nan_inf,
+            # Legacy keys (over all cells, including boundary) — retained for
+            # backward compatibility; prefer the interior-only metrics for
+            # convergence assessment.
             "max_residual": float(np.max(residual)),
             "mean_residual": float(np.mean(residual)),
+            "max_residual_all_cells": float(np.max(residual)),
+            # Interior residual (convergence target).
+            "max_residual_interior": max_residual_interior,
+            "mean_residual_interior": mean_residual_interior,
+            # Boundary residual (diagnostic).
+            "max_residual_boundary": max_residual_boundary,
+            "mean_residual_boundary": mean_residual_boundary,
+            # Argmax diagnostics — distinguishes boundary-spike vs interior
+            # under-convergence; used by issue #1566 §0 diagnostic.
+            "argmax_residual_index": tuple(int(i) for i in argmax_idx),
+            "argmax_residual_is_boundary": argmax_is_boundary,
             "value_function_range": (
                 float(np.min(self.value_function)),
                 float(np.max(self.value_function)),
