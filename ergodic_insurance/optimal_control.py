@@ -469,8 +469,12 @@ class HJBFeedbackControl(ControlStrategy):
 
             if f"retention_{i}" in controls:
                 retentions.append(controls[f"retention_{i}"])
+            elif f"sir_{i}" in controls:
+                retentions.append(controls[f"sir_{i}"])
             elif "retention" in controls and i == 0:
                 retentions.append(controls["retention"])
+            elif "sir" in controls and i == 0:
+                retentions.append(controls["sir"])
             else:
                 retentions.append(
                     (self.control_space.retentions[i][0] + self.control_space.retentions[i][1]) / 2
