@@ -7,6 +7,31 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 <!-- next-version -->
 
+## [0.16.0] - 2026-05-25
+
+### Added
+- shift TARGET_LOSS_RATIO to 0.60 (Normal-Hard Market) ([`23507b6`](https://github.com/AlexFiliakov/Ergodic-Insurance-Limits/commit/23507b6777270963ad43c60b144237b07dd8d9ee))
+- hybrid Gauss-Hermite + stratified-Pareto jump-term quadrature ([`6932de1`](https://github.com/AlexFiliakov/Ergodic-Insurance-Limits/commit/6932de1d1c087f08b171fb572561585a022f55ab))
+
+### Changed
+- calibrating optimization no7 notebook ([`6a49fac`](https://github.com/AlexFiliakov/Ergodic-Insurance-Limits/commit/6a49facc4e2b1a5f8b4b98a0215ddcf10a3b9c56))
+- optimization no7 enhancements (incl. boundary conditions) and documentation ([`f038838`](https://github.com/AlexFiliakov/Ergodic-Insurance-Limits/commit/f038838cbe5e1ce86873c64dadc28bfba1ae11b5))
+- optimization no7 notebook config changes, but calibration still in progress ([`68f7ca3`](https://github.com/AlexFiliakov/Ergodic-Insurance-Limits/commit/68f7ca3c5804d3f712f167950b25d8ee8e4e92a2))
+- optimization no7 notebook fixes, but still in progress ([`c5b3e19`](https://github.com/AlexFiliakov/Ergodic-Insurance-Limits/commit/c5b3e194605500cf3cfc24c29a1b61d80d4e1ffc))
+- optimization no07 notebook pip install from `develop` branch instead of PyPI for now ([`bea0c19`](https://github.com/AlexFiliakov/Ergodic-Insurance-Limits/commit/bea0c1944306274a646a9a76197798a972cd946e))
+- fix optimization no7 notebook smooth jump and other patches ([`bc8da7b`](https://github.com/AlexFiliakov/Ergodic-Insurance-Limits/commit/bc8da7bd15b167f814aae394a90d040fadf6029e))
+- optimization no7 notebook, calibrating HJB solver in progress ([`44a2f9b`](https://github.com/AlexFiliakov/Ergodic-Insurance-Limits/commit/44a2f9ba1557c85ee0f0a282c275793af15b9711))
+- optimization no7 notebook enhanced HJB runtime calibration ([`f9e93bf`](https://github.com/AlexFiliakov/Ergodic-Insurance-Limits/commit/f9e93bf4af810c266ca72857fb4346d4d1eedf72))
+- optimized HJB solver in notebook optimization no7 ([`8e0e92d`](https://github.com/AlexFiliakov/Ergodic-Insurance-Limits/commit/8e0e92de5f39dc45ff8ae2e39d7b74ba2839aef8))
+- CLAUDE.md focusing ([`95c027a`](https://github.com/AlexFiliakov/Ergodic-Insurance-Limits/commit/95c027a4873a12f9fd9c74cec321df38237d9328))
+
+### Fixed
+- tighten convergence, document RUIN_PENALTY methodology, add Merton regression test ([`5698db1`](https://github.com/AlexFiliakov/Ergodic-Insurance-Limits/commit/5698db176be79a693ba5fed3df2d829f2eadb8b2))
+- drop double-counted loss drag from sensitivity worker drift ([`8650cf5`](https://github.com/AlexFiliakov/Ergodic-Insurance-Limits/commit/8650cf54a73f6960d0294a29e08691595e6d098a))
+- additional solver control keys ([`26b7ee4`](https://github.com/AlexFiliakov/Ergodic-Insurance-Limits/commit/26b7ee4a2765f3003e95599b0a0eb9314a0eafa7))
+
+[0.16.0]: https://github.com/AlexFiliakov/Ergodic-Insurance-Limits/compare/v0.15.0...v0.16.0
+
 ## [0.15.0] - 2026-05-16
 
 ### Added
