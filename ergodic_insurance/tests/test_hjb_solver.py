@@ -1600,3 +1600,269 @@ class TestInteriorOptimumRegression:
                 f"[0, 1]; expected interior Merton optimum u*={expected_u_star:.4f}. "
                 f"See issue #1572 / notebook 07 boundary-pinning bug."
             )
+
+
+class TestSolveFiniteHorizon:
+    """Tests for ``HJBSolver.solve_finite_horizon`` (backward time-march).
+
+    Unlike ``solve`` (Howard policy iteration -> stationary infinite-horizon
+    policy), ``solve_finite_horizon`` marches the value function backward from
+    ``t=T`` (the terminal condition) to ``t=0``, re-optimizing the control at
+    each step, and returns the ``(value_function, optimal_policy)`` at ``t=0``.
+    The number of backward steps is ``round(time_horizon / config.time_step)``.
+    """
+
+    @staticmethod
+    def _merton_finite_horizon_problem():
+        """Merton portfolio with terminal log-wealth (verified setup).
+
+        Log utility + zero discount + zero running cost + terminal
+        ``log(w)`` makes ``V(., 0) = max_u E[log W_T]``, whose myopic
+        optimal risky fraction is the closed-form Merton allocation
+        ``u* = (mu_r - r) / sigma^2``.
+        """
+        r, mu_r, sigma = 0.02, 0.10, 0.20
+        u_star = (mu_r - r) / sigma**2  # = 2.0
+
+        sv = StateVariable(
+            "wealth",
+            0.5,
+            50.0,
+            80,
+            log_scale=True,
+            boundary_lower=BoundaryCondition.NEUMANN,
+            boundary_upper=BoundaryCondition.NEUMANN,
+        )
+        ss = StateSpace([sv])
+        cv = [ControlVariable("u", 0.0, 3.0, 61)]
+
+        def dyn(x, u, t):
+            w = x[..., 0]
+            uu = u[..., 0]
+            return (w * (r + uu * (mu_r - r)))[..., None]
+
+        def diff(x, u, t):
+            w = x[..., 0]
+            uu = u[..., 0]
+            return ((w * uu * sigma) ** 2)[..., None]
+
+        def running(x, u, t):
+            return np.zeros(x.shape[0])
+
+        def terminal(x):
+            return np.log(np.maximum(x[..., 0], 1e-9))
+
+        prob = HJBProblem(
+            state_space=ss,
+            control_variables=cv,
+            utility_function=LogUtility(),
+            dynamics=dyn,
+            running_cost=running,
+            diffusion=diff,
+            terminal_value=terminal,
+            discount_rate=0.0,
+            time_horizon=2.0,
+        )
+        return prob, u_star
+
+    @staticmethod
+    def _degenerate_problem(
+        utility=None,
+        terminal_value=None,
+        time_horizon=0.04,
+        diffusion=None,
+    ):
+        """1D problem with zero dynamics, zero running cost, zero discount.
+
+        With no dynamics/cost/diffusion/discount and Neumann (zero-flux)
+        boundaries, the backward march should leave the value function
+        essentially equal to the terminal condition.
+        """
+        if utility is None:
+            utility = ExpectedWealth()
+        if terminal_value is None:
+
+            def terminal_value(x):
+                return np.full(x.shape[0], 5.0)
+
+        sv = StateVariable(
+            "wealth",
+            1.0,
+            10.0,
+            7,
+            boundary_lower=BoundaryCondition.NEUMANN,
+            boundary_upper=BoundaryCondition.NEUMANN,
+        )
+        ss = StateSpace([sv])
+        cv = [ControlVariable("u", 0.0, 1.0, 3)]
+        prob = HJBProblem(
+            state_space=ss,
+            control_variables=cv,
+            utility_function=utility,
+            dynamics=lambda x, u, t: np.zeros_like(x),
+            running_cost=lambda x, u, t: np.zeros(x.shape[0]),
+            diffusion=diffusion,
+            terminal_value=terminal_value,
+            discount_rate=0.0,
+            time_horizon=time_horizon,
+        )
+        return prob, ss
+
+    @staticmethod
+    def _simple_finite_horizon_problem(scheme):
+        """Simple 1D GBM-style problem with mild drift + diffusion.
+
+        Used to confirm the explicit and implicit branches of
+        ``_advance_value_one_step`` agree.
+        """
+        sv = StateVariable(
+            "wealth",
+            1.0,
+            20.0,
+            40,
+            log_scale=True,
+            boundary_lower=BoundaryCondition.NEUMANN,
+            boundary_upper=BoundaryCondition.NEUMANN,
+        )
+        ss = StateSpace([sv])
+        cv = [ControlVariable("u", 0.0, 1.0, 11)]
+
+        def dyn(x, u, t):
+            w = x[..., 0]
+            return (0.03 * w)[..., None]
+
+        def diff(x, u, t):
+            w = x[..., 0]
+            return ((0.10 * w) ** 2)[..., None]
+
+        def terminal(x):
+            return np.log(np.maximum(x[..., 0], 1e-9))
+
+        prob = HJBProblem(
+            state_space=ss,
+            control_variables=cv,
+            utility_function=LogUtility(),
+            dynamics=dyn,
+            running_cost=lambda x, u, t: np.zeros(x.shape[0]),
+            diffusion=diff,
+            terminal_value=terminal,
+            discount_rate=0.0,
+            time_horizon=1.0,
+        )
+        cfg = HJBSolverConfig(time_step=0.01, scheme=scheme, verbose=False)
+        return HJBSolver(prob, cfg), ss
+
+    def test_finite_horizon_requires_time_horizon(self):
+        """``solve_finite_horizon`` raises if the problem is infinite-horizon."""
+        sv = StateVariable("wealth", 1.0, 10.0, 7)
+        ss = StateSpace([sv])
+        cv = [ControlVariable("u", 0.0, 1.0, 3)]
+        prob = HJBProblem(
+            state_space=ss,
+            control_variables=cv,
+            utility_function=ExpectedWealth(),
+            dynamics=lambda x, u, t: np.zeros_like(x),
+            running_cost=lambda x, u, t: np.zeros(x.shape[0]),
+            time_horizon=None,
+        )
+        solver = HJBSolver(prob, HJBSolverConfig(time_step=0.02, verbose=False))
+        with pytest.raises(ValueError, match="requires a finite"):
+            solver.solve_finite_horizon()
+
+    def test_recovers_merton_optimum(self):
+        """Backward march recovers the closed-form Merton risky fraction.
+
+        For terminal log-wealth, zero discount and zero running cost,
+        ``V(., 0) = max_u E[log W_T]`` and the optimal allocation is the
+        myopic Merton fraction ``u* = (mu_r - r)/sigma^2 = 2.0``. We sample
+        the interior wealth region (grid values between 2 and 25); the
+        low-wealth tail and the top boundary pin to the control corner under
+        the Neumann conditions and are excluded.
+        """
+        prob, u_star = self._merton_finite_horizon_problem()
+        cfg = HJBSolverConfig(time_step=0.02, scheme=TimeSteppingScheme.IMPLICIT, verbose=False)
+        solver = HJBSolver(prob, cfg)
+        value_function, optimal_policy = solver.solve_finite_horizon()
+
+        grid = prob.state_space.grids[0]
+        interior = (grid >= 2.0) & (grid <= 25.0)
+        assert interior.sum() > 5  # sanity: a real interior region exists
+
+        # Median optimal control over the interior recovers u* = 2.0 to within
+        # the discretization tolerance (61-point control grid, spacing 0.05).
+        u_interior = optimal_policy["u"][interior]
+        median_u = float(np.median(u_interior))
+        assert (
+            abs(median_u - u_star) < 0.25
+        ), f"Median interior u={median_u:.4f}, expected Merton u*={u_star:.4f}."
+
+        # Value function is finite everywhere and monotone non-decreasing in
+        # wealth across the interior (more wealth -> at least as much E[log W_T]).
+        assert np.all(np.isfinite(value_function))
+        v_interior = value_function[interior]
+        assert np.all(
+            np.diff(v_interior) >= -1e-9
+        ), "V should be non-decreasing in wealth over the interior region."
+
+    def test_policy_history_populated(self):
+        """``store_policy_history`` controls whether per-step snapshots are kept."""
+        time_step = 0.02
+        time_horizon = 0.1
+        expected_steps = round(time_horizon / time_step)  # = 5
+
+        # With store_policy_history=True: one dict per backward step.
+        prob, _ = self._degenerate_problem(time_horizon=time_horizon)
+        solver = HJBSolver(prob, HJBSolverConfig(time_step=time_step, verbose=False))
+        solver.solve_finite_horizon(store_policy_history=True)
+        history = solver.policy_history
+        assert isinstance(history, list)
+        assert len(history) == expected_steps
+        # pylint can't narrow the Optional[List] attribute through the assert above.
+        for snapshot in history:  # pylint: disable=not-an-iterable
+            assert isinstance(snapshot, dict)
+            assert "u" in snapshot
+
+        # With the default (store_policy_history=False): no history retained.
+        prob2, _ = self._degenerate_problem(time_horizon=time_horizon)
+        solver2 = HJBSolver(prob2, HJBSolverConfig(time_step=time_step, verbose=False))
+        solver2.solve_finite_horizon()
+        assert solver2.policy_history is None
+
+    def test_terminal_condition_recovered_short_horizon(self):
+        """With zero dynamics/cost/diffusion, V(t=0) stays at the terminal value.
+
+        Over a couple of backward steps and no dynamics there is nothing to
+        propagate, so the value function should barely move from the terminal
+        condition.
+        """
+        terminal_const = 5.0
+        prob, _ = self._degenerate_problem(
+            utility=ExpectedWealth(),
+            terminal_value=lambda x: np.full(x.shape[0], terminal_const),
+            time_horizon=0.04,  # two steps at dt=0.02
+        )
+        solver = HJBSolver(prob, HJBSolverConfig(time_step=0.02, verbose=False))
+        value_function, _ = solver.solve_finite_horizon()
+
+        assert np.all(np.isfinite(value_function))
+        # Loose tolerance: with no dynamics V should remain at the terminal value.
+        np.testing.assert_allclose(value_function, terminal_const, atol=1e-2)
+
+    def test_explicit_and_implicit_agree(self):
+        """The explicit and implicit branches of the time-march agree.
+
+        Solving the same finite-horizon problem under EXPLICIT and IMPLICIT
+        time-stepping should yield value functions that match to a loose
+        tolerance over the interior, confirming the scheme branch in
+        ``_advance_value_one_step`` is consistent.
+        """
+        solver_e, ss_e = self._simple_finite_horizon_problem(TimeSteppingScheme.EXPLICIT)
+        solver_i, ss_i = self._simple_finite_horizon_problem(TimeSteppingScheme.IMPLICIT)
+        v_explicit, _ = solver_e.solve_finite_horizon()
+        v_implicit, _ = solver_i.solve_finite_horizon()
+
+        # Compare over the interior (avoid boundary cells touched by Neumann).
+        grid = ss_i.grids[0]
+        interior = (grid >= 2.0) & (grid <= 15.0)
+        assert interior.sum() > 5
+        np.testing.assert_allclose(v_explicit[interior], v_implicit[interior], rtol=0.05, atol=0.05)

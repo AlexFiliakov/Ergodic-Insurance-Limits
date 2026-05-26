@@ -473,6 +473,10 @@ class HJBSolver:
         self.value_function: np.ndarray | None = None
         self.optimal_policy: dict[str, np.ndarray] | None = None
 
+        # Optional per-step policy snapshots, populated by solve_finite_horizon
+        # when store_policy_history=True (oldest = nearest the terminal time).
+        self.policy_history: Optional[List[Dict[str, np.ndarray]]] = None
+
         # Boundary values for Dirichlet BCs (captured from initial/terminal condition)
         self._boundary_values: dict[int, dict[str, np.ndarray]] | None = None
 
@@ -916,14 +920,23 @@ class HJBSolver:
 
         return np.stack(components, axis=-1)
 
-    def solve(self) -> Tuple[np.ndarray, Dict[str, np.ndarray]]:
-        """Solve the HJB equation using policy iteration.
+    def _initialize_solution_state(self) -> None:
+        """Initialize the value function, Dirichlet boundary values, and policy.
 
-        Returns:
-            Tuple of (value_function, optimal_policy_dict)
+        Shared by ``solve`` (policy iteration / infinite horizon) and
+        ``solve_finite_horizon`` (backward time-march). Precedence for the
+        initial value function:
+
+        1. ``initial_value_function`` (warm-start) if provided — for a
+           finite-horizon problem this overrides ``terminal_value`` with a
+           logged warning.
+        2. ``terminal_value`` if the problem is finite-horizon.
+        3. Zeros (infinite horizon, no warm-start).
+
+        Dirichlet boundary values are captured from the initialized value
+        function and re-imposed every time step; the policy is seeded with
+        mid-range controls.
         """
-        logger.info("Starting HJB solution with policy iteration")
-
         # Initialize value function
         if self.problem.initial_value_function is not None:
             if self.problem.time_horizon is not None and self.problem.terminal_value is not None:
@@ -973,6 +986,19 @@ class HJBSolver:
                 self.problem.state_space.shape, (cv.min_value + cv.max_value) / 2
             )
 
+    def solve(self) -> Tuple[np.ndarray, Dict[str, np.ndarray]]:
+        """Solve the HJB equation using policy iteration.
+
+        Returns:
+            Tuple of (value_function, optimal_policy_dict)
+        """
+        logger.info("Starting HJB solution with policy iteration")
+
+        self._initialize_solution_state()
+        # _initialize_solution_state assigns both; narrow for the type checker
+        # (the assignment is no longer inline in this method after the refactor).
+        assert self.value_function is not None and self.optimal_policy is not None
+
         # Policy iteration
         for iteration in range(self.config.max_iterations):
             old_value = self.value_function.copy()
@@ -1007,6 +1033,118 @@ class HJBSolver:
         if iteration == self.config.max_iterations - 1:
             logger.warning("Max iterations reached without convergence")
 
+        return self.value_function, self.optimal_policy
+
+    def solve_finite_horizon(
+        self,
+        store_policy_history: bool = False,
+        progress_every: int = 0,
+    ) -> Tuple[np.ndarray, Dict[str, np.ndarray]]:
+        r"""Solve a finite-horizon HJB problem by backward time-marching.
+
+        Solves the time-dependent HJB
+
+        .. math::
+
+            \partial_t V + \max_u \big[ f(x,u) + \mu(x,u)\cdot\nabla V
+            + \tfrac12 \sigma^2(x,u)\,\nabla^2 V
+            + \lambda(x)\,\mathbb{E}_X[V(x - L) - V(x)] \big] = 0
+
+        on :math:`t \in [0, T]` with the terminal condition
+        :math:`V(\cdot, T) = \text{terminal\_value}`, marching **backward** from
+        :math:`t=T` to :math:`t=0`. At each backward step the control is
+        re-optimized (the Bellman max) given the current continuation value
+        :math:`V(\cdot, t+dt)`, then :math:`V` is advanced one step.
+
+        Unlike :meth:`solve` (Howard policy iteration, which converges to the
+        infinite-horizon *stationary* policy and collapses the time dimension),
+        this tracks time explicitly. The returned policy is the **t=0 decision**
+        (the argmax of the Hamiltonian against :math:`V(\cdot, 0)`), i.e. the
+        optimal control today with :math:`T` years remaining.
+
+        This is the right formulation when accumulation risk matters: a
+        heavily-retaining strategy cannot "grow out of" a sequence of losses
+        before the horizon, so the value function — and hence the policy —
+        internalizes multi-year (sequential) ruin rather than scoring each jump
+        independently against current wealth. Pairing a terminal condition
+        :math:`V(\cdot, T)=\log(w)` with zero discount and zero running cost
+        makes :math:`V(\cdot, 0) = \max_u \mathbb{E}[\log W_T]`, so the HJB and a
+        terminal-log-wealth Monte Carlo answer the *same* finite-horizon
+        question.
+
+        The number of backward steps is ``round(T / config.time_step)``;
+        ``config.time_step`` is then rescaled so the march lands exactly at
+        :math:`t=0`. For the explicit scheme a CFL-safe step is computed once up
+        front so the step count stays fixed.
+
+        Args:
+            store_policy_history: When True, store per-step policy snapshots on
+                ``self.policy_history`` (oldest first, i.e. nearest the terminal
+                time first). The list has one entry per backward step.
+            progress_every: If > 0 and ``config.verbose``, log progress every
+                this many steps.
+
+        Returns:
+            Tuple of ``(value_function, optimal_policy)`` at :math:`t=0`.
+
+        Raises:
+            ValueError: If ``problem.time_horizon`` is None (use :meth:`solve`
+                for infinite-horizon problems).
+        """
+        if self.problem.time_horizon is None:
+            raise ValueError(
+                "solve_finite_horizon requires a finite problem.time_horizon; "
+                "use solve() for infinite-horizon (stationary) problems."
+            )
+        logger.info("Starting HJB finite-horizon backward time-march")
+
+        horizon = float(self.problem.time_horizon)
+        scheme = self.config.scheme
+        n_steps = max(1, int(round(horizon / self.config.time_step)))
+        dt = horizon / n_steps
+
+        self._initialize_solution_state()
+        assert self.value_function is not None and self.optimal_policy is not None
+
+        # Explicit scheme: pre-compute a CFL-safe dt once (against the initial
+        # mid-range policy) so the step count is fixed and the march lands
+        # exactly at t=0 without mid-march dt changes. The trial step's value is
+        # discarded; only the (possibly reduced) dt is kept.
+        if scheme == TimeSteppingScheme.EXPLICIT:
+            self._invalidate_operator_cache()
+            _, dt_safe = self._advance_value_one_step(dt, scheme, step_index=0, run_cfl_check=True)
+            if dt_safe < dt:
+                n_steps = max(1, int(np.ceil(horizon / dt_safe)))
+                dt = horizon / n_steps
+
+        self.policy_history = [] if store_policy_history else None
+
+        for step in range(n_steps):
+            # Policy is re-optimized every step → cached operators are stale.
+            self._invalidate_operator_cache()
+            # Bellman max: optimal control given the continuation value V(·, t+dt).
+            self._policy_improvement()
+            if self.policy_history is not None:
+                self.policy_history.append({k: v.copy() for k, v in self.optimal_policy.items()})
+            # Advance V one step backward in time under the improved policy.
+            new_v, _ = self._advance_value_one_step(
+                dt, scheme, step_index=step, run_cfl_check=False
+            )
+            self.value_function = new_v
+
+            if progress_every > 0 and self.config.verbose and step % progress_every == 0:
+                t_now = horizon - (step + 1) * dt
+                logger.info(
+                    f"Finite-horizon march: step {step + 1}/{n_steps}, t={t_now:.3f}, "
+                    f"V range [{float(np.min(new_v)):.3e}, {float(np.max(new_v)):.3e}]"
+                )
+
+        # Final Bellman max so the returned policy is the argmax against
+        # V(·, 0) — the decision today, with the full horizon ahead.
+        self._invalidate_operator_cache()
+        self._policy_improvement()
+
+        logger.info(f"Finite-horizon march complete ({n_steps} steps, dt={dt:.4f})")
         return self.value_function, self.optimal_policy
 
     def _reshape_cost(self, cost):
@@ -1178,6 +1316,191 @@ class HJBSolver:
 
         return new_v
 
+    def _advance_value_one_step(
+        self,
+        dt: float,
+        scheme: TimeSteppingScheme,
+        step_index: int,
+        run_cfl_check: bool,
+    ) -> Tuple[np.ndarray, float]:
+        """Advance the value function by one time step under the current policy.
+
+        Evaluates dynamics, running cost, diffusion, and the PIDE jump term at
+        the *current* ``self.value_function`` and ``self.optimal_policy``, takes
+        one step of size ``dt`` using ``scheme``, and applies boundary
+        conditions. Does not mutate ``self.value_function`` — the caller assigns
+        the returned array.
+
+        Shared by the infinite-horizon policy-evaluation inner loop
+        (``_policy_evaluation``) and the finite-horizon backward time-march
+        (``solve_finite_horizon``). The caller is responsible for invalidating
+        the operator cache whenever the policy may have changed.
+
+        Args:
+            dt: Time step size.
+            scheme: Time-stepping scheme.
+            step_index: Index of the current step (drives Crank-Nicolson
+                Rannacher startup and divergence diagnostics).
+            run_cfl_check: When True (typically only on the first step),
+                performs the explicit-scheme CFL check and may reduce ``dt``.
+
+        Returns:
+            Tuple of ``(new_value_function, dt)`` where ``dt`` may have been
+            reduced by the CFL check (explicit scheme only).
+        """
+        assert self.value_function is not None and self.optimal_policy is not None
+        old_v = self.value_function  # not mutated below; caller owns the copy
+
+        # Get state and control grids
+        state_points = np.stack(self.problem.state_space.flat_grids, axis=-1)
+        control_array = np.stack(
+            [self.optimal_policy[cv.name].ravel() for cv in self.problem.control_variables],
+            axis=-1,
+        )
+
+        # Compute dynamics and running cost
+        drift = self.problem.dynamics(state_points, control_array, 0.0)
+        cost = self.problem.running_cost(state_points, control_array, 0.0)
+
+        # Reshape
+        drift = drift.reshape(self.problem.state_space.shape + (-1,))
+        cost = self._reshape_cost(cost)
+
+        # Compute diffusion coefficient if specified
+        sigma_sq = None
+        if self.problem.diffusion is not None:
+            sigma_sq_raw = self.problem.diffusion(state_points, control_array, 0.0)
+            sigma_sq = sigma_sq_raw.reshape(self.problem.state_space.shape + (-1,))
+
+        # PIDE jump term (IMEX): evaluate at V_old and fold into the running
+        # cost.  Adding to `cost` is exactly the explicit RHS treatment used
+        # by both the implicit theta-step and the explicit Euler step --
+        # neither scheme needs to factorize a non-local jump operator.
+        if self.problem.jump_term is not None:
+            jump_vals = self._evaluate_jump_term(state_points, control_array, old_v)
+            cost = cost + jump_vals.reshape(cost.shape)
+
+        # CFL stability check for explicit scheme (#452)
+        if scheme == TimeSteppingScheme.EXPLICIT and run_cfl_check:
+            adv_cfl, diff_cfl = self._compute_cfl_number(drift, sigma_sq, dt)
+            if adv_cfl > 1.0 or diff_cfl > 1.0:
+                # Compute safe dt
+                max_rate = 0.0
+                n_dims = min(drift.shape[-1], len(self.problem.state_space.state_variables))
+                for dim in range(n_dims):
+                    dx_arr = self.dx[dim]
+                    dx_min = float(np.min(dx_arr))
+                    dx_mean = float(np.mean(dx_arr))
+                    drift_max = float(np.max(np.abs(drift[..., dim])))
+                    if dx_min > 0:
+                        max_rate += drift_max / dx_min
+                    if sigma_sq is not None and dx_min > 0:
+                        max_rate += 0.5 * float(np.max(np.abs(sigma_sq[..., dim]))) / (dx_min**2)
+                max_rate += self.problem.discount_rate
+                if max_rate > 0:
+                    dt_safe = 0.9 / max_rate
+                    logger.warning(
+                        f"CFL condition violated (advection CFL={adv_cfl:.2f}, "
+                        f"diffusion CFL={diff_cfl:.2f}). "
+                        f"Auto-reducing dt from {dt:.4e} to {dt_safe:.4e}."
+                    )
+                    dt = dt_safe
+
+        # Time-stepping: branch on scheme (#451)
+        use_implicit = scheme in (
+            TimeSteppingScheme.IMPLICIT,
+            TimeSteppingScheme.CRANK_NICOLSON,
+        )
+        can_use_implicit = use_implicit and self.problem.state_space.ndim == 1
+
+        if use_implicit and not can_use_implicit and run_cfl_check:
+            logger.warning(
+                f"Implicit/CN schemes not yet supported for "
+                f"{self.problem.state_space.ndim}D problems; "
+                f"falling back to explicit."
+            )
+
+        if can_use_implicit:
+            # Implicit or Crank-Nicolson 1D step
+            drift_1d = drift[:, 0] if drift.ndim > 1 else drift
+            sigma_sq_1d = sigma_sq[:, 0] if sigma_sq is not None and sigma_sq.ndim > 1 else sigma_sq
+            cost_1d = cost.ravel()
+
+            if scheme == TimeSteppingScheme.CRANK_NICOLSON:
+                if step_index < self.config.rannacher_steps:
+                    # Rannacher startup: two implicit half-steps
+                    half_v = self._theta_step_1d(
+                        old_v.ravel(),
+                        cost_1d,
+                        drift_1d,
+                        sigma_sq_1d,
+                        dt / 2.0,
+                        theta=1.0,
+                    )
+                    half_v = self._apply_boundary_conditions(half_v.reshape(old_v.shape)).ravel()
+                    new_v = self._theta_step_1d(
+                        half_v,
+                        cost_1d,
+                        drift_1d,
+                        sigma_sq_1d,
+                        dt / 2.0,
+                        theta=1.0,
+                    )
+                else:
+                    # Crank-Nicolson step (theta=0.5)
+                    new_v = self._theta_step_1d(
+                        old_v.ravel(),
+                        cost_1d,
+                        drift_1d,
+                        sigma_sq_1d,
+                        dt,
+                        theta=0.5,
+                    )
+            else:
+                # Fully implicit step (theta=1)
+                new_v = self._theta_step_1d(
+                    old_v.ravel(),
+                    cost_1d,
+                    drift_1d,
+                    sigma_sq_1d,
+                    dt,
+                    theta=1.0,
+                )
+            new_v = new_v.reshape(old_v.shape)
+        else:
+            # Explicit scheme (or fallback for multi-D)
+            if self.problem.time_horizon is not None:
+                new_v = self._update_value_finite_horizon(old_v, cost, drift, dt, sigma_sq)
+            else:
+                advection = np.zeros_like(old_v)
+                for dim in range(drift.shape[-1]):
+                    if dim >= len(self.problem.state_space.state_variables):
+                        continue
+                    drift_component = drift[..., dim]
+                    advection += self._apply_upwind_scheme(old_v, drift_component, dim)
+
+                rhs = -self.problem.discount_rate * old_v + cost + advection
+                if sigma_sq is not None:
+                    rhs += self._apply_diffusion_term(old_v, sigma_sq)
+                new_v = old_v + dt * rhs
+
+        # Enforce boundary conditions after each time step
+        new_v = self._apply_boundary_conditions(new_v)
+
+        # Check for NaN/Inf after each step (#453)
+        if not np.all(np.isfinite(new_v)):
+            n_nan = int(np.sum(np.isnan(new_v)))
+            n_inf = int(np.sum(np.isinf(new_v)))
+            raise NumericalDivergenceError(
+                f"HJB solver diverged during value update "
+                f"(step {step_index}): "
+                f"{n_nan} NaN and {n_inf} Inf values detected. "
+                f"Value function range before step: "
+                f"[{float(np.nanmin(old_v)):.4e}, {float(np.nanmax(old_v)):.4e}]."
+            )
+
+        return new_v, dt
+
     def _policy_evaluation(self):
         """Evaluate current policy by solving linear PDE.
 
@@ -1198,161 +1521,9 @@ class HJBSolver:
             assert self.value_function is not None  # For mypy
             old_v = self.value_function.copy()
 
-            # Get state and control grids
-            state_points = np.stack(self.problem.state_space.flat_grids, axis=-1)
-            control_array = np.stack(
-                [self.optimal_policy[cv.name].ravel() for cv in self.problem.control_variables],
-                axis=-1,
+            new_v, dt = self._advance_value_one_step(
+                dt, scheme, step_index=_, run_cfl_check=(_ == 0)
             )
-
-            # Compute dynamics and running cost
-            drift = self.problem.dynamics(state_points, control_array, 0.0)
-            cost = self.problem.running_cost(state_points, control_array, 0.0)
-
-            # Reshape
-            drift = drift.reshape(self.problem.state_space.shape + (-1,))
-            cost = self._reshape_cost(cost)
-
-            # Compute diffusion coefficient if specified
-            sigma_sq = None
-            if self.problem.diffusion is not None:
-                sigma_sq_raw = self.problem.diffusion(state_points, control_array, 0.0)
-                sigma_sq = sigma_sq_raw.reshape(self.problem.state_space.shape + (-1,))
-
-            # PIDE jump term (IMEX): evaluate at V_old and fold into the running
-            # cost.  Adding to `cost` is exactly the explicit RHS treatment used
-            # by both the implicit theta-step and the explicit Euler step --
-            # neither scheme needs to factorize a non-local jump operator.
-            if self.problem.jump_term is not None:
-                jump_vals = self._evaluate_jump_term(state_points, control_array, old_v)
-                cost = cost + jump_vals.reshape(cost.shape)
-
-            # CFL stability check for explicit scheme (#452)
-            if scheme == TimeSteppingScheme.EXPLICIT and _ == 0:
-                adv_cfl, diff_cfl = self._compute_cfl_number(drift, sigma_sq, dt)
-                if adv_cfl > 1.0 or diff_cfl > 1.0:
-                    # Compute safe dt
-                    max_rate = 0.0
-                    n_dims = min(drift.shape[-1], len(self.problem.state_space.state_variables))
-                    for dim in range(n_dims):
-                        dx_arr = self.dx[dim]
-                        dx_min = float(np.min(dx_arr))
-                        dx_mean = float(np.mean(dx_arr))
-                        drift_max = float(np.max(np.abs(drift[..., dim])))
-                        if dx_min > 0:
-                            max_rate += drift_max / dx_min
-                        if sigma_sq is not None and dx_min > 0:
-                            max_rate += (
-                                0.5 * float(np.max(np.abs(sigma_sq[..., dim]))) / (dx_min**2)
-                            )
-                    max_rate += self.problem.discount_rate
-                    if max_rate > 0:
-                        dt_safe = 0.9 / max_rate
-                        logger.warning(
-                            f"CFL condition violated (advection CFL={adv_cfl:.2f}, "
-                            f"diffusion CFL={diff_cfl:.2f}). "
-                            f"Auto-reducing dt from {dt:.4e} to {dt_safe:.4e}."
-                        )
-                        dt = dt_safe
-
-            # Time-stepping: branch on scheme (#451)
-            use_implicit = scheme in (
-                TimeSteppingScheme.IMPLICIT,
-                TimeSteppingScheme.CRANK_NICOLSON,
-            )
-            can_use_implicit = use_implicit and self.problem.state_space.ndim == 1
-
-            if use_implicit and not can_use_implicit:
-                if _ == 0:
-                    logger.warning(
-                        f"Implicit/CN schemes not yet supported for "
-                        f"{self.problem.state_space.ndim}D problems; "
-                        f"falling back to explicit."
-                    )
-
-            if can_use_implicit:
-                # Implicit or Crank-Nicolson 1D step
-                drift_1d = drift[:, 0] if drift.ndim > 1 else drift
-                sigma_sq_1d = (
-                    sigma_sq[:, 0] if sigma_sq is not None and sigma_sq.ndim > 1 else sigma_sq
-                )
-                cost_1d = cost.ravel()
-
-                if scheme == TimeSteppingScheme.CRANK_NICOLSON:
-                    if _ < self.config.rannacher_steps:
-                        # Rannacher startup: two implicit half-steps
-                        half_v = self._theta_step_1d(
-                            old_v.ravel(),
-                            cost_1d,
-                            drift_1d,
-                            sigma_sq_1d,
-                            dt / 2.0,
-                            theta=1.0,
-                        )
-                        half_v = self._apply_boundary_conditions(
-                            half_v.reshape(old_v.shape)
-                        ).ravel()
-                        new_v = self._theta_step_1d(
-                            half_v,
-                            cost_1d,
-                            drift_1d,
-                            sigma_sq_1d,
-                            dt / 2.0,
-                            theta=1.0,
-                        )
-                    else:
-                        # Crank-Nicolson step (theta=0.5)
-                        new_v = self._theta_step_1d(
-                            old_v.ravel(),
-                            cost_1d,
-                            drift_1d,
-                            sigma_sq_1d,
-                            dt,
-                            theta=0.5,
-                        )
-                else:
-                    # Fully implicit step (theta=1)
-                    new_v = self._theta_step_1d(
-                        old_v.ravel(),
-                        cost_1d,
-                        drift_1d,
-                        sigma_sq_1d,
-                        dt,
-                        theta=1.0,
-                    )
-                new_v = new_v.reshape(old_v.shape)
-            else:
-                # Explicit scheme (or fallback for multi-D)
-                if self.problem.time_horizon is not None:
-                    new_v = self._update_value_finite_horizon(old_v, cost, drift, dt, sigma_sq)
-                else:
-                    advection = np.zeros_like(old_v)
-                    for dim in range(drift.shape[-1]):
-                        if dim >= len(self.problem.state_space.state_variables):
-                            continue
-                        drift_component = drift[..., dim]
-                        advection += self._apply_upwind_scheme(old_v, drift_component, dim)
-
-                    rhs = -self.problem.discount_rate * old_v + cost + advection
-                    if sigma_sq is not None:
-                        rhs += self._apply_diffusion_term(old_v, sigma_sq)
-                    new_v = old_v + dt * rhs
-
-            # Enforce boundary conditions after each time step
-            new_v = self._apply_boundary_conditions(new_v)
-
-            # Check for NaN/Inf after each inner step (#453)
-            if not np.all(np.isfinite(new_v)):
-                n_nan = int(np.sum(np.isnan(new_v)))
-                n_inf = int(np.sum(np.isinf(new_v)))
-                raise NumericalDivergenceError(
-                    f"HJB solver diverged during policy evaluation "
-                    f"(inner iteration {_}): "
-                    f"{n_nan} NaN and {n_inf} Inf values detected. "
-                    f"Value function range before step: "
-                    f"[{float(np.nanmin(old_v)):.4e}, {float(np.nanmax(old_v)):.4e}]."
-                )
-
             self.value_function = new_v
 
             # Check inner convergence
