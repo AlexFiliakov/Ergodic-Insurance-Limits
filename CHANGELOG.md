@@ -7,6 +7,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 <!-- next-version -->
 
+## [0.17.0] - 2026-05-26
+
+### Added
+- add solve_finite_horizon backward time-march ([`cc01714`](https://github.com/AlexFiliakov/Ergodic-Insurance-Limits/commit/cc01714539cb618e5103451e7da6c8c122416787))
+
+### Changed
+- ran optimization no7 notebook with LR=0.8 ([`4139747`](https://github.com/AlexFiliakov/Ergodic-Insurance-Limits/commit/41397477b701e552275226301c33f4c34c5cc1f1))
+- ran interim notebook optimization no7 ([`50942e6`](https://github.com/AlexFiliakov/Ergodic-Insurance-Limits/commit/50942e64dec8c9dd3bb0df413be753988f7676b6))
+
+### Fixed
+- finite-horizon reformulation of notebook 07 + policy boundary sanitization ([`7aee828`](https://github.com/AlexFiliakov/Ergodic-Insurance-Limits/commit/7aee828b27591ae410acbf9c9f9092396c7ffd7c))
+
+[0.17.0]: https://github.com/AlexFiliakov/Ergodic-Insurance-Limits/compare/v0.16.0...v0.17.0
+
 ## [0.16.0] - 2026-05-25
 
 ### Added
