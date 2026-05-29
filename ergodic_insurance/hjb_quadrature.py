@@ -30,7 +30,7 @@ References:
 
 from __future__ import annotations
 
-from typing import Sequence, Tuple
+from typing import Any, Callable, Optional, Sequence, Tuple
 
 import numpy as np
 
@@ -40,6 +40,8 @@ __all__ = [
     "pareto_stratified_atoms",
     "component_atoms",
     "build_loss_atoms",
+    "build_equity_jump_operator_2d",
+    "make_jump_term_2d",
 ]
 
 
@@ -230,3 +232,279 @@ def build_loss_atoms(
         x_parts.append(xa)
         p_parts.append(pa * (p.frequency / total_freq))
     return np.concatenate(x_parts), np.concatenate(p_parts)
+
+
+# =====================================================
+# 2-D (assets, equity-ratio) equity-only PIDE jump operator
+# =====================================================
+# These two functions assemble and apply the block-diagonal equity-jump operator
+# used by the 2-D HJB solve in notebook 07. They were lifted verbatim from that
+# notebook (cell 16) so the interpolation math is unit-testable without a 25-year
+# solve; the only behavioural additions are an explicit ``phi_retention`` parameter
+# (was a notebook global) and an opt-in ``interp="linear"`` mode on the returned
+# callback for continuous off-grid / diagnostic evaluation (issue #1612). The
+# default ``interp="nearest"`` path is the original code, so the solve -- which
+# always evaluates on grid nodes, where linear and nearest coincide -- is
+# bit-for-bit unchanged.
+
+
+def build_equity_jump_operator_2d(
+    a_grid: np.ndarray,
+    e_grid_l: np.ndarray,
+    sir_grid_l: np.ndarray,
+    x_atoms: np.ndarray,
+    p_atoms: np.ndarray,
+    tower_top: float,
+    lae_ratio: float,
+    e_floor: float,
+    phi_retention: float,
+) -> Tuple[Any, np.ndarray]:
+    """Build the block-diagonal equity-jump operator (``J_big``, ``p_ruin_2d``).
+
+    A loss reduces EQUITY only (assets fixed at impact): for assets-slice ``A_i``,
+    post-equity-ratio is ``e - L_ret/A_i`` with ``L_ret = (1+LAE)*(min(X,SIR) +
+    (X-TOWER_TOP)+)``. Each slice is an independent 1-D-in-e interpolation operator
+    (the post-jump assets index never changes), so the full operator is
+    block-diagonal across assets.
+
+    Args:
+        a_grid: Assets grid (log-spaced), shape ``(n_a,)``.
+        e_grid_l: Equity-ratio grid (linear-spaced, ascending), shape ``(n_e,)``.
+        sir_grid_l: SIR control grid (log-spaced), shape ``(n_sir,)``.
+        x_atoms: Per-event severity atom values, shape ``(n_atoms,)``.
+        p_atoms: Per-event severity atom probabilities (sum to 1), shape ``(n_atoms,)``.
+        tower_top: Top of the insurance tower; losses above it are retained.
+        lae_ratio: Loss-adjustment-expense markup on retained loss.
+        e_floor: Equity operational ruin floor (post-jump equity below it = ruin).
+        phi_retention: After-tax/after-dividend retention factor scaling the
+            SURVIVING (non-ruining) equity reduction; the GROSS retained loss
+            (no ``phi``) drives the single-loss ruin test (issue #1598).
+
+    Returns:
+        ``(J_big, p_ruin_2d)``. ``J_big`` is a CSR matrix of shape
+        ``(n_a*n_e*n_sir, n_a*n_e)``: row ``((a*n_e+e)*n_sir+sir)`` maps
+        ``V_flat`` (``= V.ravel()``, C-order on ``(n_a, n_e)``) to ``E_X[V(post)]``
+        for the non-ruining atoms (mass ``1 - p_ruin``). ``p_ruin_2d`` has shape
+        ``(n_a, n_e, n_sir)`` -- the per-event probability the loss drives post-jump
+        equity below ``e_floor``.
+    """
+    from scipy.sparse import block_diag, coo_matrix
+
+    n_a, n_e, n_sir = len(a_grid), len(e_grid_l), len(sir_grid_l)
+    n_atoms = len(x_atoms)
+    # Retained loss per (sir, atom) -- independent of state. Two versions (issue #1598):
+    #   * GROSS retained loss (incl. LAE) drives the single-loss RUIN test: the firm must
+    #     absorb the full retained cost at the instant of the claim (limited liability), so a
+    #     loss exceeding current equity bankrupts it NOW regardless of the tax shield.
+    #   * AFTER-TAX retained loss (x phi_retention) drives the SURVIVING equity reduction: a
+    #     non-ruining loss is booked as a deferred claim liability costing phi_retention x face.
+    L_gross_atom_sir = (1.0 + lae_ratio) * (
+        np.minimum(x_atoms[None, :], sir_grid_l[:, None])
+        + np.maximum(x_atoms[None, :] - tower_top, 0.0)
+    )  # (n_sir, n_atoms), GROSS retained
+    L_per_atom_sir = phi_retention * L_gross_atom_sir  # (n_sir, n_atoms), after-tax
+    row_tmpl = (np.arange(n_e)[:, None] * n_sir + np.arange(n_sir)[None, :]).ravel()
+
+    blocks = []
+    p_ruin_2d = np.empty((n_a, n_e, n_sir))
+    for i, A_i in enumerate(a_grid):
+        E_grid_i = e_grid_l * A_i  # equity at this slice
+        # Ruin mask on the GROSS retained loss (#1598): insolvent the instant a single loss
+        # exceeds current equity, before any tax deferral (gross mask >= the after-tax mask).
+        raw_post_E_gross = (
+            E_grid_i[:, None, None] - L_gross_atom_sir[None, :, :]
+        )  # (n_e,n_sir,n_atoms)
+        ruin = raw_post_E_gross < e_floor
+        p_ruin_2d[i] = np.sum(p_atoms[None, None, :] * ruin, axis=2)
+        # Surviving atoms reduce equity by only the AFTER-TAX amount (interpolation target).
+        raw_post_E = E_grid_i[:, None, None] - L_per_atom_sir[None, :, :]
+        post_e = np.where(ruin, e_grid_l[0], raw_post_E / A_i)
+        post_e = np.clip(post_e, e_grid_l[0], e_grid_l[-1])
+        idx_lo = np.clip(np.searchsorted(e_grid_l, post_e, side="right") - 1, 0, n_e - 2)
+        idx_hi = idx_lo + 1
+        w_hi = np.clip(
+            (post_e - e_grid_l[idx_lo]) / (e_grid_l[idx_hi] - e_grid_l[idx_lo]), 0.0, 1.0
+        )
+        w_lo = 1.0 - w_hi
+        interior = (~ruin).astype(float)
+        p_lo = (p_atoms[None, None, :] * w_lo * interior).reshape(n_e * n_sir, n_atoms)
+        p_hi = (p_atoms[None, None, :] * w_hi * interior).reshape(n_e * n_sir, n_atoms)
+        rows = np.tile(np.repeat(row_tmpl, n_atoms), 2)
+        cols = np.concatenate(
+            [
+                idx_lo.reshape(n_e * n_sir, n_atoms).ravel(),
+                idx_hi.reshape(n_e * n_sir, n_atoms).ravel(),
+            ]
+        )
+        data = np.concatenate([p_lo.ravel(), p_hi.ravel()])
+        J_i = coo_matrix((data, (rows, cols)), shape=(n_e * n_sir, n_e)).tocsr()
+        J_i.sum_duplicates()
+        blocks.append(J_i)
+    J_big = block_diag(blocks, format="csr")
+    return J_big, p_ruin_2d
+
+
+def make_jump_term_2d(
+    a_grid: np.ndarray,
+    e_grid_l: np.ndarray,
+    sir_grid_l: np.ndarray,
+    x_atoms: np.ndarray,
+    p_atoms: np.ndarray,
+    tower_top: float,
+    lae_ratio: float,
+    e_floor: float,
+    atr_local: float,
+    reference_revenue_local: float,
+    freq_scaling_exponent_local: float,
+    lambda_base_local: float,
+    v_ruin: float,
+    phi_retention: Optional[float] = None,
+    prebuilt: Optional[Tuple[Any, np.ndarray]] = None,
+) -> Tuple[Callable, Any, np.ndarray]:
+    """Build a 2-D ``jump_term(state, control, t, V, grids)`` callback (Option A).
+
+    ``E_X[V(post)] = J_big @ V_flat + p_ruin * v_ruin``. ``J_big @ V_flat`` is
+    computed ONCE per distinct ``V`` (cached on object identity) and reused across
+    the many per-chunk control-scan calls within a single backward step.
+
+    ``prebuilt=(J_big, p_ruin_2d)`` skips the (state-independent) operator build --
+    the V_RUIN robustness sweep reuses the baseline operator and only varies the
+    scalar ``v_ruin``, so it need not rebuild the block-diagonal map. When
+    ``prebuilt`` is supplied, ``phi_retention`` is ignored (the operator already
+    encodes it); otherwise ``phi_retention`` is required.
+
+    The returned callback takes an extra keyword ``interp`` (issue #1612):
+
+    - ``interp="nearest"`` (default): snap state ``(A, e)`` and control ``SIR`` to
+      the nearest grid nodes. Exact on grid (states/controls always sit on nodes at
+      solve time), so this is the fast solve path and is bit-for-bit unchanged.
+    - ``interp="linear"``: continuous off-grid path for diagnostics. ``V_cur`` is
+      bilinearly interpolated over ``(A, e)`` and the per-SIR-node jump value
+      ``J_big@V + p_ruin*v_ruin`` (including the ``p_ruin*V_RUIN`` ruin-atom term)
+      is interpolated trilinearly across ``(A, e, SIR)`` -- linear in ``log(A)``,
+      linear in ``e``, linear in ``log(SIR)`` (the axes the nearest path snaps on
+      and the operator's post-jump split use). At grid nodes it equals the nearest
+      result exactly; between nodes it is continuous.
+
+    Args:
+        a_grid, e_grid_l, sir_grid_l: State (assets, equity-ratio) and control (SIR)
+            grids; see :func:`build_equity_jump_operator_2d`.
+        x_atoms, p_atoms, tower_top, lae_ratio, e_floor: Severity atoms and retained-loss
+            parameters; see :func:`build_equity_jump_operator_2d`.
+        atr_local: Asset-turnover ratio (revenue = ``A * atr_local``).
+        reference_revenue_local: Reference revenue for frequency scaling.
+        freq_scaling_exponent_local: Exponent for revenue-scaled loss frequency.
+        lambda_base_local: Loss intensity (events/yr) at the reference revenue.
+        v_ruin: Terminal log-equity assigned to the ruin atom (``= log(e_floor)``).
+        phi_retention: After-tax retention factor; required when ``prebuilt is None``
+            (forwarded to :func:`build_equity_jump_operator_2d`), ignored otherwise.
+        prebuilt: Optional ``(J_big, p_ruin_2d)`` to reuse instead of rebuilding.
+
+    Returns:
+        ``(jump_term, J_big, p_ruin_2d)``.
+
+    Raises:
+        ValueError: If ``prebuilt is None`` and ``phi_retention is None``; or if the
+            callback is invoked with an unknown ``interp`` mode.
+    """
+    if prebuilt is not None:
+        J_big, p_ruin_2d = prebuilt
+    else:
+        if phi_retention is None:
+            raise ValueError(
+                "phi_retention is required when prebuilt is None (it scales the "
+                "after-tax retained loss baked into the jump operator)"
+            )
+        J_big, p_ruin_2d = build_equity_jump_operator_2d(
+            a_grid,
+            e_grid_l,
+            sir_grid_l,
+            x_atoms,
+            p_atoms,
+            tower_top,
+            lae_ratio,
+            e_floor,
+            phi_retention,
+        )
+    p_ruin_flat = p_ruin_2d.ravel()
+    n_a, n_e, n_sir = len(a_grid), len(e_grid_l), len(sir_grid_l)
+    log_a_grid = np.log(a_grid)
+    log_sir_grid = np.log(sir_grid_l)
+    cache: dict = {}  # lazily holds {"V": last value_function, "EV": J_big @ V_flat}
+
+    def _nearest_log(values, log_grid):
+        log_v = np.log(values)
+        idx = np.searchsorted(log_grid, log_v, side="left")
+        lo = np.clip(idx - 1, 0, len(log_grid) - 1)
+        hi = np.clip(idx, 0, len(log_grid) - 1)
+        return np.where(np.abs(log_v - log_grid[hi]) < np.abs(log_v - log_grid[lo]), hi, lo)
+
+    def _nearest_lin(values, grid):
+        idx = np.searchsorted(grid, values, side="left")
+        lo = np.clip(idx - 1, 0, len(grid) - 1)
+        hi = np.clip(idx, 0, len(grid) - 1)
+        return np.where(np.abs(values - grid[hi]) < np.abs(values - grid[lo]), hi, lo)
+
+    def _lin_bracket(values, grid):
+        """Bracket ``values`` in the sorted ``grid`` with linear blend weights.
+
+        Returns ``(lo, hi, w_lo, w_hi)`` where ``w_hi`` is clamped to ``[0, 1]`` so
+        out-of-range queries flat-extrapolate to the edge node (matching the nearest
+        path's index clip). At a grid node ``w_hi`` is exactly 0 or 1, so the linear
+        blend collapses to the node value.
+        """
+        v = np.asarray(values, dtype=float)
+        lo = np.clip(np.searchsorted(grid, v, side="left") - 1, 0, len(grid) - 2)
+        hi = lo + 1
+        w_hi = np.clip((v - grid[lo]) / (grid[hi] - grid[lo]), 0.0, 1.0)
+        return lo, hi, 1.0 - w_hi, w_hi
+
+    def jump_term(state, control, t, value_function, state_grids, interp="nearest"):
+        if interp not in ("nearest", "linear"):
+            raise ValueError(f"interp must be 'nearest' or 'linear', got {interp!r}")
+        if cache.get("V") is not value_function:
+            cache["EV"] = np.asarray(J_big @ value_function.ravel())
+            cache["V"] = value_function
+        EV_interior_all = cache["EV"]
+        A = state[..., 0]
+        e = state[..., 1]
+        sir = control[..., 0]
+        lam = (
+            lambda_base_local
+            * (A * atr_local / reference_revenue_local) ** freq_scaling_exponent_local
+        )
+        if interp == "nearest":
+            a_idx = _nearest_log(A, log_a_grid)
+            e_idx = _nearest_lin(e, e_grid_l)
+            sir_idx = _nearest_log(sir, log_sir_grid)
+            flat_state = a_idx * n_e + e_idx
+            row = flat_state * n_sir + sir_idx
+            EV_post = EV_interior_all[row] + p_ruin_flat[row] * v_ruin
+            V_cur = value_function.ravel()[flat_state]
+            return lam * (EV_post - V_cur)
+        # interp == "linear": continuous off-grid path (issue #1612).
+        V_flat = value_function.ravel()
+        # Per-node jump value: surviving-mass E_X[V(post)] plus the ruin-atom term.
+        # Interpolating the bundle == interpolating the parts (interp is linear).
+        Jflat = EV_interior_all + p_ruin_flat * v_ruin
+        aL, aH, waL, waH = _lin_bracket(np.log(A), log_a_grid)
+        eL, eH, weL, weH = _lin_bracket(e, e_grid_l)
+        sL, sH, wsL, wsH = _lin_bracket(np.log(sir), log_sir_grid)
+        # Bilinear V_cur over the 4 (a, e) corners (C-order flat index a*n_e + e).
+        V_cur = (
+            waL * weL * np.take(V_flat, aL * n_e + eL)
+            + waL * weH * np.take(V_flat, aL * n_e + eH)
+            + waH * weL * np.take(V_flat, aH * n_e + eL)
+            + waH * weH * np.take(V_flat, aH * n_e + eH)
+        )
+        # Trilinear EV_post over the 8 (a, e, sir) corners
+        # (flat index ((a*n_e + e)*n_sir + sir)).
+        EV_post = 0.0
+        for a_idx, w_a in ((aL, waL), (aH, waH)):
+            for e_idx, w_e in ((eL, weL), (eH, weH)):
+                base = (a_idx * n_e + e_idx) * n_sir
+                for s_idx, w_s in ((sL, wsL), (sH, wsH)):
+                    EV_post = EV_post + w_a * w_e * w_s * np.take(Jflat, base + s_idx)
+        return lam * (EV_post - V_cur)
+
+    return jump_term, J_big, p_ruin_2d
