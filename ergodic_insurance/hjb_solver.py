@@ -15,6 +15,8 @@ Author: Alex Filiakov
 Date: 2025-01-26
 """
 
+# pylint: disable=too-many-lines  # large cohesive HJB solver module (cf. manufacturer.py)
+
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from enum import Enum
@@ -41,8 +43,6 @@ _DEFAULT_MEMORY_BUDGET_MB = 256  # Max memory for batched evaluation
 
 class NumericalDivergenceError(RuntimeError):
     """Raised when the HJB solver detects NaN or Inf in the value function."""
-
-    pass
 
 
 class TimeSteppingScheme(Enum):
@@ -473,6 +473,67 @@ class CFLDiagnostics(TypedDict):
     cfl: float
     dt: float
     stable: bool
+
+
+@dataclass
+class HamiltonianTerms:
+    r"""Per-term HJB Hamiltonian on the state grid at a fixed control policy.
+
+    Returned by :meth:`HJBSolver.hamiltonian_terms`. The HJB operator the solver
+    integrates is
+
+    .. math::
+
+        -\partial_t V = \mathcal{H}
+        = f(x,u) + \mu(x,u)\cdot\nabla V + \tfrac12\sigma^2(x,u)\cdot\nabla^2 V
+          + \lambda\,\mathbb{E}_X[V(x-L)-V(x)] - \rho V
+
+    so :attr:`total` equals the solver's :math:`-\partial_t V` at this
+    ``(value, policy)`` and satisfies the exact decomposition
+
+    .. math::
+
+        \text{total} = \text{drift} + \text{diffusion} + \text{jump}
+                       + \text{running\_cost} + \text{discount}.
+
+    Crucially, :attr:`drift`, :attr:`diffusion` and :attr:`jump` are computed with
+    the **same discretization the solver integrates** -- the upwind first
+    derivative (:meth:`HJBSolver._apply_upwind_scheme`), the non-uniform compact
+    second-derivative stencil (:meth:`HJBSolver._compute_second_derivatives`), and
+    the problem's ``jump_term`` callback -- **not** ``np.gradient``. They therefore
+    reproduce the forces the solver actually balanced rather than re-deriving them
+    from ``V`` (which, via a twice-applied central difference, amplifies grid-scale
+    noise by :math:`\sim 1/\Delta x^2`).
+
+    Attributes:
+        drift: :math:`\mu(x,u)\cdot\nabla V` using the solver's **upwind** ``∇V``.
+        diffusion: :math:`\tfrac12\sigma^2(x,u)\cdot\nabla^2 V` using the compact
+            non-uniform central stencil; all-zeros if the problem has no diffusion.
+        jump: :math:`\lambda\,\mathbb{E}_X[V(x-L)-V(x)]` from the ``jump_term``
+            callback; all-zeros if the problem has no jump term.
+        running_cost: :math:`f(x,u)`.
+        discount: :math:`-\rho V`.
+        total: the full Hamiltonian :math:`-\partial_t V` (sum of the five above).
+        grad: central-difference :math:`\nabla V`, provided **for display only**
+            (e.g. a smooth ``∂V/∂A`` panel). Shape ``state_shape + (ndim,)``. This
+            is **not** the upwind ``∇V`` used inside :attr:`drift`, so in general
+            ``drift != sum_d mu_d * grad_d`` -- the two are intentionally different
+            discretizations (upwind for the faithful operator, central for display).
+        d2v: the compact non-uniform :math:`\nabla^2 V` used by :attr:`diffusion`
+            (``diffusion = sum_d 0.5 * sigma^2_d * d2v_d``). Shape
+            ``state_shape + (ndim,)``.
+
+    All scalar-field attributes have shape ``state_space.shape``.
+    """
+
+    drift: np.ndarray
+    diffusion: np.ndarray
+    jump: np.ndarray
+    running_cost: np.ndarray
+    discount: np.ndarray
+    total: np.ndarray
+    grad: np.ndarray
+    d2v: np.ndarray
 
 
 class HJBSolver:
@@ -977,26 +1038,34 @@ class HJBSolver:
 
         return result
 
-    def _compute_gradient(self) -> np.ndarray:
-        """Compute numerical gradient of the value function.
+    def _compute_gradient(self, value: Optional[np.ndarray] = None) -> np.ndarray:
+        """Compute the central-difference numerical gradient of a value function.
 
         Uses np.gradient which handles non-uniform grids with second-order
         accurate central differences in the interior and first-order accurate
-        one-sided differences at the boundaries.
+        one-sided differences at the boundaries. This is a *single* finite
+        difference (smooth); it is NOT the upwind ∇V the solver uses to integrate
+        the advection term -- see :meth:`_apply_upwind_scheme`.
+
+        Args:
+            value: Value function to differentiate. Defaults to
+                ``self.value_function``.
 
         Returns:
             Gradient array with shape state_shape + (ndim,)
         """
-        if self.value_function is None:
+        if value is None:
+            value = self.value_function
+        if value is None:
             shape = self.problem.state_space.shape + (self.problem.state_space.ndim,)
             return np.zeros(shape)
 
         grids = self.problem.state_space.grids
 
         if self.problem.state_space.ndim == 1:
-            grad_components = [np.gradient(self.value_function, grids[0])]
+            grad_components = [np.gradient(value, grids[0])]
         else:
-            grad_components = np.gradient(self.value_function, *grids)
+            grad_components = np.gradient(value, *grids)
 
         return np.stack(grad_components, axis=-1)
 
@@ -1107,10 +1176,7 @@ class HJBSolver:
         ndim = self.problem.state_space.ndim
         for dim in range(ndim):
             sv = self.problem.state_space.state_variables[dim]
-            if (
-                sv.boundary_lower == BoundaryCondition.DIRICHLET
-                or sv.boundary_upper == BoundaryCondition.DIRICHLET
-            ):
+            if BoundaryCondition.DIRICHLET in (sv.boundary_lower, sv.boundary_upper):
                 lo_idx: List[Any] = [slice(None)] * ndim
                 hi_idx: List[Any] = [slice(None)] * ndim
                 lo_idx[dim] = 0
@@ -1463,7 +1529,7 @@ class HJBSolver:
 
         return new_v
 
-    def _advance_value_one_step(
+    def _advance_value_one_step(  # pylint: disable=too-many-branches,too-many-statements
         self,
         dt: float,
         scheme: TimeSteppingScheme,
@@ -2097,6 +2163,168 @@ class HJBSolver:
 
         return controls
 
+    def _assemble_hamiltonian_terms(
+        self, value: np.ndarray, control_array: np.ndarray
+    ) -> HamiltonianTerms:
+        """Assemble the per-term HJB Hamiltonian on the state grid.
+
+        Single source of truth for the HJB operator: used by the public
+        :meth:`hamiltonian_terms` diagnostic and by
+        :meth:`compute_convergence_metrics` (whose residual is ``|total|``). Every
+        term uses the SAME discretization the time-stepper integrates -- upwind
+        first derivative (:meth:`_apply_upwind_scheme`), compact non-uniform central
+        second derivative (:meth:`_compute_second_derivatives`), and the jump-term
+        callback -- so ``total`` reproduces the ``(V_new - V_old)/dt = -∂V/∂t`` that
+        :meth:`_advance_value_one_step` applies on interior cells (boundary cells are
+        separately overwritten by :meth:`_apply_boundary_conditions`).
+
+        Args:
+            value: Value function on the state grid, shape ``state_space.shape``.
+            control_array: Controls of shape ``(n_states, n_controls)`` in
+                ``problem.control_variables`` order.
+
+        Returns:
+            HamiltonianTerms with grid-shaped force arrays (see that dataclass).
+        """
+        ss = self.problem.state_space
+        state_shape = ss.shape
+        ndim = ss.ndim
+        state_points = np.stack(ss.flat_grids, axis=-1)
+
+        # Drift · ∇V using the solver's UPWIND scheme -- numerically identical to the
+        # advection assembled in _policy_improvement / _evaluate_and_update_best.
+        drift = np.asarray(self.problem.dynamics(state_points, control_array, 0.0))
+        drift = drift.reshape(state_shape + (-1,))
+        drift_term = np.zeros(state_shape)
+        n_dims = min(drift.shape[-1], ndim)
+        for dim in range(n_dims):
+            drift_term = drift_term + self._apply_upwind_scheme(value, drift[..., dim], dim)
+
+        # Central-difference ∇V (display only) and the compact ∇²V stencil used by
+        # the diffusion term.  grad is NOT the upwind ∇V folded into drift_term.
+        grad = self._compute_gradient(value)
+        d2v = self._compute_second_derivatives(value)
+
+        # ½ σ² · ∇²V (compact stencil); zero field if the problem has no diffusion.
+        diffusion_term = np.zeros(state_shape)
+        if self.problem.diffusion is not None:
+            sigma_sq = np.asarray(self.problem.diffusion(state_points, control_array, 0.0))
+            sigma_sq = sigma_sq.reshape(state_shape + (-1,))
+            n_diff = min(sigma_sq.shape[-1], d2v.shape[-1], ndim)
+            for dim in range(n_diff):
+                diffusion_term = diffusion_term + 0.5 * sigma_sq[..., dim] * d2v[..., dim]
+
+        # PIDE jump term λ·E_X[V(post) - V]; zero field if no jump term.
+        jump_term = np.zeros(state_shape)
+        if self.problem.jump_term is not None:
+            jump_term = self._evaluate_jump_term(state_points, control_array, value).reshape(
+                state_shape
+            )
+
+        # Running cost f(x,u).  _reshape_cost mirrors the cost handling in
+        # _policy_improvement (mean over any extra column), so the decomposition
+        # matches the Hamiltonian the solver maximized; identical to a plain reshape
+        # for the scalar-per-point costs used throughout this codebase.
+        running_cost = self._reshape_cost(
+            np.asarray(self.problem.running_cost(state_points, control_array, 0.0))
+        )
+
+        # Discount -ρV (control-independent; absent from the maximized Hamiltonian
+        # but part of the full operator -∂V/∂t).
+        discount = -self.problem.discount_rate * value
+
+        total = drift_term + diffusion_term + jump_term + running_cost + discount
+
+        return HamiltonianTerms(
+            drift=drift_term,
+            diffusion=diffusion_term,
+            jump=jump_term,
+            running_cost=running_cost,
+            discount=discount,
+            total=total,
+            grad=grad,
+            d2v=d2v,
+        )
+
+    def hamiltonian_terms(
+        self,
+        value: Optional[np.ndarray] = None,
+        policy: Optional[Dict[str, np.ndarray]] = None,
+    ) -> HamiltonianTerms:
+        """Per-term HJB Hamiltonian on the state grid at a fixed control policy.
+
+        Exposes the forces the solver actually balanced -- ``drift·∇V`` (upwind),
+        ``½σ²·∇²V`` (compact stencil), the ``jump_term`` callback, the running cost
+        and ``-ρV`` -- evaluated on the full state grid at ``policy`` using the SAME
+        discretization the time-stepper integrates (NOT ``np.gradient``). The
+        returned :attr:`HamiltonianTerms.total` is the solver's ``-∂V/∂t`` at this
+        ``(value, policy)``; see :class:`HamiltonianTerms` for the exact identity.
+
+        Intended for faithful, smooth diagnostic plots of the Hamiltonian
+        decomposition. Re-deriving the forces in user code with
+        ``np.gradient(np.gradient(V))`` instead amplifies grid-scale noise by
+        ``~1/Δx²`` (a *finer* grid makes it worse) and does not reproduce the
+        operator the solver optimized.
+
+        Args:
+            value: Value function on the state grid (shape ``state_space.shape``).
+                Defaults to the solved ``self.value_function``.
+            policy: Control policy as ``{control_name: array}``; each array is
+                ravelled in C-order to the state grid. Defaults to the solved
+                ``self.optimal_policy``. Pass a de-jittered/smoothed policy to
+                suppress argmax-step roughness in the plotted forces.
+
+        Returns:
+            HamiltonianTerms with grid-shaped force arrays.
+
+        Raises:
+            RuntimeError: If no value function or policy is available (no prior solve
+                and the corresponding argument was not supplied).
+            KeyError: If ``policy`` omits one of the problem's control variables.
+            ValueError: If ``value`` does not match the state-grid shape, or a policy
+                array does not have one entry per state-grid point.
+        """
+        if value is None:
+            value = self.value_function
+        if value is None:
+            raise RuntimeError(
+                "hamiltonian_terms requires a prior solve() / solve_finite_horizon() "
+                "to populate the value function, or an explicit `value=` argument."
+            )
+        value = np.asarray(value)
+        if value.shape != self.problem.state_space.shape:
+            raise ValueError(
+                f"value shape {value.shape} does not match the state grid "
+                f"{self.problem.state_space.shape}."
+            )
+
+        if policy is None:
+            policy = self.optimal_policy
+        if policy is None:
+            raise RuntimeError(
+                "hamiltonian_terms requires a prior solve to populate the policy, "
+                "or an explicit `policy=` argument."
+            )
+
+        n_states = int(np.prod(self.problem.state_space.shape))
+        control_cols = []
+        for cv in self.problem.control_variables:
+            if cv.name not in policy:
+                raise KeyError(
+                    f"policy is missing control variable '{cv.name}'; expected keys "
+                    f"{[c.name for c in self.problem.control_variables]}."
+                )
+            col = np.asarray(policy[cv.name]).ravel()
+            if col.size != n_states:
+                raise ValueError(
+                    f"policy['{cv.name}'] has {col.size} entries but the state grid "
+                    f"has {n_states} points."
+                )
+            control_cols.append(col)
+        control_array = np.stack(control_cols, axis=-1)
+
+        return self._assemble_hamiltonian_terms(value, control_array)
+
     def compute_convergence_metrics(self) -> Dict[str, Any]:
         """Compute metrics for assessing solution quality.
 
@@ -2106,51 +2334,16 @@ class HJBSolver:
         if self.value_function is None:
             return {"error": "No solution computed yet"}
 
-        # Compute residual of HJB equation
-        state_points = np.stack(self.problem.state_space.flat_grids, axis=-1)
-
-        # optimal_policy should be non-None at this point since value_function is non-None
+        # Assemble the HJB residual |H| = |-∂V/∂t| via the shared per-term operator
+        # (upwind drift, compact-stencil diffusion, jump callback, running cost, -ρV).
+        # Routing through _assemble_hamiltonian_terms guarantees this residual and
+        # HJBSolver.hamiltonian_terms().total use one identical discretization.
         assert self.optimal_policy is not None
         control_array = np.stack(
             [self.optimal_policy[cv.name].ravel() for cv in self.problem.control_variables], axis=-1
         )
-
-        # Evaluate HJB residual: |−ρV + f(x,u) + drift·∇V|
-        drift = self.problem.dynamics(state_points, control_array, 0.0)
-        cost = self.problem.running_cost(state_points, control_array, 0.0)
-
-        v_flat = self.value_function.ravel()
-        cost_flat = cost.ravel() if hasattr(cost, "ravel") else cost
-
-        # Compute drift * grad_V using upwind scheme (consistent with PDE)
-        drift_reshaped = drift.reshape(self.problem.state_space.shape + (-1,))
-        advection = np.zeros(self.problem.state_space.shape)
-        n_dims = min(drift_reshaped.shape[-1], len(self.problem.state_space.state_variables))
-        for dim in range(n_dims):
-            drift_component = drift_reshaped[..., dim]
-            advection += self._apply_upwind_scheme(self.value_function, drift_component, dim)
-        advection_flat = advection.ravel()
-
-        # Include diffusion in residual if present
-        diffusion_flat = np.zeros_like(v_flat)
-        if self.problem.diffusion is not None:
-            sigma_sq = self.problem.diffusion(state_points, control_array, 0.0)
-            sigma_sq_reshaped = sigma_sq.reshape(self.problem.state_space.shape + (-1,))
-            diffusion_term = self._apply_diffusion_term(self.value_function, sigma_sq_reshaped)
-            diffusion_flat = diffusion_term.ravel()
-
-        # Include PIDE jump term in residual if present
-        jump_flat = np.zeros_like(v_flat)
-        if self.problem.jump_term is not None:
-            jump_flat = self._evaluate_jump_term(state_points, control_array, self.value_function)
-
-        residual = np.abs(
-            -self.problem.discount_rate * v_flat
-            + cost_flat
-            + advection_flat
-            + diffusion_flat
-            + jump_flat
-        )
+        terms = self._assemble_hamiltonian_terms(self.value_function, control_array)
+        residual = np.abs(terms.total).ravel()
 
         # Check for NaN/Inf (#453)
         has_nan_inf = not np.all(np.isfinite(self.value_function))
