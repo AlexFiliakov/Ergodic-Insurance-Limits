@@ -4,6 +4,8 @@ Author: Alex Filiakov
 Date: 2025-01-26
 """
 
+# pylint: disable=too-many-lines  # broad solver coverage; splitting would scatter shared fixtures
+
 import numpy as np
 import pytest
 
@@ -1866,3 +1868,240 @@ class TestSolveFiniteHorizon:
         interior = (grid >= 2.0) & (grid <= 15.0)
         assert interior.sum() > 5
         np.testing.assert_allclose(v_explicit[interior], v_implicit[interior], rtol=0.05, atol=0.05)
+
+
+class TestExplicitFixedDtAutoCFL:
+    """Explicit-fixed-dt / ``auto_cfl`` path and the non-silent implicit
+    fallback (issue #1611).
+
+    Notebook 07's 2-D HJB needs explicit Euler at exactly ``config.time_step``
+    with no auto-CFL trial -- the global-max-sigma^2 / global-min-dx CFL
+    estimate is pathologically conservative on a log-assets grid. Previously
+    that path was reached by abusing ``scheme=IMPLICIT`` (unsupported in 2-D ->
+    silent explicit fallback). The first-class, self-documenting way is
+    ``scheme=EXPLICIT, auto_cfl=False``.
+    """
+
+    @staticmethod
+    def _pathological_global_cfl_problem(time_horizon=0.2):
+        """2-D problem whose GLOBAL CFL estimate is unstable at dt=0.05 but
+        whose LOCAL CFL is tiny -- exactly the log-grid pathology #1611 is about.
+
+        Axis 0 ("a") is log-spaced with size-proportional drift and diffusion
+        (sigma^2 ~ a^2 and dx ~ a, so the true local sigma^2/dx^2 is roughly
+        constant); the conservative global estimate pairs sigma^2 at a=a_max
+        with dx at a=a_min and massively overstates the diffusion CFL. Axis 1
+        ("b") is inert. Neumann boundaries keep the march well-behaved.
+        """
+        sv_a = StateVariable(
+            "a",
+            1.0,
+            100.0,
+            20,
+            log_scale=True,
+            boundary_lower=BoundaryCondition.NEUMANN,
+            boundary_upper=BoundaryCondition.NEUMANN,
+        )
+        sv_b = StateVariable(
+            "b",
+            0.0,
+            1.0,
+            10,
+            log_scale=False,
+            boundary_lower=BoundaryCondition.NEUMANN,
+            boundary_upper=BoundaryCondition.NEUMANN,
+        )
+        ss = StateSpace([sv_a, sv_b])
+        cv = [ControlVariable("u", 0.0, 1.0, 3)]
+
+        def dyn(x, u, t):
+            a = x[..., 0]
+            return np.stack([0.02 * a, np.zeros_like(x[..., 1])], axis=-1)
+
+        def diff(x, u, t):
+            a = x[..., 0]
+            return np.stack([(0.05 * a) ** 2, np.zeros_like(x[..., 1])], axis=-1)
+
+        def terminal(x):
+            return np.log(np.maximum(x[..., 0], 1e-9))
+
+        return HJBProblem(
+            state_space=ss,
+            control_variables=cv,
+            utility_function=LogUtility(),
+            dynamics=dyn,
+            running_cost=lambda x, u, t: np.zeros(x.shape[0]),
+            diffusion=diff,
+            terminal_value=terminal,
+            discount_rate=0.0,
+            time_horizon=time_horizon,
+        )
+
+    def test_auto_cfl_defaults_true(self):
+        """``auto_cfl`` defaults to True (legacy CFL auto-reduction preserved)."""
+        assert HJBSolverConfig().auto_cfl is True
+
+    def test_auto_cfl_false_steps_at_configured_dt(self):
+        """auto_cfl=False keeps dt == config.time_step (no trial, no reduction).
+
+        The fixed step count is ``round(time_horizon / time_step)``; with
+        auto_cfl=True the pathological global CFL forces a much smaller dt and
+        many more steps. Step count is observed via ``policy_history`` length.
+        """
+        dt, horizon = 0.05, 0.2
+        expected_fixed_steps = round(horizon / dt)  # == 4
+
+        solver_off = HJBSolver(
+            self._pathological_global_cfl_problem(time_horizon=horizon),
+            HJBSolverConfig(
+                time_step=dt,
+                scheme=TimeSteppingScheme.EXPLICIT,
+                auto_cfl=False,
+                verbose=False,
+            ),
+        )
+        v_off, _ = solver_off.solve_finite_horizon(store_policy_history=True)
+        assert solver_off.policy_history is not None
+        assert len(solver_off.policy_history) == expected_fixed_steps
+        assert np.all(np.isfinite(v_off))
+
+        solver_on = HJBSolver(
+            self._pathological_global_cfl_problem(time_horizon=horizon),
+            HJBSolverConfig(
+                time_step=dt,
+                scheme=TimeSteppingScheme.EXPLICIT,
+                auto_cfl=True,
+                verbose=False,
+            ),
+        )
+        solver_on.solve_finite_horizon(store_policy_history=True)
+        assert solver_on.policy_history is not None
+        # auto_cfl=True auto-reduces dt -> strictly more steps than the fixed count.
+        assert len(solver_on.policy_history) > expected_fixed_steps
+
+    def test_auto_cfl_false_suppresses_cfl_reduction(self, caplog):
+        """auto_cfl=False emits no 'Auto-reducing dt' warning; True does."""
+        import logging
+
+        dt, horizon = 0.05, 0.2
+        solver = HJBSolver(
+            self._pathological_global_cfl_problem(time_horizon=horizon),
+            HJBSolverConfig(
+                time_step=dt,
+                scheme=TimeSteppingScheme.EXPLICIT,
+                auto_cfl=False,
+                verbose=False,
+            ),
+        )
+        with caplog.at_level(logging.WARNING, logger="ergodic_insurance.hjb_solver"):
+            solver.solve_finite_horizon()
+        assert not any(
+            "Auto-reducing dt" in r.message for r in caplog.records
+        ), f"auto_cfl=False must not auto-reduce dt: {[r.message for r in caplog.records]}"
+
+        caplog.clear()
+        solver2 = HJBSolver(
+            self._pathological_global_cfl_problem(time_horizon=horizon),
+            HJBSolverConfig(
+                time_step=dt,
+                scheme=TimeSteppingScheme.EXPLICIT,
+                auto_cfl=True,
+                verbose=False,
+            ),
+        )
+        with caplog.at_level(logging.WARNING, logger="ergodic_insurance.hjb_solver"):
+            solver2.solve_finite_horizon()
+        assert any(
+            "Auto-reducing dt" in r.message for r in caplog.records
+        ), "auto_cfl=True must auto-reduce dt on the pathological global CFL"
+
+    def test_implicit_multidim_fallback_warns_in_finite_horizon(self, caplog):
+        """A 2-D implicit request logs the explicit fallback (never silent).
+
+        The old per-step warning was gated on ``run_cfl_check``, which is always
+        False during the backward march -- so the downgrade was silent there.
+        It is now surfaced up-front by ``_warn_unsupported_scheme``.
+        """
+        import logging
+
+        solver = HJBSolver(
+            self._pathological_global_cfl_problem(),
+            HJBSolverConfig(time_step=0.05, scheme=TimeSteppingScheme.IMPLICIT, verbose=False),
+        )
+        with caplog.at_level(logging.WARNING, logger="ergodic_insurance.hjb_solver"):
+            v, _ = solver.solve_finite_horizon()
+        assert any(
+            "falling back to explicit" in r.message.lower() for r in caplog.records
+        ), f"implicit 2-D fallback must be logged: {[r.message for r in caplog.records]}"
+        assert np.all(np.isfinite(v))
+
+    def test_explicit_fixed_dt_matches_implicit_fallback(self):
+        """``EXPLICIT`` + auto_cfl=False reproduces the old ``IMPLICIT`` path.
+
+        This is the notebook-07 migration guarantee: both take explicit Euler
+        steps at the same fixed dt with no CFL trial, so the value functions and
+        policies are identical -- only the configuration becomes honest.
+        """
+        v_imp, p_imp = HJBSolver(
+            self._pathological_global_cfl_problem(),
+            HJBSolverConfig(time_step=0.05, scheme=TimeSteppingScheme.IMPLICIT, verbose=False),
+        ).solve_finite_horizon()
+
+        v_exp, p_exp = HJBSolver(
+            self._pathological_global_cfl_problem(),
+            HJBSolverConfig(
+                time_step=0.05,
+                scheme=TimeSteppingScheme.EXPLICIT,
+                auto_cfl=False,
+                verbose=False,
+            ),
+        ).solve_finite_horizon()
+
+        np.testing.assert_allclose(v_exp, v_imp, rtol=0.0, atol=1e-10)
+        np.testing.assert_allclose(p_exp["u"], p_imp["u"], rtol=0.0, atol=1e-10)
+
+    def test_compute_cfl_diagnostics_local_and_stable(self):
+        """``compute_cfl_diagnostics`` returns the realized LOCAL CFL.
+
+        The honest local CFL is far below the conservative global estimate the
+        auto-CFL trial would use on this log-grid: it is well under 1 even
+        though the global diffusion CFL at dt=0.05 is > 1.
+        """
+        dt = 0.05
+        prob = self._pathological_global_cfl_problem()
+        solver = HJBSolver(
+            prob,
+            HJBSolverConfig(
+                time_step=dt,
+                scheme=TimeSteppingScheme.EXPLICIT,
+                auto_cfl=False,
+                verbose=False,
+            ),
+        )
+        solver.solve_finite_horizon()
+        diag = solver.compute_cfl_diagnostics(dt)
+
+        assert set(diag) >= {"advection_cfl", "diffusion_cfl", "cfl", "dt", "stable"}
+        assert diag["dt"] == dt
+        assert np.isfinite(diag["cfl"])
+        assert diag["stable"] is True
+        assert diag["cfl"] <= 1.0
+
+        # The realized local CFL is far below the conservative global estimate
+        # (sigma^2 at a_max paired with dx at a_min) -- which is itself unstable.
+        a_grid = prob.state_space.grids[0]
+        global_diff_cfl = (
+            0.5 * (0.05 * a_grid.max()) ** 2 * dt / float(np.min(np.diff(a_grid))) ** 2
+        )
+        assert global_diff_cfl > 1.0  # the pathology the global trial would see
+        assert diag["diffusion_cfl"] < global_diff_cfl
+        assert diag["diffusion_cfl"] < 1.0  # but the realized local CFL is fine
+
+    def test_compute_cfl_diagnostics_requires_solve(self):
+        """``compute_cfl_diagnostics`` raises before a solve populates the policy."""
+        solver = HJBSolver(
+            self._pathological_global_cfl_problem(),
+            HJBSolverConfig(time_step=0.05, auto_cfl=False, verbose=False),
+        )
+        with pytest.raises(RuntimeError, match="requires a prior solve"):
+            solver.compute_cfl_diagnostics()
