@@ -2375,3 +2375,76 @@ class TestHamiltonianTerms:
         solver = self._solved(prob)
         with pytest.raises(ValueError, match="does not match the state grid"):
             solver.hamiltonian_terms(value=np.zeros((3, 3)))
+
+
+def _basin_match_verdict(sir_grid, H, idx_star, idx_argmax, T_cliff, *, anchor):
+    """Mirror notebook 07 cell-18's MATCH / FLAT-BAND verdict (issues #1614/#1620).
+
+    The Hamiltonian ``H(SIR)`` is nearly flat across the coverage basin ``SIR < T_cliff``
+    and then plunges once a single retained loss can bankrupt the firm (the single-loss-
+    insolvency cliff). The diagnostic flags the solver's ``SIR*`` as a MATCH when the
+    on-grid argmax is no more than 2% of a peak-to-trough span above it.
+
+    ``anchor="basin"`` measures that span over the coverage basin only (``SIR < T_cliff``)
+    -- the #1614 behaviour. ``anchor="full"`` measures it over the whole SIR grid -- the
+    pre-#1614 behaviour, whose span is dominated by the post-cliff plunge and is therefore
+    far too lenient inside the flat basin. Returns ``True`` for MATCH.
+    """
+    n_sir = len(sir_grid)
+    cliff_idx = int(np.searchsorted(sir_grid, T_cliff))
+    if anchor == "basin" and 2 <= cliff_idx < n_sir:
+        hspan = float(np.ptp(H[:cliff_idx])) or 1.0
+    else:
+        hspan = float(np.ptp(H)) or 1.0
+    return bool((idx_star == idx_argmax) or ((H[idx_argmax] - H[idx_star]) <= 0.02 * hspan))
+
+
+def test_hjb_basin_anchored_tolerance_flips_flat_band_verdict():
+    """#1614/#1620: basin anchoring flags a flat-basin near-tie that the full-span
+    tolerance (dominated by the post-cliff plunge) would have stamped MATCH.
+
+    Synthetic ``H(SIR)``: a nearly-flat coverage basin (peak-to-trough ~0.05) below the
+    single-loss-insolvency threshold ``T``, then a deep plunge (to -10) above it. The
+    solver's ``SIR*`` and the central-difference argmax sit at two *different* nodes inside
+    the flat basin, a meaningful retention apart, with ``H`` differing by 0.03 between them.
+    """
+    n_sir = 210
+    sir_grid = np.geomspace(10_000.0, 50_000_000.0, n_sir)
+    cliff_idx = 140  # single-loss-insolvency cliff index; T sits on a grid node
+    T_cliff = float(sir_grid[cliff_idx])
+
+    H = np.full(n_sir, -10.0)  # deep post-cliff plunge (p_ruin * V_RUIN)
+    basin = np.arange(cliff_idx, dtype=float)
+    centre = basin.mean()
+    H[:cliff_idx] = -0.05 * ((basin - centre) / centre) ** 2  # gentle bump, ptp ~0.05
+
+    idx_argmax = int(np.argmax(H[:cliff_idx]))  # basin peak (~centre)
+    idx_star = idx_argmax + 8  # solver SIR* a real retention away, still inside the basin
+    assert idx_star < cliff_idx
+    H[idx_star] = H[idx_argmax] - 0.03  # 0.03 utility-yr/yr below the peak
+
+    assert int(np.argmax(H)) == idx_argmax  # global argmax is the basin peak
+    assert idx_star != idx_argmax  # the first MATCH clause must NOT short-circuit
+
+    match_full = _basin_match_verdict(sir_grid, H, idx_star, idx_argmax, T_cliff, anchor="full")
+    match_basin = _basin_match_verdict(sir_grid, H, idx_star, idx_argmax, T_cliff, anchor="basin")
+
+    # full-span ptp ~10 -> 0.02 * 10 = 0.2 >> 0.03 gap  -> would (wrongly) MATCH
+    assert match_full is True
+    # basin ptp ~0.05 -> 0.02 * 0.05 = 0.001 < 0.03 gap -> correctly FLAT BAND (#1614)
+    assert match_basin is False
+
+
+def test_hjb_basin_anchored_tolerance_falls_back_to_full_span_when_cliff_off_grid():
+    """#1614/#1620: a tiny firm whose threshold ``T`` is below the SIR floor has no
+    on-grid coverage basin, so the verdict falls back to the full-span peak-to-trough.
+    """
+    n_sir = 210
+    sir_grid = np.geomspace(10_000.0, 50_000_000.0, n_sir)
+    H = np.linspace(0.0, -1.0, n_sir)  # monotone; no cliff, no flat basin
+    T_cliff = 5_000.0  # below the SIR floor -> cliff_idx = 0 (degenerate guard)
+    assert int(np.searchsorted(sir_grid, T_cliff)) == 0
+    idx_argmax, idx_star = 0, 30
+    match_basin = _basin_match_verdict(sir_grid, H, idx_star, idx_argmax, T_cliff, anchor="basin")
+    match_full = _basin_match_verdict(sir_grid, H, idx_star, idx_argmax, T_cliff, anchor="full")
+    assert match_basin == match_full  # basin anchor falls back to the full span
