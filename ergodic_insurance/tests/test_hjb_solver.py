@@ -8,6 +8,7 @@ Date: 2025-01-26
 
 import numpy as np
 import pytest
+from scipy import interpolate
 
 from ergodic_insurance.hjb_solver import (
     _DRIFT_THRESHOLD,
@@ -16,6 +17,7 @@ from ergodic_insurance.hjb_solver import (
     BoundaryCondition,
     ControlVariable,
     ExpectedWealth,
+    HamiltonianTerms,
     HJBProblem,
     HJBSolver,
     HJBSolverConfig,
@@ -2105,3 +2107,271 @@ class TestExplicitFixedDtAutoCFL:
         )
         with pytest.raises(RuntimeError, match="requires a prior solve"):
             solver.compute_cfl_diagnostics()
+
+
+def _interior_mask(shape):
+    """Boolean mask, True on strictly-interior cells (every axis in 1..N-2).
+
+    The finite-difference operators zero-pad at boundaries and
+    ``_apply_boundary_conditions`` overwrites the boundary layer after each step,
+    so per-term Hamiltonian identities only hold on interior cells.
+    """
+    mask = np.ones(shape, dtype=bool)
+    for dim in range(len(shape)):
+        sl: list = [slice(None)] * len(shape)
+        sl[dim] = 0
+        mask[tuple(sl)] = False
+        sl[dim] = -1
+        mask[tuple(sl)] = False
+    return mask
+
+
+class TestHamiltonianTerms:
+    """Tests for ``HJBSolver.hamiltonian_terms`` / ``_assemble_hamiltonian_terms`` (#1610).
+
+    The per-term Hamiltonian must reproduce the operator the solver integrates
+    (upwind drift, compact non-uniform second-derivative diffusion, the jump
+    callback) -- NOT ``np.gradient`` -- so diagnostic plots show the forces the
+    solver actually balanced, smoothly and faithfully.
+    """
+
+    @staticmethod
+    def _make_2d_problem(with_jump=True, with_diffusion=True, discount=0.0):
+        """Tiny 2-D (assets, equity-ratio) finite-horizon problem.
+
+        Mirrors the notebook's structure (the real use of ``hamiltonian_terms``) at a
+        small grid: a log-spaced assets axis, a linear equity-ratio axis, diagonal
+        operating-income diffusion that is control-INDEPENDENT (as in the notebook),
+        an equity-only loss jump that depends on the SIR control, and a terminal
+        log-equity condition.
+        """
+        sv_a = StateVariable("assets", 1.0, 100.0, 9, log_scale=True)
+        sv_e = StateVariable("equity_ratio", 0.05, 1.0, 8, log_scale=False)
+        ss = StateSpace([sv_a, sv_e])
+        cv = [ControlVariable("sir", 0.01, 5.0, 6, log_scale=True)]
+        mu, sigma, lam = 0.20, 0.05, 0.5
+
+        def dynamics(state, control, t):
+            A = state[..., 0]
+            e = state[..., 1]
+            sir = control[..., 0]
+            prem = 0.02 * sir  # toy premium rising in retention
+            a_dot = A * mu - prem
+            e_dot = (1.0 - e) * (a_dot / np.maximum(A, 1e-9))
+            return np.stack([a_dot, e_dot], axis=-1)
+
+        def diffusion(state, control, t):
+            A = state[..., 0]
+            e = state[..., 1]
+            return np.stack([(sigma * A) ** 2, (sigma * (1.0 - e)) ** 2], axis=-1)
+
+        def jump(state, control, t, value_function, state_grids):
+            a_grid, e_grid = state_grids
+            A = state[..., 0]
+            e = state[..., 1]
+            sir = control[..., 0]
+            loss_e = np.minimum(0.5 * sir / np.maximum(A, 1e-9), e)  # equity-ratio drop
+            post_e = np.clip(e - loss_e, e_grid[0], e_grid[-1])
+            interp = interpolate.RegularGridInterpolator(
+                (a_grid, e_grid),
+                value_function,
+                method="linear",
+                bounds_error=False,
+                fill_value=None,
+            )
+            cur = interp(np.stack([A, e], axis=-1))
+            post = interp(np.stack([A, post_e], axis=-1))
+            return lam * (post - cur)
+
+        def terminal(state):
+            return np.log(np.maximum(state[..., 1] * state[..., 0], 1e-3))
+
+        return HJBProblem(
+            state_space=ss,
+            control_variables=cv,
+            utility_function=LogUtility(),
+            dynamics=dynamics,
+            running_cost=lambda s, c, t: np.zeros(s.shape[0]),
+            diffusion=diffusion if with_diffusion else None,
+            jump_term=jump if with_jump else None,
+            terminal_value=terminal,
+            discount_rate=discount,
+            time_horizon=0.2,
+        )
+
+    @staticmethod
+    def _solved(prob, dt=0.05):
+        solver = HJBSolver(
+            prob,
+            HJBSolverConfig(
+                time_step=dt,
+                scheme=TimeSteppingScheme.EXPLICIT,
+                auto_cfl=False,
+                verbose=False,
+            ),
+        )
+        solver.solve_finite_horizon()
+        return solver
+
+    def test_decomposition_sums_to_total(self):
+        """``total`` is exactly the sum of the five component fields, with correct shapes."""
+        prob = self._make_2d_problem()
+        terms = self._solved(prob).hamiltonian_terms()
+        assert isinstance(terms, HamiltonianTerms)
+        recon = terms.drift + terms.diffusion + terms.jump + terms.running_cost + terms.discount
+        np.testing.assert_allclose(terms.total, recon, rtol=0, atol=1e-12)
+        shape = prob.state_space.shape
+        for field in (terms.drift, terms.diffusion, terms.jump, terms.total):
+            assert field.shape == shape
+        assert terms.grad.shape == shape + (2,)
+        assert terms.d2v.shape == shape + (2,)
+        assert np.all(np.isfinite(terms.total))
+
+    @pytest.mark.parametrize(
+        "with_jump,with_diffusion,discount",
+        [(True, True, 0.0), (True, True, 0.03), (False, False, 0.0), (False, True, 0.02)],
+    )
+    def test_total_reproduces_one_step_dvdt(self, with_jump, with_diffusion, discount):
+        """``total`` equals the solver's one-step ``-∂V/∂t`` on interior cells (core AC5).
+
+        Replays exactly one backward step (the same ``_advance_value_one_step`` the
+        finite-horizon march uses) and checks ``(V_next - V0)/dt`` against
+        ``hamiltonian_terms(value=V0).total``.  Boundary cells are excluded because
+        ``_apply_boundary_conditions`` overwrites them after the step.
+        """
+        dt = 0.05
+        prob = self._make_2d_problem(
+            with_jump=with_jump, with_diffusion=with_diffusion, discount=discount
+        )
+        solver = HJBSolver(
+            prob,
+            HJBSolverConfig(
+                time_step=dt,
+                scheme=TimeSteppingScheme.EXPLICIT,
+                auto_cfl=False,
+                verbose=False,
+            ),
+        )
+        solver._initialize_solution_state()
+        solver._invalidate_operator_cache()
+        solver._policy_improvement()  # control argmax against the terminal V
+        assert solver.value_function is not None
+        v0 = solver.value_function.copy()
+        v_next, dt_used = solver._advance_value_one_step(
+            dt, TimeSteppingScheme.EXPLICIT, step_index=0, run_cfl_check=False
+        )
+        dvdt = (v_next - v0) / dt_used
+
+        terms = solver.hamiltonian_terms(value=v0)  # at the just-improved policy
+        interior = _interior_mask(prob.state_space.shape)
+        np.testing.assert_allclose(terms.total[interior], dvdt[interior], rtol=1e-6, atol=1e-8)
+
+    def test_total_at_optimal_policy_is_max_hamiltonian(self):
+        """The optimal policy maximizes the policy-improvement Hamiltonian (AC6).
+
+        ``total - discount`` is the Hamiltonian the solver ranks (drift + diffusion +
+        jump + cost, no -ρV).  Evaluated at the solver's optimal policy it must be ≥
+        the same quantity at any fixed alternative control, on interior cells.  This
+        passes only because ``drift`` uses the solver's UPWIND ∇V (a central-difference
+        drift would not reproduce the upwind argmax the solver chose).
+        """
+        prob = self._make_2d_problem()
+        solver = self._solved(prob)
+        opt = solver.hamiltonian_terms()  # raw optimal (argmax) policy
+        h_opt = opt.total - opt.discount
+        interior = _interior_mask(prob.state_space.shape)
+        sir_vals = prob.control_variables[0].get_values()
+        for sir in (sir_vals[0], sir_vals[len(sir_vals) // 2], sir_vals[-1]):
+            alt = solver.hamiltonian_terms(policy={"sir": np.full(prob.state_space.shape, sir)})
+            h_alt = alt.total - alt.discount
+            assert np.all(h_opt[interior] >= h_alt[interior] - 1e-9)
+
+    def test_diffusion_uses_compact_stencil_not_double_gradient(self):
+        """``d2v`` is the exact compact stencil, not the noisy ``np.gradient²`` (AC2).
+
+        On a log grid the compact non-uniform stencil is exact for a quadratic
+        (``d²(x²)/dx² = 2``), whereas ``np.gradient(np.gradient(V))`` -- which skips
+        the immediate neighbours and decouples even/odd subgrids -- is not.  This is
+        the precise mechanism #1610 fixes.
+        """
+        sv = StateVariable("x", 1.0, 100.0, 21, log_scale=True)
+        ss = StateSpace([sv])
+        cv = [ControlVariable("u", 0.0, 1.0, 2)]
+        prob = HJBProblem(
+            state_space=ss,
+            control_variables=cv,
+            utility_function=LogUtility(),
+            dynamics=lambda s, c, t: np.zeros_like(s),
+            running_cost=lambda s, c, t: np.zeros(s.shape[0]),
+        )
+        solver = HJBSolver(prob, HJBSolverConfig(verbose=False))
+        x = ss.grids[0]
+        v = x**2
+        terms = solver.hamiltonian_terms(value=v, policy={"u": np.zeros(len(x))})
+        # compact stencil: exact (==2) on the interior of a non-uniform grid
+        np.testing.assert_allclose(terms.d2v[1:-1, 0], 2.0, rtol=1e-6, atol=1e-6)
+        # the double-gradient is materially wrong on the same log grid
+        dbl = np.gradient(np.gradient(v, x), x)
+        assert np.max(np.abs(dbl[1:-1] - 2.0)) > 1e-2
+
+    def test_grad_field_is_central_gradient(self):
+        """``grad`` reproduces the plain central ``np.gradient`` the notebook used.
+
+        Confirms re-sourcing the cell-18/23 first derivatives from ``terms.grad`` is a
+        numerical no-op (only the second derivative changes to the compact stencil).
+        """
+        prob = self._make_2d_problem(with_jump=False, with_diffusion=False)
+        solver = self._solved(prob)
+        terms = solver.hamiltonian_terms()
+        a_grid, e_grid = prob.state_space.grids
+        g_a, g_e = np.gradient(solver.value_function, a_grid, e_grid)
+        np.testing.assert_allclose(terms.grad[..., 0], g_a)
+        np.testing.assert_allclose(terms.grad[..., 1], g_e)
+        np.testing.assert_allclose(terms.grad, solver._compute_gradient(solver.value_function))
+
+    def test_matches_convergence_metrics_residual(self):
+        """``max|total|`` over the interior equals ``max_residual_interior`` (shared operator)."""
+        prob = self._make_2d_problem()
+        solver = self._solved(prob)
+        terms = solver.hamiltonian_terms()  # raw optimal policy (same as the metrics)
+        metrics = solver.compute_convergence_metrics()
+        interior = _interior_mask(prob.state_space.shape)
+        assert np.isclose(
+            float(np.max(np.abs(terms.total[interior]))),
+            metrics["max_residual_interior"],
+            rtol=1e-9,
+            atol=1e-12,
+        )
+
+    def test_policy_override_changes_jump_but_not_diffusion(self):
+        """A different control changes the (control-dependent) jump, not the diffusion.
+
+        In this problem (and the notebook) diffusion is control-independent, so the
+        diffusion term is identical across policies while the jump term differs.
+        """
+        prob = self._make_2d_problem()
+        solver = self._solved(prob)
+        sir_vals = prob.control_variables[0].get_values()
+        lo = solver.hamiltonian_terms(policy={"sir": np.full(prob.state_space.shape, sir_vals[0])})
+        hi = solver.hamiltonian_terms(policy={"sir": np.full(prob.state_space.shape, sir_vals[-1])})
+        assert not np.allclose(lo.jump, hi.jump)
+        np.testing.assert_allclose(lo.diffusion, hi.diffusion)
+
+    def test_requires_value_and_policy(self):
+        """Raises a clear error with no prior solve, or a policy missing a control."""
+        prob = self._make_2d_problem()
+        solver = HJBSolver(prob, HJBSolverConfig(verbose=False))
+        with pytest.raises(RuntimeError, match="requires a prior solve"):
+            solver.hamiltonian_terms()
+        # value supplied but the policy omits the 'sir' control
+        state_points = np.stack(prob.state_space.flat_grids, axis=-1)
+        v = prob.terminal_value(state_points).reshape(prob.state_space.shape)
+        with pytest.raises(KeyError, match="sir"):
+            solver.hamiltonian_terms(value=v, policy={"wrong": np.zeros(prob.state_space.shape)})
+
+    def test_value_shape_mismatch_raises(self):
+        """A value array that does not match the state grid is rejected."""
+        prob = self._make_2d_problem()
+        solver = self._solved(prob)
+        with pytest.raises(ValueError, match="does not match the state grid"):
+            solver.hamiltonian_terms(value=np.zeros((3, 3)))
