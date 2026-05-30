@@ -41,6 +41,7 @@ __all__ = [
     "component_atoms",
     "build_loss_atoms",
     "build_equity_jump_operator_2d",
+    "build_equity_jump_operator_2d_sizescaled",
     "make_jump_term_2d",
 ]
 
@@ -344,6 +345,147 @@ def build_equity_jump_operator_2d(
     return J_big, p_ruin_2d
 
 
+def build_equity_jump_operator_2d_sizescaled(
+    a_grid: np.ndarray,
+    e_grid_l: np.ndarray,
+    sir_grid_l: np.ndarray,
+    component_x_atoms: Sequence[np.ndarray],
+    component_p_within: Sequence[np.ndarray],
+    component_freq_ref: Sequence[float],
+    component_freq_exponent: Sequence[float],
+    component_sev_exponent: Sequence[float],
+    atr: float,
+    reference_revenue: float,
+    sev_reference_base: float,
+    tower_top: float,
+    lae_ratio: float,
+    e_floor: float,
+    phi_retention: float,
+) -> Tuple[Any, np.ndarray, np.ndarray]:
+    """Size-scaled sibling of :func:`build_equity_jump_operator_2d` (issue #1607).
+
+    Identical block-diagonal-in-assets equity-jump construction, except the per-event
+    severity atoms and the loss intensity are made **component-aware and per-assets-slice**
+    so the catastrophe/large ceiling tracks the exposed value as the firm grows:
+
+    - Per assets-slice ``A_i`` with revenue ``rev_i = A_i * atr``, component ``c`` has
+      frequency ``freq_ref_c * (rev_i / reference_revenue) ** freq_exponent_c`` and its
+      atom values are scaled by ``(A_i / sev_reference_base) ** sev_exponent_c``
+      (attritional ``sev_exponent = 0`` keeps its severity fixed).
+    - The per-slice mixture weight of component ``c``'s atoms is ``freq_i_c / lambda_i``
+      (``lambda_i = sum_c freq_i_c``), so the intensity is returned per slice as
+      ``lambda_2d`` rather than a single scalar power law.
+
+    With ``sev_exponent == 0`` for every component and a shared ``freq_exponent`` this
+    reduces **exactly** (to floating-point) to :func:`build_equity_jump_operator_2d` fed
+    the frequency-mixture-weighted concatenation of the components, and ``lambda_2d``
+    collapses to ``(sum_c freq_ref_c) * (rev_i / reference_revenue) ** freq_exponent`` --
+    the scalar power law :func:`make_jump_term_2d` uses on the flat path.
+
+    Because a loss reduces EQUITY only (assets fixed at impact), severity scaling changes
+    only the within-slice equity shift ``L_ret / A_i``; the operator stays block-diagonal
+    across assets (no mass moves between assets-slices).
+
+    Args:
+        a_grid, e_grid_l, sir_grid_l: State (assets, equity-ratio) and control (SIR) grids;
+            see :func:`build_equity_jump_operator_2d`.
+        component_x_atoms: Per-component reference (unscaled) severity atom values.
+        component_p_within: Per-component within-component atom probabilities (each sums to 1).
+        component_freq_ref: Per-component frequency (events/yr) at ``reference_revenue``.
+        component_freq_exponent: Per-component revenue exponent for frequency scaling.
+        component_sev_exponent: Per-component size exponent for severity scaling (``0`` = fixed).
+        atr: Asset-turnover ratio (``revenue = A * atr``).
+        reference_revenue: Reference revenue for frequency scaling.
+        sev_reference_base: Reference asset base for severity scaling (e.g. initial assets).
+        tower_top, lae_ratio, e_floor, phi_retention: Retained-loss parameters; see
+            :func:`build_equity_jump_operator_2d`.
+
+    Returns:
+        ``(J_big, p_ruin_2d, lambda_2d)``. ``J_big`` and ``p_ruin_2d`` match the flat
+        function's shapes/contract; ``lambda_2d`` has shape ``(n_a,)`` -- the loss intensity
+        per assets-slice (pass it to :func:`make_jump_term_2d` via ``lambda_2d=``).
+
+    Raises:
+        ValueError: if the per-component sequences do not all share one length.
+    """
+    from scipy.sparse import block_diag, coo_matrix
+
+    n_comp = len(component_x_atoms)
+    if not (
+        len(component_p_within)
+        == len(component_freq_ref)
+        == len(component_freq_exponent)
+        == len(component_sev_exponent)
+        == n_comp
+    ):
+        raise ValueError("all per-component sequences must share one length")
+
+    n_a, n_e, n_sir = len(a_grid), len(e_grid_l), len(sir_grid_l)
+    # Reference atom values + a component index per atom, concatenated in component order
+    # (matching build_loss_atoms' concatenation so the gamma=0 reduction is exact).
+    x_ref = np.concatenate([np.asarray(x, dtype=float) for x in component_x_atoms])
+    p_within = np.concatenate([np.asarray(p, dtype=float) for p in component_p_within])
+    comp_idx = np.concatenate(
+        [np.full(len(component_x_atoms[c]), c, dtype=int) for c in range(n_comp)]
+    )
+    n_atoms = len(x_ref)
+    sev_exp_per_atom = np.asarray(component_sev_exponent, dtype=float)[comp_idx]
+    freq_ref_arr = np.asarray(component_freq_ref, dtype=float)
+    freq_exp_arr = np.asarray(component_freq_exponent, dtype=float)
+    row_tmpl = (np.arange(n_e)[:, None] * n_sir + np.arange(n_sir)[None, :]).ravel()
+
+    blocks = []
+    p_ruin_2d = np.empty((n_a, n_e, n_sir))
+    lambda_2d = np.empty(n_a)
+    for i, A_i in enumerate(a_grid):
+        rev_i = A_i * atr
+        freq_i = freq_ref_arr * (rev_i / reference_revenue) ** freq_exp_arr
+        lam_i = float(freq_i.sum())
+        lambda_2d[i] = lam_i
+        # Per-slice mixture probability of each atom = (freq_i_c / lambda_i) * p_within.
+        comp_weight = (freq_i / max(lam_i, 1e-300))[comp_idx]
+        p_atoms_i = p_within * comp_weight  # sums to 1
+        # Per-slice scaled severities: large/cat by (A_i / sev_ref)^sev_exp; attritional exp 0.
+        x_i = x_ref * (A_i / sev_reference_base) ** sev_exp_per_atom
+        # GROSS retained (drives the single-loss ruin test) and after-tax retained (the
+        # surviving equity reduction); scale the atoms BEFORE the tower-top re-entry so a
+        # grown firm's loss above tower_top is retained at scaled dollars.
+        L_gross_atom_sir = (1.0 + lae_ratio) * (
+            np.minimum(x_i[None, :], sir_grid_l[:, None])
+            + np.maximum(x_i[None, :] - tower_top, 0.0)
+        )  # (n_sir, n_atoms)
+        L_per_atom_sir = phi_retention * L_gross_atom_sir  # (n_sir, n_atoms)
+        E_grid_i = e_grid_l * A_i
+        raw_post_E_gross = E_grid_i[:, None, None] - L_gross_atom_sir[None, :, :]
+        ruin = raw_post_E_gross < e_floor
+        p_ruin_2d[i] = np.sum(p_atoms_i[None, None, :] * ruin, axis=2)
+        raw_post_E = E_grid_i[:, None, None] - L_per_atom_sir[None, :, :]
+        post_e = np.where(ruin, e_grid_l[0], raw_post_E / A_i)
+        post_e = np.clip(post_e, e_grid_l[0], e_grid_l[-1])
+        idx_lo = np.clip(np.searchsorted(e_grid_l, post_e, side="right") - 1, 0, n_e - 2)
+        idx_hi = idx_lo + 1
+        w_hi = np.clip(
+            (post_e - e_grid_l[idx_lo]) / (e_grid_l[idx_hi] - e_grid_l[idx_lo]), 0.0, 1.0
+        )
+        w_lo = 1.0 - w_hi
+        interior = (~ruin).astype(float)
+        p_lo = (p_atoms_i[None, None, :] * w_lo * interior).reshape(n_e * n_sir, n_atoms)
+        p_hi = (p_atoms_i[None, None, :] * w_hi * interior).reshape(n_e * n_sir, n_atoms)
+        rows = np.tile(np.repeat(row_tmpl, n_atoms), 2)
+        cols = np.concatenate(
+            [
+                idx_lo.reshape(n_e * n_sir, n_atoms).ravel(),
+                idx_hi.reshape(n_e * n_sir, n_atoms).ravel(),
+            ]
+        )
+        data = np.concatenate([p_lo.ravel(), p_hi.ravel()])
+        J_i = coo_matrix((data, (rows, cols)), shape=(n_e * n_sir, n_e)).tocsr()
+        J_i.sum_duplicates()
+        blocks.append(J_i)
+    J_big = block_diag(blocks, format="csr")
+    return J_big, p_ruin_2d, lambda_2d
+
+
 def make_jump_term_2d(
     a_grid: np.ndarray,
     e_grid_l: np.ndarray,
@@ -360,6 +502,7 @@ def make_jump_term_2d(
     v_ruin: float,
     phi_retention: Optional[float] = None,
     prebuilt: Optional[Tuple[Any, np.ndarray]] = None,
+    lambda_2d: Optional[np.ndarray] = None,
 ) -> Tuple[Callable, Any, np.ndarray]:
     """Build a 2-D ``jump_term(state, control, t, V, grids)`` callback (Option A).
 
@@ -399,6 +542,12 @@ def make_jump_term_2d(
         phi_retention: After-tax retention factor; required when ``prebuilt is None``
             (forwarded to :func:`build_equity_jump_operator_2d`), ignored otherwise.
         prebuilt: Optional ``(J_big, p_ruin_2d)`` to reuse instead of rebuilding.
+        lambda_2d: Optional per-assets-slice loss intensity ``(n_a,)`` from
+            :func:`build_equity_jump_operator_2d_sizescaled` (issue #1607). When provided,
+            the callback uses it -- nearest snaps to the assets node, linear interpolates
+            in ``log(A)`` -- instead of the scalar power law
+            ``lambda_base_local * (A*atr/ref) ** freq_scaling_exponent_local``
+            (``lambda_base_local`` / ``freq_scaling_exponent_local`` are then ignored).
 
     Returns:
         ``(jump_term, J_big, p_ruin_2d)``.
@@ -469,7 +618,10 @@ def make_jump_term_2d(
         A = state[..., 0]
         e = state[..., 1]
         sir = control[..., 0]
-        lam = (
+        # Loss intensity: per-slice lambda_2d when supplied (issue #1607), else the
+        # scalar revenue power law.  lambda_2d wins because under per-component frequency
+        # exponents lambda(A) is a SUM of power laws, not a single power.
+        lam_powerlaw = (
             lambda_base_local
             * (A * atr_local / reference_revenue_local) ** freq_scaling_exponent_local
         )
@@ -481,6 +633,7 @@ def make_jump_term_2d(
             row = flat_state * n_sir + sir_idx
             EV_post = EV_interior_all[row] + p_ruin_flat[row] * v_ruin
             V_cur = value_function.ravel()[flat_state]
+            lam = lam_powerlaw if lambda_2d is None else lambda_2d[a_idx]
             return lam * (EV_post - V_cur)
         # interp == "linear": continuous off-grid path (issue #1612).
         V_flat = value_function.ravel()
@@ -505,6 +658,8 @@ def make_jump_term_2d(
                 base = (a_idx * n_e + e_idx) * n_sir
                 for s_idx, w_s in ((sL, wsL), (sH, wsH)):
                     EV_post = EV_post + w_a * w_e * w_s * np.take(Jflat, base + s_idx)
+        # Intensity: interpolate lambda_2d in log(A) (issue #1607), else the power law.
+        lam = lam_powerlaw if lambda_2d is None else (waL * lambda_2d[aL] + waH * lambda_2d[aH])
         return lam * (EV_post - V_cur)
 
     return jump_term, J_big, p_ruin_2d

@@ -19,6 +19,43 @@ if TYPE_CHECKING:
     from .trends import Trend
 
 
+def _scale_severity_with_size(
+    severities: np.ndarray,
+    revenue: float,
+    reference_revenue: float,
+    severity_scaling_exponent: float,
+) -> np.ndarray:
+    """Scale per-event severities by ``(revenue / reference_revenue) ** exponent`` (issue #1607).
+
+    Traditional exposure rating scales *frequency* with insured size and treats the
+    per-claim severity distribution as size-invariant -- correct for attritional losses
+    within a single policy year.  Over a long horizon where the firm grows many-fold,
+    however, the *catastrophic* single-event ceiling is bounded by the exposed value
+    (PML proportional to TIV / the asset base), which grows with the firm.  This helper
+    lets a generator opt that component's severity into scaling with size so a single
+    catastrophe does not become trivial relative to a compounding balance sheet.
+
+    The default ``severity_scaling_exponent == 0.0`` returns the input array unchanged
+    (bit-identical to fixed-severity behaviour, with no extra allocation), so callers
+    that do not opt in are unaffected.  Scaling is applied *after* sampling, so the
+    random stream -- and therefore reproducibility at a given seed -- is untouched.
+
+    Args:
+        severities: Sampled per-event severity amounts.
+        revenue: Current exposure base (revenue; assets co-move via asset turnover).
+        reference_revenue: Reference exposure at which severity is unscaled.
+        severity_scaling_exponent: Power ``gamma`` applied to the size ratio. ``0`` keeps
+            severity fixed; ``1`` is the PML-proportional-to-exposure limit.
+
+    Returns:
+        The (possibly scaled) severity array.
+    """
+    if severity_scaling_exponent == 0.0 or reference_revenue <= 0:
+        return severities
+    factor = (max(float(revenue), 0.0) / reference_revenue) ** severity_scaling_exponent
+    return np.asarray(severities * factor)
+
+
 class LossDistribution(ABC):
     """Abstract base class for loss severity distributions.
 
@@ -728,6 +765,7 @@ class AttritionalLossGenerator:
         severity_cv: float = 1.5,
         revenue_scaling_exponent: float = 0.5,
         reference_revenue: float = 10_000_000,
+        severity_scaling_exponent: float = 0.0,
         exposure: Optional["ExposureBase"] = None,
         seed: Optional[int] = None,
     ):
@@ -739,6 +777,10 @@ class AttritionalLossGenerator:
             severity_cv: Coefficient of variation (0.6-1.0 typical).
             revenue_scaling_exponent: Revenue scaling power (0.5 = sqrt scaling).
             reference_revenue: Reference revenue for base frequency.
+            severity_scaling_exponent: Power gamma scaling per-event severity by
+                ``(revenue / reference_revenue) ** gamma`` (issue #1607). Default ``0``
+                keeps attritional severity fixed (the actuarially correct default --
+                a slip-and-fall does not cost more because the firm grew).
             exposure: Optional exposure object for dynamic frequency scaling.
             seed: Random seed for reproducibility.
         """
@@ -751,6 +793,7 @@ class AttritionalLossGenerator:
         )
 
         self.severity_distribution = LognormalLoss(mean=severity_mean, cv=severity_cv, seed=seed)
+        self.severity_scaling_exponent = severity_scaling_exponent
 
         self.loss_type = "attritional"
 
@@ -783,6 +826,12 @@ class AttritionalLossGenerator:
             return []
 
         severities = self.severity_distribution.generate_severity(len(event_times))
+        severities = _scale_severity_with_size(
+            severities,
+            revenue,
+            self.frequency_generator.reference_revenue,
+            self.severity_scaling_exponent,
+        )
 
         return [
             LossEvent(time=t, amount=s, loss_type=self.loss_type)
@@ -804,6 +853,7 @@ class LargeLossGenerator:
         severity_cv: float = 2.0,
         revenue_scaling_exponent: float = 0.7,
         reference_revenue: float = 10_000_000,
+        severity_scaling_exponent: float = 0.0,
         exposure: Optional["ExposureBase"] = None,
         seed: Optional[int] = None,
     ):
@@ -815,6 +865,12 @@ class LargeLossGenerator:
             severity_cv: Coefficient of variation (1.5-2.0 typical).
             revenue_scaling_exponent: Revenue scaling power (0.7 typical).
             reference_revenue: Reference revenue for base frequency.
+            severity_scaling_exponent: Power gamma scaling per-event severity by
+                ``(revenue / reference_revenue) ** gamma`` (issue #1607). Default ``0``
+                keeps severity fixed. When opting the large layer into scaling, pair it
+                with a frequency exponent reduced to ``1 - gamma`` to keep the layer's
+                aggregate proportional to exposure (fewer, larger events) -- see the
+                exposure-preserving construction in notebook 07.
             exposure: Optional exposure object for dynamic frequency scaling.
             seed: Random seed for reproducibility.
         """
@@ -827,6 +883,7 @@ class LargeLossGenerator:
         )
 
         self.severity_distribution = LognormalLoss(mean=severity_mean, cv=severity_cv, seed=seed)
+        self.severity_scaling_exponent = severity_scaling_exponent
 
         self.loss_type = "large"
 
@@ -859,6 +916,12 @@ class LargeLossGenerator:
             return []
 
         severities = self.severity_distribution.generate_severity(len(event_times))
+        severities = _scale_severity_with_size(
+            severities,
+            revenue,
+            self.frequency_generator.reference_revenue,
+            self.severity_scaling_exponent,
+        )
 
         return [
             LossEvent(time=t, amount=s, loss_type=self.loss_type)
@@ -880,6 +943,7 @@ class CatastrophicLossGenerator:
         severity_xm: float = 1_000_000,
         revenue_scaling_exponent: float = 0.0,
         reference_revenue: float = 10_000_000,
+        severity_scaling_exponent: float = 0.0,
         exposure: Optional["ExposureBase"] = None,
         seed: Optional[int] = None,
     ):
@@ -889,6 +953,15 @@ class CatastrophicLossGenerator:
             base_frequency: Base events per year (0.01-0.05 typical).
             severity_alpha: Pareto shape parameter (2.5 typical).
             severity_xm: Pareto minimum value ($1M+ typical).
+            revenue_scaling_exponent: Revenue scaling power for frequency (0 = no
+                scaling; catastrophe counts are traditionally exposure-rated).
+            reference_revenue: Reference revenue for base frequency.
+            severity_scaling_exponent: Power gamma scaling per-event severity by
+                ``(revenue / reference_revenue) ** gamma`` (issue #1607). Default ``0``
+                keeps severity fixed. The defensible scaling: a single catastrophic loss
+                cannot exceed the exposed value (PML proportional to TIV / the asset
+                base), which grows with the firm -- so over a long horizon the cat ceiling
+                should track size rather than stay frozen.
             exposure: Optional exposure object for dynamic frequency scaling.
             seed: Random seed for reproducibility.
         """
@@ -903,6 +976,7 @@ class CatastrophicLossGenerator:
         )
 
         self.severity_distribution = ParetoLoss(alpha=severity_alpha, xm=severity_xm, seed=seed)
+        self.severity_scaling_exponent = severity_scaling_exponent
 
         self.loss_type = "catastrophic"
 
@@ -935,6 +1009,12 @@ class CatastrophicLossGenerator:
             return []
 
         severities = self.severity_distribution.generate_severity(len(event_times))
+        severities = _scale_severity_with_size(
+            severities,
+            revenue,
+            self.frequency_generator.reference_revenue,
+            self.severity_scaling_exponent,
+        )
 
         return [
             LossEvent(time=t, amount=s, loss_type=self.loss_type)
@@ -963,9 +1043,13 @@ class ManufacturingLossGenerator:
         """Initialize manufacturing loss generator.
 
         Args:
-            attritional_params: Parameters for attritional losses.
-            large_params: Parameters for large losses.
-            catastrophic_params: Parameters for catastrophic losses.
+            attritional_params: Parameters for attritional losses. Accepts a
+                ``severity_scaling_exponent`` key (issue #1607; default 0 = fixed
+                severity), forwarded to the per-component generator.
+            large_params: Parameters for large losses (also accepts
+                ``severity_scaling_exponent``; see ``attritional_params``).
+            catastrophic_params: Parameters for catastrophic losses (also accepts
+                ``severity_scaling_exponent``; see ``attritional_params``).
             extreme_params: Optional parameters for extreme value modeling.
                 - threshold_value (float): Threshold for GPD application (required if extreme_params provided)
                 - severity_shape (float): GPD shape parameter ξ (required)
@@ -1066,6 +1150,8 @@ class ManufacturingLossGenerator:
         catastrophic_frequency: float = 0.001,
         catastrophic_pareto_alpha: float = 2.5,
         catastrophic_severity_factor: float = 5.0,
+        large_severity_scaling_exponent: float = 0.0,
+        catastrophic_severity_scaling_exponent: float = 0.0,
         frequency_trend: Optional["Trend"] = None,
         severity_trend: Optional["Trend"] = None,
     ) -> "ManufacturingLossGenerator":
@@ -1096,6 +1182,10 @@ class ManufacturingLossGenerator:
                 losses. Default 2.5.
             catastrophic_severity_factor: Multiplier on severity_mean for the
                 Pareto xm (minimum catastrophic loss). Default 5.0.
+            large_severity_scaling_exponent: Size-scaling exponent gamma for large-loss
+                severity (issue #1607). Default 0.0 (fixed severity).
+            catastrophic_severity_scaling_exponent: Size-scaling exponent gamma for
+                catastrophic severity (issue #1607). Default 0.0 (fixed severity).
 
         Returns:
             ManufacturingLossGenerator configured for simple use case.
@@ -1144,6 +1234,7 @@ class ManufacturingLossGenerator:
             "base_frequency": frequency * large_frequency_ratio,
             "severity_mean": severity_mean * large_severity_factor,
             "severity_cv": cv * large_cv_factor,
+            "severity_scaling_exponent": large_severity_scaling_exponent,
         }
 
         # Catastrophic losses: use Pareto distribution
@@ -1151,6 +1242,7 @@ class ManufacturingLossGenerator:
             "base_frequency": catastrophic_frequency,
             "severity_alpha": catastrophic_pareto_alpha,
             "severity_xm": severity_mean * catastrophic_severity_factor,
+            "severity_scaling_exponent": catastrophic_severity_scaling_exponent,
         }
 
         return cls(
