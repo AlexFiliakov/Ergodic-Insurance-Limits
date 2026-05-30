@@ -749,10 +749,14 @@ class WidgetManufacturer(
         # Issue #1337: Include working capital facility in available liquidity
         # so payments can draw on the credit facility up to its limit.
         total_payments_due = total_accrual_due + total_claim_due
-        facility_limit = getattr(self.config, "working_capital_facility_limit", None)
+        # Issue #1625: the effective facility scales with revenue when a ratio
+        # is configured (else the fixed limit; None = unlimited). Single source
+        # of truth via effective_facility_limit() keeps the payment cap, the
+        # post-payment crisis check, and check_solvency()'s breach test aligned.
+        facility_limit_d = self.effective_facility_limit()
         available_liquidity = self.cash + self.restricted_assets
-        if facility_limit is not None:
-            available_liquidity += to_decimal(facility_limit)
+        if facility_limit_d is not None:
+            available_liquidity += facility_limit_d
         max_total_payable: Decimal = (
             min(total_payments_due, available_liquidity)
             if available_liquidity > ZERO
@@ -773,7 +777,7 @@ class WidgetManufacturer(
                 f"LIQUIDITY CONSTRAINT: Total payments due ${total_payments_due:,.2f} "
                 f"exceeds available liquidity ${available_liquidity:,.2f} "
                 f"(cash: ${self.cash:,.2f}, restricted: ${self.restricted_assets:,.2f}"
-                f"{f', facility: ${to_decimal(facility_limit):,.2f}' if facility_limit is not None else ''}). "
+                f"{f', facility: ${facility_limit_d:,.2f}' if facility_limit_d is not None else ''}). "
                 f"Capping at ${max_total_payable:,.2f} "
                 f"(Accruals: ${max_accrual_payable:,.2f}, Claims: ${max_claim_payable:,.2f})"
             )
@@ -789,8 +793,7 @@ class WidgetManufacturer(
         # After claim/accrual payments, verify the working capital facility
         # has not been breached.  This catches genuine liquidity crises from
         # large mandatory payments before the period continues.
-        if facility_limit is not None:
-            facility_limit_d = to_decimal(facility_limit)
+        if facility_limit_d is not None:
             if self.cash < -facility_limit_d:
                 logger.warning(
                     f"LIQUIDITY CRISIS: After claim/accrual payments, cash "
