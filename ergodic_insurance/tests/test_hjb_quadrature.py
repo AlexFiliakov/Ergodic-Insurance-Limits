@@ -20,6 +20,7 @@ import pytest
 
 from ergodic_insurance.hjb_quadrature import (
     build_equity_jump_operator_2d,
+    build_equity_jump_operator_2d_sizescaled,
     build_loss_atoms,
     component_atoms,
     lognormal_gauss_hermite_nodes,
@@ -582,3 +583,181 @@ class TestEquityJumpOperator2D:
         assert np.array_equal(pr_lo, pr_hi)
         # Surviving operator depends on phi -> the maps differ.
         assert (j_lo - j_hi).nnz > 0 or not np.allclose(j_lo.toarray(), j_hi.toarray())
+
+
+# ---------------------------------------------------------------------------
+# Size-scaled per-assets-slice jump operator (issue #1607)
+# ---------------------------------------------------------------------------
+
+# Scaled-down notebook-07 economics for the size-scaled operator tests.
+_SS_GRIDS: dict[str, Any] = {
+    "a_grid": np.geomspace(5e5, 2e8, 10),  # log-spaced assets
+    "e_grid_l": np.linspace(0.01, 1.0, 12),  # linear equity ratio
+    "sir_grid_l": np.geomspace(1e4, 5e7, 16),  # log-spaced SIR control
+}
+_SS_KW: dict[str, Any] = {
+    "tower_top": 1e8,
+    "lae_ratio": 0.12,
+    "e_floor": 1e5,
+    "phi_retention": 0.525,
+}
+_SS_ECON: dict[str, Any] = {
+    "atr": 1.5,
+    "reference_revenue": 7.5e6,
+    "sev_reference_base": 5e6,
+}
+
+
+def _components_for_sizescale(n_atoms=40, gh_nodes=16):
+    """Two-component (lognormal "large" + Pareto "cat") atoms + matching frequencies."""
+    pricers = (
+        LayerPricer(LognormalLoss(mean=450_000, cv=2.5), frequency=0.4),
+        LayerPricer(ParetoLoss(alpha=2.05, xm=800_000), frequency=0.075),
+    )
+    comp_x, comp_p = [], []
+    for pr in pricers:
+        xa, pa = component_atoms(pr.severity, n_atoms=n_atoms, gh_nodes=gh_nodes)
+        comp_x.append(xa)
+        comp_p.append(pa)
+    freq_ref = [pr.frequency for pr in pricers]
+    return pricers, comp_x, comp_p, freq_ref
+
+
+class TestSizeScaledJumpOperator1607:
+    """Size-scaled per-assets-slice equity-jump operator -- issue #1607."""
+
+    def test_gamma0_reduces_to_flat_operator(self):
+        """sev_exp=0 + shared freq_exp reproduces the flat operator and scalar-lambda path."""
+        pricers, comp_x, comp_p, freq_ref = _components_for_sizescale()
+        x_flat, p_flat = build_loss_atoms(pricers, n_per_component=40, gh_nodes=16)
+        j_flat, pr_flat = build_equity_jump_operator_2d(
+            _SS_GRIDS["a_grid"],
+            _SS_GRIDS["e_grid_l"],
+            _SS_GRIDS["sir_grid_l"],
+            x_flat,
+            p_flat,
+            **_SS_KW,
+        )
+        j_ss, pr_ss, lam_ss = build_equity_jump_operator_2d_sizescaled(
+            _SS_GRIDS["a_grid"],
+            _SS_GRIDS["e_grid_l"],
+            _SS_GRIDS["sir_grid_l"],
+            comp_x,
+            comp_p,
+            freq_ref,
+            [1.0, 1.0],  # shared frequency exponent
+            [0.0, 0.0],  # gamma = 0: no severity scaling
+            **_SS_ECON,
+            **_SS_KW,
+        )
+        assert np.allclose(j_flat.toarray(), j_ss.toarray(), rtol=1e-9, atol=1e-12)
+        np.testing.assert_allclose(pr_flat, pr_ss, rtol=1e-9, atol=1e-12)
+        rev = _SS_GRIDS["a_grid"] * _SS_ECON["atr"]
+        expected = sum(freq_ref) * (rev / _SS_ECON["reference_revenue"]) ** 1.0
+        np.testing.assert_allclose(lam_ss, expected, rtol=1e-12)
+
+    def test_lambda_2d_is_sum_of_per_component_power_laws(self):
+        """Non-uniform freq exponents -> lambda(A) is a sum of power laws, not one power."""
+        _, comp_x, comp_p, freq_ref = _components_for_sizescale()
+        freq_exp = [1.0, 0.5]
+        _, _, lam = build_equity_jump_operator_2d_sizescaled(
+            _SS_GRIDS["a_grid"],
+            _SS_GRIDS["e_grid_l"],
+            _SS_GRIDS["sir_grid_l"],
+            comp_x,
+            comp_p,
+            freq_ref,
+            freq_exp,
+            [0.0, 0.0],
+            **_SS_ECON,
+            **_SS_KW,
+        )
+        ratio = _SS_GRIDS["a_grid"] * _SS_ECON["atr"] / _SS_ECON["reference_revenue"]
+        expected = freq_ref[0] * ratio ** freq_exp[0] + freq_ref[1] * ratio ** freq_exp[1]
+        np.testing.assert_allclose(lam, expected, rtol=1e-12)
+
+    def test_probability_mass_is_conserved(self):
+        """Each atom interpolates to interior nodes or ruins -> row_sum(J) + p_ruin == 1."""
+        _, comp_x, comp_p, freq_ref = _components_for_sizescale()
+        j_ss, pr_ss, _ = build_equity_jump_operator_2d_sizescaled(
+            _SS_GRIDS["a_grid"],
+            _SS_GRIDS["e_grid_l"],
+            _SS_GRIDS["sir_grid_l"],
+            comp_x,
+            comp_p,
+            freq_ref,
+            [1.0, 1.0],
+            [0.0, 0.5],  # cat scales -- mass conservation must still hold
+            **_SS_ECON,
+            **_SS_KW,
+        )
+        row_sum = np.asarray(j_ss.sum(axis=1)).ravel()
+        np.testing.assert_allclose(row_sum + pr_ss.ravel(), 1.0, rtol=0, atol=1e-12)
+
+    def test_cat_severity_scaling_raises_ruin_at_grown_firm(self):
+        """gamma>0 on cat changes the operator and raises single-loss ruin at the top slice."""
+        _, comp_x, comp_p, freq_ref = _components_for_sizescale()
+        common = {"component_freq_ref": freq_ref, "component_freq_exponent": [1.0, 1.0]}
+        j0, pr0, _ = build_equity_jump_operator_2d_sizescaled(
+            _SS_GRIDS["a_grid"],
+            _SS_GRIDS["e_grid_l"],
+            _SS_GRIDS["sir_grid_l"],
+            comp_x,
+            comp_p,
+            component_sev_exponent=[0.0, 0.0],
+            **common,
+            **_SS_ECON,
+            **_SS_KW,
+        )
+        jg, prg, _ = build_equity_jump_operator_2d_sizescaled(
+            _SS_GRIDS["a_grid"],
+            _SS_GRIDS["e_grid_l"],
+            _SS_GRIDS["sir_grid_l"],
+            comp_x,
+            comp_p,
+            component_sev_exponent=[0.0, 0.75],
+            **common,
+            **_SS_ECON,
+            **_SS_KW,
+        )
+        assert not np.allclose(j0.toarray(), jg.toarray())
+        # Scaled cat losses are a strict superset of the ruin region at the top assets slice.
+        assert np.all(prg[-1] >= pr0[-1] - 1e-15)
+        assert prg[-1].sum() > pr0[-1].sum()
+
+    def test_make_jump_term_uses_lambda_2d(self):
+        """make_jump_term_2d(lambda_2d=...) scales intensity by lambda_2d, not the power law."""
+        _, comp_x, comp_p, freq_ref = _components_for_sizescale()
+        a, e, s = _SS_GRIDS["a_grid"], _SS_GRIDS["e_grid_l"], _SS_GRIDS["sir_grid_l"]
+        j_ss, pr_ss, lam = build_equity_jump_operator_2d_sizescaled(
+            a, e, s, comp_x, comp_p, freq_ref, [1.0, 0.5], [0.0, 0.5], **_SS_ECON, **_SS_KW
+        )
+        n_atoms = sum(len(x) for x in comp_x)
+        dummy_x = np.concatenate(comp_x)
+        dummy_p = np.full(n_atoms, 1.0 / n_atoms)
+        econ = {
+            "atr_local": _SS_ECON["atr"],
+            "reference_revenue_local": _SS_ECON["reference_revenue"],
+            "freq_scaling_exponent_local": 1.0,
+            "lambda_base_local": sum(freq_ref),
+            "v_ruin": float(np.log(_SS_KW["e_floor"])),
+        }
+        shared = {
+            "tower_top": _SS_KW["tower_top"],
+            "lae_ratio": _SS_KW["lae_ratio"],
+            "e_floor": _SS_KW["e_floor"],
+            "phi_retention": _SS_KW["phi_retention"],
+            "prebuilt": (j_ss, pr_ss),
+        }
+        jt_pl, _, _ = make_jump_term_2d(a, e, s, dummy_x, dummy_p, **shared, **econ)
+        jt_l2, _, _ = make_jump_term_2d(a, e, s, dummy_x, dummy_p, lambda_2d=lam, **shared, **econ)
+        rng = np.random.default_rng(0)
+        value_function = rng.standard_normal((len(a), len(e)))
+        ia = 6
+        state = np.array([[a[ia], e[5]]])
+        control = np.array([[s[8]]])
+        out_pl = float(jt_pl(state, control, 0.0, value_function, None)[0])
+        out_l2 = float(jt_l2(state, control, 0.0, value_function, None)[0])
+        lam_pl = sum(freq_ref) * (a[ia] * _SS_ECON["atr"] / _SS_ECON["reference_revenue"]) ** 1.0
+        assert abs(out_pl) > 1e-9 and abs(lam[ia] - lam_pl) > 1e-6  # the two intensities differ
+        np.testing.assert_allclose(out_l2 / out_pl, lam[ia] / lam_pl, rtol=1e-9)
