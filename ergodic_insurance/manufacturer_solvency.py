@@ -337,6 +337,27 @@ class SolvencyMixin:
             return to_decimal(fixed)
         return None
 
+    def _liquidity_floor(self) -> Optional[Decimal]:
+        """Cash floor below which the firm is liquidity-insolvent (Issue #1631).
+
+        Returns ``-effective_facility_limit()``: the firm may draw its
+        working-capital revolver down to this floor to bridge a temporary cash
+        dip, so a cash balance at or above the floor is NOT insolvency. ``None``
+        means an unlimited facility (no cash-floor insolvency at all).
+
+        This is the single source of truth for the liquidity floor shared by the
+        intra-year check (:meth:`check_liquidity_constraints`) and ``step()``'s
+        post-payment crisis check, so the two can never drift to inconsistent
+        floors (e.g. ``0`` vs ``-facility``). It mirrors the facility-breach
+        test in :meth:`check_solvency` (Tier 1a, ASC 205-40-50-12).
+
+        Returns:
+            Optional[Decimal]: ``-effective_facility_limit()`` in dollars, or
+                ``None`` for an unlimited facility.
+        """
+        facility = self.effective_facility_limit()
+        return -facility if facility is not None else None
+
     def check_solvency(self) -> bool:
         """Check if the company is solvent using ASC 205-40 going concern assessment.
 
@@ -554,12 +575,22 @@ class SolvencyMixin:
 
         min_cash, min_month = self.estimate_minimum_cash_point(time_resolution)
 
-        if min_cash < ZERO:
+        # Issue #1631: floor the mid-year insolvency decision at the
+        # working-capital facility, NOT at 0. A temporary intra-year cash trough
+        # the revolver would cover (e.g. the annual premium outflow before
+        # revenue accrues) is not insolvency — the firm draws on the facility to
+        # bridge it, exactly as step()'s claim-payment path and post-payment
+        # crisis check already do. ``None`` => unlimited facility => no
+        # cash-floor mid-year insolvency (mirrors check_solvency Tier 1a).
+        floor = self._liquidity_floor()
+        if floor is not None and min_cash < floor:
             self.is_ruined = True
             self.ruin_month = min_month
             logger.warning(
                 f"MID-YEAR INSOLVENCY: Company would become insolvent in month {min_month} "
-                f"with estimated cash of ${min_cash:,.2f}. Year {self.current_year}, "
+                f"with estimated cash of ${min_cash:,.2f} "
+                f"(below working-capital facility floor ${floor:,.2f}). "
+                f"Year {self.current_year}, "
                 f"premium payment month: {getattr(self.config, 'premium_payment_month', 0)}"
             )
             return False

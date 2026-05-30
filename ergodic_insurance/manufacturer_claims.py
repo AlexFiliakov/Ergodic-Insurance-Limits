@@ -67,12 +67,20 @@ class ClaimProcessingMixin:
         premium_decimal = to_decimal(premium_amount)
         if premium_decimal > ZERO:
             if is_annual:
-                # COMPULSORY INSURANCE CHECK
-                if self.cash < premium_decimal:
+                # COMPULSORY INSURANCE CHECK (Issue #1631: credit the
+                # working-capital facility). The firm can draw its revolver to
+                # bridge the premium outflow, so it is insolvent only if cash
+                # cannot cover the premium even after drawing down to the
+                # facility floor. An unlimited facility (None) is never
+                # cash-floor-insolvent here, mirroring _liquidity_floor() and
+                # check_solvency() Tier 1a.
+                floor = self._liquidity_floor()
+                if floor is not None and self.cash - premium_decimal < floor:
                     logger.error(
-                        f"INSOLVENCY: Cannot afford compulsory annual insurance premium. "
-                        f"Required: ${premium_decimal:,.2f}, Available cash: ${self.cash:,.2f}. "
-                        f"Company cannot operate without insurance."
+                        f"INSOLVENCY: Cannot afford compulsory annual insurance premium "
+                        f"even after drawing the working-capital facility. Required: "
+                        f"${premium_decimal:,.2f}, available cash: ${self.cash:,.2f}, "
+                        f"facility floor: ${floor:,.2f}. Company cannot operate without insurance."
                     )
                     self.handle_insolvency()
                     return
@@ -138,11 +146,17 @@ class ClaimProcessingMixin:
         """
         annual_premium_decimal = to_decimal(annual_premium)
         if annual_premium_decimal > ZERO:
-            if self.cash < annual_premium_decimal:
+            # Issue #1631: credit the working-capital facility — insolvent only
+            # if cash cannot cover the premium even after drawing the revolver
+            # down to its floor (None facility => unlimited => never insolvent
+            # here), mirroring _liquidity_floor() and check_solvency() Tier 1a.
+            floor = self._liquidity_floor()
+            if floor is not None and self.cash - annual_premium_decimal < floor:
                 logger.error(
-                    f"INSOLVENCY: Cannot afford compulsory annual insurance premium. "
-                    f"Required: ${annual_premium_decimal:,.2f}, Available cash: ${self.cash:,.2f}. "
-                    f"Company cannot operate without insurance."
+                    f"INSOLVENCY: Cannot afford compulsory annual insurance premium "
+                    f"even after drawing the working-capital facility. Required: "
+                    f"${annual_premium_decimal:,.2f}, available cash: ${self.cash:,.2f}, "
+                    f"facility floor: ${floor:,.2f}. Company cannot operate without insurance."
                 )
                 self.handle_insolvency()
                 return

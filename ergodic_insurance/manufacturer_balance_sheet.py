@@ -877,20 +877,29 @@ class BalanceSheetMixin:
             # needed to cover the loss is reduced by the depreciation add-back.
             cash_consumed = max(loss_amount - depreciation_addback, to_decimal(0))
 
-            # Check 2: LIQUIDITY CHECK - must have cash to pay loss
+            # Check 2: LIQUIDITY CHECK - must have cash to pay loss.
             # When using closing entries, cash is already updated by step() income
             # entries so available_cash reflects operating cash flows.
-            if not use_closing_entries and cash_consumed > available_cash:
-                logger.error(
-                    f"LIQUIDITY CRISIS → INSOLVENCY: Cash drain ${cash_consumed:,.2f} "
-                    f"(loss ${loss_amount:,.2f} - depreciation add-back "
-                    f"${depreciation_addback:,.2f}) exceeds available cash "
-                    f"${available_cash:,.2f}. Equity=${current_equity:,.2f}. "
-                    f"Company cannot meet obligations despite positive book equity."
-                )
-                self._last_dividends_paid = to_decimal(0)
-                self.handle_insolvency()
-                return
+            if not use_closing_entries:
+                # Issue #1631: credit the working-capital facility. The firm can
+                # draw its revolver to fund the loss, so it is insolvent here only
+                # if the cash drain exceeds cash PLUS the facility (available_cash
+                # - cash_consumed < -facility). A None facility (unlimited
+                # revolver) never triggers this cash-floor crisis, mirroring
+                # _liquidity_floor() and check_solvency() Tier 1a.
+                floor = self._liquidity_floor()
+                if floor is not None and available_cash - cash_consumed < floor:
+                    logger.error(
+                        f"LIQUIDITY CRISIS → INSOLVENCY: Cash drain ${cash_consumed:,.2f} "
+                        f"(loss ${loss_amount:,.2f} - depreciation add-back "
+                        f"${depreciation_addback:,.2f}) exceeds available cash "
+                        f"${available_cash:,.2f} plus working-capital facility "
+                        f"(floor ${floor:,.2f}). Equity=${current_equity:,.2f}. "
+                        f"Company cannot meet obligations despite positive book equity."
+                    )
+                    self._last_dividends_paid = to_decimal(0)
+                    self.handle_insolvency()
+                    return
 
             # Check 3: Would paying the loss trigger equity insolvency?
             if use_closing_entries:

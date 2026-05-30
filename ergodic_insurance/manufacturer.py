@@ -754,6 +754,11 @@ class WidgetManufacturer(
         # of truth via effective_facility_limit() keeps the payment cap, the
         # post-payment crisis check, and check_solvency()'s breach test aligned.
         facility_limit_d = self.effective_facility_limit()
+        # Issue #1631: snapshot the shared -effective_facility_limit() floor
+        # (the same _liquidity_floor() the intra-year check uses) alongside the
+        # payment cap, so the cap and the post-payment crisis check below act on
+        # one consistent facility value within this step and can never drift.
+        liquidity_floor = self._liquidity_floor()
         available_liquidity = self.cash + self.restricted_assets
         if facility_limit_d is not None:
             available_liquidity += facility_limit_d
@@ -789,19 +794,21 @@ class WidgetManufacturer(
         if time_resolution == "annual" or self.current_month == 0:
             self.pay_claim_liabilities(max_payable=max_claim_payable)
 
-        # Post-payment liquidity check (Issue #1337, ASC 205-40-50-12)
-        # After claim/accrual payments, verify the working capital facility
-        # has not been breached.  This catches genuine liquidity crises from
-        # large mandatory payments before the period continues.
-        if facility_limit_d is not None:
-            if self.cash < -facility_limit_d:
-                logger.warning(
-                    f"LIQUIDITY CRISIS: After claim/accrual payments, cash "
-                    f"${self.cash:,.2f} breaches facility limit "
-                    f"${facility_limit_d:,.2f} (Issue #1337)."
-                )
-                self.is_ruined = True
-                return self._handle_insolvent_step(time_resolution)
+        # Post-payment liquidity check (Issue #1337/#1631, ASC 205-40-50-12).
+        # After claim/accrual payments, verify the working-capital facility has
+        # not been breached. Uses the same -effective_facility_limit() floor
+        # (_liquidity_floor(), snapshotted above with the payment cap) as the
+        # intra-year check_liquidity_constraints(), so the two floors can never
+        # drift. None => unlimited facility => no cash-floor crisis. This
+        # catches genuine liquidity crises from large mandatory payments.
+        if liquidity_floor is not None and self.cash < liquidity_floor:
+            logger.warning(
+                f"LIQUIDITY CRISIS: After claim/accrual payments, cash "
+                f"${self.cash:,.2f} breaches working-capital facility floor "
+                f"${liquidity_floor:,.2f} (Issue #1337/#1631)."
+            )
+            self.is_ruined = True
+            return self._handle_insolvent_step(time_resolution)
 
         # Re-estimate reserves per ASC 944-40-25 (Issue #470)
         if time_resolution == "annual" or self.current_month == 0:
