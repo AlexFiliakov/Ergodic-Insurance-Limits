@@ -403,6 +403,19 @@ class ManufacturerConfig(BaseModel):
         "Typical: 10-20%% of total assets for manufacturers.",
     )
 
+    # Working capital facility sized as a fraction of revenue (Issue #1625)
+    working_capital_facility_ratio: Optional[float] = Field(
+        default=None,
+        ge=0,
+        description="Working-capital facility sized as a fraction of annual revenue. "
+        "When set, the EFFECTIVE facility limit = working_capital_facility_ratio * "
+        "current_revenue, computed on the fly so the revolver grows with the firm "
+        "(real revolvers track the working-capital base, ~15-20% of revenue). Takes "
+        "PRECEDENCE over the fixed working_capital_facility_limit when both are set. "
+        "None = fall back to the fixed working_capital_facility_limit (legacy behavior). "
+        "Typical: 0.15-0.20 for manufacturers (Issue #1625).",
+    )
+
     # Loss adjustment expense configuration (Issue #468, ASC 944-40)
     lae_ratio: float = Field(
         default=0.12,

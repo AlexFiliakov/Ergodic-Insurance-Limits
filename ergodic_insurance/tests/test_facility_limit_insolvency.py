@@ -9,6 +9,7 @@ Verifies that:
 """
 
 from decimal import Decimal
+from typing import Any
 
 import pytest
 
@@ -306,3 +307,177 @@ class TestFacilityAwarePaymentCoordination:
         # The payment cap prevents cash from breaching the facility
         metrics = mfr.step()
         assert "year" in metrics
+
+
+class TestFacilityRatioScaling:
+    """Tests for the revenue-scaled working_capital_facility_ratio (Issue #1625).
+
+    When the ratio is set, the *effective* facility limit is
+    ``ratio * current_revenue``, so the revolver grows with the firm instead of
+    staying a fixed dollar amount.  When the ratio is None the fixed
+    ``working_capital_facility_limit`` is used (bit-identical legacy behavior).
+    """
+
+    @staticmethod
+    def _mfr(**overrides) -> WidgetManufacturer:
+        """Build a healthy $10M-asset / $8M-revenue manufacturer for these tests."""
+        params: dict[str, Any] = {
+            "initial_assets": 10_000_000,
+            "asset_turnover_ratio": 0.8,  # revenue = 10M * 0.8 = $8M at t=0
+            "base_operating_margin": 0.08,
+            "tax_rate": 0.25,
+            "retention_ratio": 0.7,
+            "capex_to_depreciation_ratio": 0.0,
+        }
+        params.update(overrides)
+        return WidgetManufacturer(ManufacturerConfig(**params))
+
+    @staticmethod
+    def _overdraw_to(mfr: WidgetManufacturer, target: Decimal) -> None:
+        """Drive cash down to ``target`` (negative) by tying cash up in receivables.
+
+        Uses a working-capital move (Dr AR, Cr CASH) rather than an expense so
+        that total_assets — and therefore revenue and the revenue-scaled
+        facility — stay constant.  An expense would shrink assets, shrink
+        revenue, and shrink the ratio-scaled facility mid-test, confounding the
+        Tier-1a breach check we want to isolate.
+        """
+        amount = mfr.cash - target
+        if amount > ZERO:
+            mfr.ledger.record_double_entry(
+                date=mfr.current_year,
+                debit_account=AccountName.ACCOUNTS_RECEIVABLE,
+                credit_account=AccountName.CASH,
+                amount=amount,
+                transaction_type=TransactionType.WORKING_CAPITAL,
+                description="Test: tie up cash in receivables to reach target overdraft",
+            )
+
+    # --- Config validation / defaults ---
+
+    def test_ratio_default_is_none(self):
+        """Default facility ratio is None (fall back to fixed limit / unlimited)."""
+        assert ManufacturerConfig().working_capital_facility_ratio is None
+
+    def test_ratio_configurable(self):
+        """Facility ratio can be set to a fraction of revenue."""
+        config = ManufacturerConfig(working_capital_facility_ratio=0.20)
+        assert config.working_capital_facility_ratio == 0.20
+
+    def test_ratio_zero_allowed(self):
+        """Zero ratio means no overdraft headroom (mirrors a fixed limit of 0)."""
+        config = ManufacturerConfig(working_capital_facility_ratio=0)
+        assert config.working_capital_facility_ratio == 0
+
+    def test_ratio_rejects_negative(self):
+        """Negative ratio is rejected by validation (Field ge=0)."""
+        with pytest.raises(Exception):
+            ManufacturerConfig(working_capital_facility_ratio=-0.1)
+
+    # --- effective_facility_limit() resolution ---
+
+    def test_effective_limit_equals_ratio_times_revenue(self):
+        """With a ratio set, the effective limit is ratio * current_revenue."""
+        mfr = self._mfr(working_capital_facility_ratio=0.20)
+        expected = to_decimal(0.20) * mfr.calculate_revenue()  # 0.20 * $8M
+        eff = mfr.effective_facility_limit()
+        assert eff == expected
+        assert eff == to_decimal(1_600_000)
+
+    def test_effective_limit_falls_back_to_fixed_when_ratio_none(self):
+        """Ratio None + fixed set -> effective limit is the fixed Decimal value."""
+        mfr = self._mfr(working_capital_facility_limit=2_000_000)
+        assert mfr.config.working_capital_facility_ratio is None
+        assert mfr.effective_facility_limit() == to_decimal(2_000_000)
+
+    def test_effective_limit_none_when_unconfigured(self):
+        """Neither ratio nor fixed set -> None (unlimited / legacy behavior)."""
+        mfr = self._mfr()
+        assert mfr.effective_facility_limit() is None
+
+    def test_ratio_takes_precedence_over_fixed(self):
+        """When BOTH are set, the ratio wins (revenue-scaled, not the fixed $)."""
+        mfr = self._mfr(
+            working_capital_facility_limit=500_000,
+            working_capital_facility_ratio=0.20,
+        )
+        eff = mfr.effective_facility_limit()
+        assert eff == to_decimal(0.20) * mfr.calculate_revenue()  # $1.6M
+        assert eff == to_decimal(1_600_000)
+        assert eff != to_decimal(500_000)
+
+    def test_effective_limit_grows_with_revenue(self):
+        """A larger (higher-revenue) firm gets a proportionally larger facility.
+
+        This is the core realism fix: the revolver tracks revenue, so a firm
+        that has grown tolerates a proportionally larger overdraft before breach.
+        """
+        small = self._mfr(initial_assets=10_000_000, working_capital_facility_ratio=0.20)
+        large = self._mfr(initial_assets=20_000_000, working_capital_facility_ratio=0.20)
+        eff_small = small.effective_facility_limit()
+        eff_large = large.effective_facility_limit()
+        assert eff_small is not None and eff_large is not None
+        assert eff_small == to_decimal(0.20) * small.calculate_revenue()  # $1.6M
+        assert eff_large == to_decimal(0.20) * large.calculate_revenue()  # $3.2M
+        assert eff_large > eff_small
+        # 2x assets -> 2x revenue -> exactly 2x facility
+        assert eff_large == eff_small * to_decimal(2)
+
+    # --- Integration: Tier-1a breach uses the effective (ratio-scaled) limit ---
+
+    def test_cash_within_ratio_facility_remains_solvent(self):
+        """Cash negative but within the ratio-scaled limit stays solvent."""
+        mfr = self._mfr(working_capital_facility_ratio=0.05)  # ~$400K facility
+        mfr.step()
+        eff = mfr.effective_facility_limit()
+        assert eff is not None
+        # Overdraw to 40% of the facility — well within, and small enough not to
+        # trip the Tier-2 going-concern indicators on this $10M firm.
+        self._overdraw_to(mfr, -(eff * to_decimal("0.4")))
+        assert mfr.cash < ZERO
+        assert mfr.cash >= -eff
+        assert mfr.check_solvency() is True
+        assert not mfr.is_ruined
+
+    def test_cash_breaching_ratio_facility_triggers_insolvency(self, caplog):
+        """Cash below -(ratio-scaled limit) triggers Tier-1a insolvency + log."""
+        import logging
+
+        mfr = self._mfr(working_capital_facility_ratio=0.05)
+        mfr.step()
+        eff = mfr.effective_facility_limit()
+        assert eff is not None
+        self._overdraw_to(mfr, -(eff * to_decimal("1.5")))  # 150% of facility
+        assert mfr.cash < -eff
+
+        with caplog.at_level(logging.WARNING):
+            result = mfr.check_solvency()
+
+        assert result is False
+        assert mfr.is_ruined
+        assert any("LIQUIDITY INSOLVENCY" in record.message for record in caplog.records)
+
+    def test_same_overdraft_breaches_small_facility_but_not_large(self):
+        """Same -$2M overdraft, same 0.20 ratio: it breaches the small firm's
+        revenue-scaled facility ($1.6M) but sits within the larger firm's
+        ($3.2M) — the Tier-1a trigger scales with revenue (Issue #1625)."""
+        overdraft = to_decimal(-2_000_000)  # drive cash to -$2M
+
+        small = self._mfr(initial_assets=10_000_000, working_capital_facility_ratio=0.20)
+        eff_small = small.effective_facility_limit()
+        assert eff_small is not None
+        assert eff_small == to_decimal(1_600_000)
+        self._overdraw_to(small, overdraft)
+        assert small.cash < -eff_small  # Tier-1a condition met
+        assert small.check_solvency() is False
+        assert small.is_ruined
+
+        large = self._mfr(initial_assets=20_000_000, working_capital_facility_ratio=0.20)
+        eff_large = large.effective_facility_limit()
+        assert eff_large is not None
+        assert eff_large == to_decimal(3_200_000)
+        self._overdraw_to(large, overdraft)
+        # The same overdraft is within the larger firm's facility, so the Tier-1a
+        # facility-breach trigger does not fire (full solvency still depends on
+        # the Tier-2 going-concern checks, which are out of scope for this test).
+        assert large.cash >= -eff_large
