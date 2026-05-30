@@ -250,6 +250,9 @@ class TestRecordInsurancePremiumInsolvency:
 
     def test_premium_exceeds_cash_triggers_insolvency(self, manufacturer):
         """Lines 1693-1700: Premium > cash triggers handle_insolvency."""
+        # Issue #1631: with no working-capital revolver (facility=0) the firm
+        # cannot bridge the premium, so cash < premium is genuine insolvency.
+        manufacturer.config.working_capital_facility_limit = 0
         # Drain most cash first
         manufacturer._write_off_all_assets("drain cash")
         # Set a tiny cash position
@@ -279,6 +282,9 @@ class TestRecordPrepaidInsuranceInsolvency:
 
     def test_prepaid_insurance_exceeds_cash_triggers_insolvency(self, manufacturer):
         """Lines 2624-2631: Annual premium > cash triggers insolvency."""
+        # Issue #1631: no working-capital revolver (facility=0) => cash < premium
+        # is genuine insolvency (with a facility the firm would draw it instead).
+        manufacturer.config.working_capital_facility_limit = 0
         manufacturer._write_off_all_assets("drain cash")
         # Set minimal cash
         from ergodic_insurance.ledger import TransactionType
