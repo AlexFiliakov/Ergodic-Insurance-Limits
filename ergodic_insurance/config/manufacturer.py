@@ -426,6 +426,36 @@ class ManufacturerConfig(BaseModel):
         "Typical range: 0.08-0.15 for commercial lines.",
     )
 
+    # Self-insured-retention collateral model (Issues #1637, #1644)
+    sir_collateral_mode: Literal["letter_of_credit", "cash"] = Field(
+        default="letter_of_credit",
+        description="How a retained deductible/SIR portion of an insured claim is "
+        "collateralized. "
+        "'letter_of_credit' (default): the retention is backed by a letter of credit, NOT a "
+        "cash lock. No cash moves to restricted; the retained loss is booked as a deferred "
+        "claim liability paid from operating cash over the development schedule (symmetric "
+        "with an uninsured loss), and a single LOC carry fee (letter_of_credit_rate) accrues "
+        "on the OUTSTANDING reserve. This is real SIR practice and avoids both the "
+        "liquidity-destroying upfront cash lock (Issue #1637) and the cash-lock + LOC-fee "
+        "double charge (Issue #1644). "
+        "'cash' (legacy opt-in): the retention is cash-collateralized 100% upfront "
+        "(CASH -> RESTRICTED_CASH) and paid from that restricted cash; the LOC fee is charged "
+        "on the restricted balance (the historical behavior).",
+    )
+
+    # Initial non-claim base liability seed (Issues #1645, #1588)
+    initial_base_liability_ratio: Optional[float] = Field(
+        default=None,
+        ge=0.0,
+        lt=1.0,
+        description="If set, seed a one-time permanent non-claim liability equal to "
+        "initial_base_liability_ratio * initial_assets at construction, so the firm starts at "
+        "equity = initial_assets * (1 - ratio) instead of e=1.0 (zero liabilities). This warms "
+        "the modeler to a steady-state leverage (e.g. 0.222 -> e=0.778) so it is comparable, "
+        "from year 0, with a model that already carries working-capital/deferred-tax leverage "
+        "and avoids an uncontrolled de-levering transient. None = legacy (e starts at 1.0).",
+    )
+
     @model_validator(mode="after")
     def set_default_ppe_ratio(self):
         """Set default PPE ratio based on operating margin if not provided."""
@@ -457,6 +487,30 @@ class ManufacturerConfig(BaseModel):
             logger.warning("Base operating margin %s is unusually high", f"{v:.1%}")
         elif v < 0:
             logger.warning("Base operating margin %s is negative", f"{v:.1%}")
+        return v
+
+    @field_validator("sir_collateral_mode")
+    @classmethod
+    def validate_sir_collateral_mode(cls, v: str) -> str:
+        """Note when the legacy cash-trust collateral model is selected.
+
+        The Literal type already restricts the value to the two supported modes;
+        this validator only logs that 'cash' is the historical opt-in behavior
+        (cash lock + LOC fee on the same dollars; Issues #1637/#1644).
+
+        Args:
+            v: The chosen collateral mode.
+
+        Returns:
+            str: The validated collateral mode.
+        """
+        if v == "cash":
+            logger.info(
+                "sir_collateral_mode='cash' selected: retained SIR is cash-collateralized "
+                "upfront (legacy behavior). The default 'letter_of_credit' avoids the "
+                "upfront cash lock (Issue #1637) and the cash-lock + LOC-fee double charge "
+                "(Issue #1644)."
+            )
         return v
 
     @classmethod

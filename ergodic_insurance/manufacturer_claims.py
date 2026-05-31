@@ -138,6 +138,29 @@ class ClaimProcessingMixin:
         """
         return sum((claim.remaining_amount for claim in self.claim_liabilities), to_decimal(0))
 
+    @property
+    def loc_collateralized_reserve(self) -> Decimal:
+        """Outstanding balance of retentions backed by a letter of credit (Issues #1637/#1644).
+
+        Under the ``letter_of_credit`` collateral model the retained (company) portion of an
+        insured claim is NOT cash-collateralized; instead an LOC is posted and a carry fee
+        accrues on the outstanding reserve. This is the fee basis for
+        :meth:`calculate_collateral_costs` (added to ``restricted_assets`` so each retained loss
+        carries exactly one collateral cost in whichever model is active). Zero under the legacy
+        ``cash`` model, where the fee basis is the restricted cash instead.
+
+        Returns:
+            Decimal: Sum of remaining amounts of LOC-collateralized claim liabilities.
+        """
+        return sum(
+            (
+                claim.remaining_amount
+                for claim in self.claim_liabilities
+                if getattr(claim, "is_loc_collateralized", False)
+            ),
+            to_decimal(0),
+        )
+
     def record_prepaid_insurance(self, annual_premium: Union[Decimal, float]) -> None:
         """Record annual insurance premium payment as prepaid expense.
 
@@ -292,8 +315,21 @@ class ClaimProcessingMixin:
         # Compute LAE on company portion (Issue #468, ASC 944-40)
         lae_ratio = to_decimal(getattr(self.config, "lae_ratio", 0.12))
 
-        # Company payment is collateralized and paid over time
+        # Company payment is collateralized and paid over time.  Two collateral models
+        # (Issues #1637/#1644), selected by config.sir_collateral_mode:
+        #   "letter_of_credit" (default): the retention is backed by an LOC, NOT a cash lock.
+        #       Cash is not moved to restricted; the retention is booked as a deferred claim
+        #       liability paid from operating cash over the development schedule (symmetric with
+        #       process_uninsured_claim), and a single LOC carry fee accrues on its outstanding
+        #       balance (calculate_collateral_costs).  This removes the liquidity-destroying
+        #       upfront cash lock and the cash-lock + LOC-fee double charge.
+        #   "cash" (legacy opt-in): the retention is cash-collateralized 100% upfront
+        #       (CASH -> RESTRICTED_CASH) and paid from that restricted cash.
         if company_payment > ZERO:
+            loc_mode = (
+                getattr(self.config, "sir_collateral_mode", "letter_of_credit")
+                == "letter_of_credit"
+            )
             lae_on_company = company_payment * lae_ratio
 
             current_equity = self.equity
@@ -303,29 +339,39 @@ class ClaimProcessingMixin:
             equity_cap = (
                 current_equity / (to_decimal(1) + lae_ratio) if lae_ratio > ZERO else current_equity
             )
-            max_payable: Decimal = (
-                min(company_payment, equity_cap, available_cash)
-                if current_equity > ZERO
-                else to_decimal(0)
+            # LOC model is bounded only by equity (limited liability), exactly like an uninsured
+            # deferred loss -- no available-cash cap, since the retention does not consume cash now
+            # but pays down over the development schedule (Issue #1637).  The legacy cash-trust
+            # model additionally cannot lock more than the cash on hand.
+            _caps = (
+                [company_payment, equity_cap]
+                if loc_mode
+                else [company_payment, equity_cap, available_cash]
             )
+            max_payable: Decimal = min(_caps) if current_equity > ZERO else to_decimal(0)
             unpayable_amount = company_payment - max_payable
 
             if max_payable > ZERO:
                 lae_on_payable = max_payable * lae_ratio
 
-                self._record_asset_transfer(
-                    from_account=AccountName.CASH,
-                    to_account=AccountName.RESTRICTED_CASH,
-                    amount=max_payable,
-                    description="Cash to restricted for insurance claim collateral",
-                )
+                if not loc_mode:
+                    # Legacy cash-trust: lock the company portion as restricted cash.
+                    self._record_asset_transfer(
+                        from_account=AccountName.CASH,
+                        to_account=AccountName.RESTRICTED_CASH,
+                        amount=max_payable,
+                        description="Cash to restricted for insurance claim collateral",
+                    )
 
-                # Claim liability includes indemnity + LAE
+                # Claim liability includes indemnity + LAE.  Under the LOC model it is flagged
+                # is_loc_collateralized=True so pay_claim_liabilities funds it from operating
+                # cash over the schedule (not restricted) and the LOC fee accrues on its balance.
                 claim_liability = ClaimLiability(
                     original_amount=max_payable + lae_on_payable,
                     remaining_amount=max_payable + lae_on_payable,
                     year_incurred=self.current_year,
                     is_insured=True,
+                    is_loc_collateralized=loc_mode,
                 )
                 self._apply_reserve_noise(claim_liability)
                 self.claim_liabilities.append(claim_liability)
@@ -355,9 +401,15 @@ class ClaimProcessingMixin:
                 logger.info(
                     f"Company portion: ${max_payable:,.2f} + LAE ${lae_on_payable:,.2f} - collateralized with payment schedule"
                 )
-                logger.info(
-                    f"Posted ${max_payable:,.2f} letter of credit as collateral for company portion"
-                )
+                if loc_mode:
+                    logger.info(
+                        f"Backed ${max_payable:,.2f} company portion with a letter of credit "
+                        f"(no cash lock); LOC fee accrues on the outstanding reserve"
+                    )
+                else:
+                    logger.info(
+                        f"Locked ${max_payable:,.2f} cash as restricted collateral for company portion"
+                    )
 
             # Handle unpayable portion
             if unpayable_amount > ZERO:
@@ -750,7 +802,15 @@ class ClaimProcessingMixin:
             if scheduled_payment > ZERO:
                 capped_scheduled = scheduled_payment * payment_ratio
 
-                if claim_item.is_insured:
+                # Payment source keys on whether the claim is CASH-collateralized, not merely
+                # insured (Issues #1637/#1644): a legacy cash-trust insured claim pays from
+                # restricted cash; a letter-of-credit insured claim (is_loc_collateralized) is
+                # NOT cash-collateralized and pays from operating cash over the schedule, exactly
+                # like an uninsured claim.
+                pays_from_restricted = claim_item.is_insured and not getattr(
+                    claim_item, "is_loc_collateralized", False
+                )
+                if pays_from_restricted:
                     available_for_payment = min(capped_scheduled, self.restricted_assets)
                     actual_payment = available_for_payment
 
@@ -779,18 +839,23 @@ class ClaimProcessingMixin:
                         claim_item.make_payment(actual_payment)
                         total_paid += actual_payment
 
+                        _src_desc = (
+                            "LOC-collateralized claim payment from cash"
+                            if claim_item.is_insured
+                            else "Uninsured claim payment"
+                        )
                         self.ledger.record_double_entry(
                             date=self.current_year,
                             debit_account=AccountName.CLAIM_LIABILITIES,
                             credit_account=AccountName.CASH,
                             amount=actual_payment,
                             transaction_type=TransactionType.INSURANCE_CLAIM,
-                            description="Uninsured claim payment",
+                            description=_src_desc,
                             month=self.current_month,
                         )
 
                         logger.debug(
-                            f"Paid ${actual_payment:,.2f} toward uninsured claim (regular business expense)"
+                            f"Paid ${actual_payment:,.2f} toward claim from cash (regular business expense)"
                         )
 
         # Remove fully paid claims
