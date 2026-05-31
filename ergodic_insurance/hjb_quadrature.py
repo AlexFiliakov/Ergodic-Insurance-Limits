@@ -43,6 +43,7 @@ __all__ = [
     "build_equity_jump_operator_2d",
     "build_equity_jump_operator_2d_sizescaled",
     "make_jump_term_2d",
+    "equity_capped_retention",
 ]
 
 
@@ -663,3 +664,54 @@ def make_jump_term_2d(
         return lam * (EV_post - V_cur)
 
     return jump_term, J_big, p_ruin_2d
+
+
+def equity_capped_retention(
+    raw_sir: Any,
+    equity: Any,
+    kappa: float,
+) -> np.ndarray:
+    """Deployment-time equity-aware retention cap (issue #1633).
+
+    The 2-D HJB policy ``SIR(A, e)`` is solved on continuous-wealth, time-average
+    log-growth dynamics, which never see the full GAAP modeler's discrete
+    equity-insolvency cliff (one large *retained* loss pushing equity below the ruin
+    floor ends the firm instantly). The converged policy therefore recommends
+    retentions that scale to ~50-65% of assets at scale -- survivable in the simple
+    cash model (wealth erodes continuously) but fatal in the full modeler, where a
+    firm that grows ~11%/yr ends up self-insuring ($30-50M retained per loss) and
+    ruins at roughly the no-insurance rate. This cap closes that residual gap.
+
+    The cap bounds the *deployed* retention only -- the HJB solve is untouched -- so a
+    single retained per-event loss cannot, by itself, breach equity::
+
+        deployed_SIR = min(raw_sir, kappa * max(equity, 0))
+
+    The worst single retained loss below the tower top is
+    ``L_ret = (1 + LAE) * min(X, SIR) <= (1 + LAE) * kappa * equity``, so a ``kappa``
+    below ``1 / (1 + LAE)`` (the exact single-loss-insolvency bound
+    ``T = (E - E_floor) / (1 + LAE)``, ``~0.89`` at ``LAE = 0.12``) keeps post-loss
+    equity positive. The calibrated ``kappa = 0.40`` leaves post-loss equity
+    ``>= (1 - 1.12 * 0.40) * equity = 0.552 * equity`` -- above the ``$100K`` ruin
+    floor for any firm with ``equity > ~$181K`` (i.e. the whole operating regime),
+    with headroom for multiple losses per year and the premium drain. ``kappa`` is a
+    deployment knob, calibrated by the sweep in the notebook's Part 8.
+
+    Args:
+        raw_sir: Raw HJB retention(s) from the 2-D policy lookup. Scalar or array.
+        equity: Firm equity (dollars) at the deployment state. Scalar or array,
+            broadcastable against ``raw_sir``. Non-positive equity (an already-ruined
+            firm) yields ``0`` -- the minimal retention / maximal coverage.
+        kappa: Cap as a fraction of equity. A non-finite ``kappa`` (e.g. ``inf``)
+            returns ``raw_sir`` unchanged -- the uncapped baseline the Part 8
+            calibration sweep uses for its "no cap" reference row.
+
+    Returns:
+        ``min(raw_sir, kappa * max(equity, 0))`` as a float array (0-d for scalar
+        inputs); ``raw_sir`` (as a float array) when ``kappa`` is non-finite.
+    """
+    raw = np.asarray(raw_sir, dtype=float)
+    if not np.all(np.isfinite(np.asarray(kappa, dtype=float))):
+        return raw  # uncapped baseline (e.g. kappa = inf in the calibration sweep)
+    eq = np.maximum(np.asarray(equity, dtype=float), 0.0)
+    return np.asarray(np.minimum(raw, kappa * eq))

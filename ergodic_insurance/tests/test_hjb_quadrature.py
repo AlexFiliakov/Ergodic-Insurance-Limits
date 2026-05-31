@@ -23,6 +23,7 @@ from ergodic_insurance.hjb_quadrature import (
     build_equity_jump_operator_2d_sizescaled,
     build_loss_atoms,
     component_atoms,
+    equity_capped_retention,
     lognormal_gauss_hermite_nodes,
     make_jump_term_2d,
     pareto_stratified_atoms,
@@ -761,3 +762,62 @@ class TestSizeScaledJumpOperator1607:
         lam_pl = sum(freq_ref) * (a[ia] * _SS_ECON["atr"] / _SS_ECON["reference_revenue"]) ** 1.0
         assert abs(out_pl) > 1e-9 and abs(lam[ia] - lam_pl) > 1e-6  # the two intensities differ
         np.testing.assert_allclose(out_l2 / out_pl, lam[ia] / lam_pl, rtol=1e-9)
+
+
+class TestEquityCappedRetention:
+    """Deployment-time equity-aware retention cap (issue #1633)."""
+
+    # Matches the notebook constants the cap reasons about.
+    LAE = 0.12
+    E_FLOOR = 100_000.0
+    KAPPA = 0.40
+
+    def test_binds_at_scale(self):
+        # Grown firm: raw policy pins near the $50M grid cap, equity is large.
+        out = float(equity_capped_retention(50e6, 78e6, self.KAPPA))
+        assert out == pytest.approx(self.KAPPA * 78e6)  # 0.40 * $78M = $31.2M
+
+    def test_passthrough_when_below_cap(self):
+        # Raw retention already below kappa*equity -> returned unchanged.
+        out = float(equity_capped_retention(1e6, 78e6, self.KAPPA))
+        assert out == pytest.approx(1e6)
+
+    def test_never_exceeds_kappa_equity(self):
+        rng = np.random.default_rng(1633)
+        raw = rng.uniform(1e4, 50e6, size=200)
+        equity = rng.uniform(1e5, 200e6, size=200)
+        out = equity_capped_retention(raw, equity, self.KAPPA)
+        assert np.all(out <= self.KAPPA * equity + 1e-6)
+        assert np.all(out <= raw + 1e-6)
+
+    def test_monotone_nondecreasing_in_equity(self):
+        # At a fixed (large) raw retention the cap binds, so it rises with equity.
+        equity = np.linspace(1e5, 100e6, 50)
+        out = equity_capped_retention(1e9, equity, self.KAPPA)
+        assert np.all(np.diff(out) >= -1e-9)
+
+    def test_single_loss_safety_in_operating_regime(self):
+        # The defining property: a single retained per-event loss (gross of LAE) at the
+        # capped retention cannot push equity below the ruin floor, for equity in the
+        # operating regime (>= $1M >> the ~$181K break-even at kappa=0.40).
+        equity = np.linspace(1e6, 200e6, 100)
+        capped = equity_capped_retention(1e9, equity, self.KAPPA)  # raw large -> cap binds
+        post_loss_equity = equity - (1.0 + self.LAE) * capped
+        assert np.all(post_loss_equity >= self.E_FLOOR)
+
+    def test_zero_and_negative_equity_force_max_coverage(self):
+        assert float(equity_capped_retention(5e6, 0.0, self.KAPPA)) == 0.0
+        assert float(equity_capped_retention(5e6, -1e6, self.KAPPA)) == 0.0
+
+    def test_nonfinite_kappa_returns_raw_uncapped(self):
+        # The calibration sweep's "no cap" baseline row passes kappa = inf.
+        assert float(equity_capped_retention(50e6, 78e6, float("inf"))) == pytest.approx(50e6)
+
+    def test_vectorized_matches_scalar(self):
+        raw = np.array([50e6, 1e6, 5e6, 25e6])
+        equity = np.array([78e6, 78e6, 2e6, 30e6])
+        vec = equity_capped_retention(raw, equity, self.KAPPA)
+        scalar = np.array(
+            [float(equity_capped_retention(r, e, self.KAPPA)) for r, e in zip(raw, equity)]
+        )
+        np.testing.assert_allclose(vec, scalar)
