@@ -1154,7 +1154,12 @@ class TestClaimLiabilityMCEngine:
         ), "MC engine should create ClaimLiability objects for retained losses"
 
     def test_mc_engine_posts_collateral(self, mc_engine_with_claims):
-        """Verify manufacturer.restricted_assets > 0 during simulation years with claims."""
+        """Verify the retained loss is collateralized during simulation years with claims.
+
+        Under the default letter-of-credit model (Issues #1637/#1644) the retention is backed
+        by an LOC reserve, NOT a cash lock, so restricted cash stays 0 and the
+        loc_collateralized_reserve carries the collateral.
+        """
         engine, _ = mc_engine_with_claims
         mfg = engine.manufacturer.copy()
         loss_gen = engine.loss_generator
@@ -1169,8 +1174,8 @@ class TestClaimLiabilityMCEngine:
             if retained > 0:
                 mfg.process_insurance_claim(claim_amount=event.amount, insurance_recovery=recovery)
 
-        assert mfg.restricted_assets > 0, "Collateral should be posted as restricted assets"
-        assert mfg.collateral > 0, "Collateral property should reflect posted collateral"
+        assert mfg.restricted_assets == 0, "LOC model locks no cash to restricted"
+        assert mfg.loc_collateralized_reserve > 0, "LOC reserve should be posted for the retention"
 
     def test_mc_engine_accrues_loc_costs(self, mc_engine_with_claims):
         """LoC costs must be non-zero when collateral is posted."""
@@ -1278,7 +1283,12 @@ class TestClaimLiabilityMCEngine:
             )
 
     def test_collateral_decreases_over_payment_schedule(self):
-        """Collateral must decrease over the 10-year development pattern and reach zero."""
+        """The retained-loss reserve must run off over the 10-year pattern and reach zero.
+
+        Under the default letter-of-credit model (Issues #1637/#1644) the retention is an LOC
+        reserve paid from operating cash over the development schedule (no cash lock), so the
+        loc_collateralized_reserve -- not restricted cash -- carries and pays down the collateral.
+        """
         manufacturer_config = ManufacturerConfig(
             initial_assets=10_000_000,
             asset_turnover_ratio=0.5,
@@ -1294,20 +1304,21 @@ class TestClaimLiabilityMCEngine:
             claim_amount=500_000, deductible_amount=500_000, insurance_limit=0
         )
 
-        initial_collateral = float(mfg.collateral)
-        assert initial_collateral > 0, "Collateral should be posted after claim"
+        initial_reserve = float(mfg.loc_collateralized_reserve)
+        assert initial_reserve > 0, "LOC reserve should be posted after claim"
+        assert float(mfg.restricted_assets) == 0, "LOC model locks no cash"
 
         # Step through 12 years (10-year schedule + buffer)
         for year in range(12):
             mfg.step()
 
-        final_collateral = float(mfg.collateral)
+        final_reserve = float(mfg.loc_collateralized_reserve)
         assert (
-            final_collateral < initial_collateral
-        ), "Collateral should decrease over payment schedule"
-        assert final_collateral == pytest.approx(
+            final_reserve < initial_reserve
+        ), "LOC reserve should decrease over the payment schedule"
+        assert final_reserve == pytest.approx(
             0, abs=1.0
-        ), f"Collateral should reach zero after full payment schedule, got {final_collateral:,.2f}"
+        ), f"LOC reserve should reach zero after full payment schedule, got {final_reserve:,.2f}"
 
     def test_no_immediate_expensing_in_mc_engine(self, mc_engine_with_claims):
         """record_insurance_loss() must NOT be called from the MC engine loop when

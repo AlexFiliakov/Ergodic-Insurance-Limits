@@ -154,6 +154,10 @@ class TestWidgetManufacturer:
             tax_rate=0.25,
             retention_ratio=1.0,
             ppe_ratio=0.1,  # Lower PPE ratio ensures sufficient cash for large claim tests
+            # This suite validates the legacy cash-trust collateral model (a retained SIR is
+            # cash-collateralized to RESTRICTED_CASH). The default is now "letter_of_credit"
+            # (Issues #1637/#1644); the LOC model is covered in test_sir_collateral_mode.py.
+            sir_collateral_mode="cash",
         )
 
     @pytest.fixture

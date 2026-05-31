@@ -419,6 +419,26 @@ class WidgetManufacturer(
                 description="Initial restricted assets",
             )
 
+        # Seed a permanent non-claim base liability so the firm starts at a steady-state
+        # leverage instead of e=1.0 / zero liabilities (Issues #1645, #1588).  A drawn
+        # working-capital facility is the dominant real non-claim liability (ASC 470-10), so the
+        # seed is booked to SHORT_TERM_BORROWINGS: assets are unchanged, liabilities rise, and
+        # equity = assets - liabilities starts at initial_assets * (1 - ratio).  This removes the
+        # uncontrolled de-levering transient that otherwise pollutes early-horizon comparisons
+        # against a model already carrying steady-state leverage.
+        base_liab_ratio = getattr(self.config, "initial_base_liability_ratio", None)
+        if base_liab_ratio:
+            base_liability = to_decimal(self.config.initial_assets) * to_decimal(base_liab_ratio)
+            if base_liability > ZERO:
+                self.ledger.record_double_entry(
+                    date=0,
+                    debit_account=AccountName.RETAINED_EARNINGS,
+                    credit_account=AccountName.SHORT_TERM_BORROWINGS,
+                    amount=base_liability,
+                    transaction_type=TransactionType.DEBT_ISSUANCE,
+                    description="Initial non-claim base liability (working-capital leverage seed)",
+                )
+
     # Properties for FinancialStateProvider protocol
     @property
     def current_revenue(self) -> Decimal:
