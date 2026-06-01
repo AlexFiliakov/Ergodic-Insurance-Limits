@@ -499,6 +499,34 @@ class MonteCarloResults:
         return base_summary
 
 
+def _flatten_parallel_results(chunk_results: Any) -> List[Any]:
+    """Flatten the parallel executor's reduce input into a flat list of results.
+
+    ``ParallelExecutor.map_reduce`` hands the reduce function a FLAT list of per-simulation
+    result dicts (with ``None`` already filtered); an older shape returned a list of per-chunk
+    lists, so both are accepted. A dict is appended WHOLE -- never ``extend``-ed -- because
+    iterating a dict yields its string KEYS, which previously made every enhanced-parallel run
+    mis-classify results as ``Unexpected result format: <class 'str'>`` and silently fall back
+    to a slow sequential re-run.
+
+    Args:
+        chunk_results: The reduce input from ``map_reduce`` -- a flat list of per-simulation
+            result dicts, or (legacy) a list of per-chunk lists. ``None`` entries are skipped.
+
+    Returns:
+        A flat ``list`` of the non-``None`` result items (dicts), order preserved.
+    """
+    flat: List[Any] = []
+    for item in chunk_results:
+        if item is None:
+            continue
+        if isinstance(item, dict):
+            flat.append(item)
+        else:
+            flat.extend(item)
+    return flat
+
+
 class MonteCarloEngine:
     """High-performance Monte Carlo simulation engine for insurance analysis.
 
@@ -1067,10 +1095,9 @@ class MonteCarloEngine:
         # Define reduce function
         def combine_results_enhanced(chunk_results):
             """Combine results from enhanced parallel execution."""
-            # Flatten list of lists
-            all_results = []
-            for chunk in chunk_results:
-                all_results.extend(chunk)
+            # Flatten the executor's reduce input (a FLAT list of per-simulation result dicts;
+            # see _flatten_parallel_results for why dicts must be appended, not extended).
+            all_results = _flatten_parallel_results(chunk_results)
 
             # Extract arrays
             n_results = len(all_results)
@@ -1087,6 +1114,8 @@ class MonteCarloEngine:
             ruin_at_year_all = []
 
             valid_idx = 0
+            malformed_count = 0
+            malformed_samples: List[str] = []
             for result in all_results:
                 # Skip None results from failed simulations
                 if result is None:
@@ -1108,7 +1137,17 @@ class MonteCarloEngine:
 
                     valid_idx += 1
                 else:
-                    logger.warning("Unexpected result format: %s", type(result))
+                    malformed_count += 1
+                    if len(malformed_samples) < 3:
+                        malformed_samples.append(f"{type(result).__name__}: {repr(result)[:120]}")
+
+            if malformed_count:
+                logger.warning(
+                    "%d of %d parallel results were malformed and skipped (sample: %s)",
+                    malformed_count,
+                    len(all_results),
+                    malformed_samples,
+                )
 
             # Trim arrays to only valid results
             if valid_idx < n_results:
@@ -1127,9 +1166,14 @@ class MonteCarloEngine:
 
             # Guard against division by zero when no valid results
             if total_simulations == 0:
-                logger.warning(
-                    "No valid simulation results from parallel execution. "
-                    "Falling back to sequential execution.",
+                logger.error(
+                    "No valid simulation results from parallel execution "
+                    "(%d items, %d malformed; sample: %s). Falling back to SEQUENTIAL "
+                    "execution -- this re-runs every simulation serially and is slow. "
+                    "Investigate the parallel result shape / worker failures above.",
+                    len(all_results),
+                    malformed_count,
+                    malformed_samples,
                 )
                 return self._run_sequential()
 

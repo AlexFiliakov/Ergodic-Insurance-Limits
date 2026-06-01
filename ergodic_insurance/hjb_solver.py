@@ -420,6 +420,30 @@ class HJBProblem:
     ``V[0]`` / ``V[-1]`` along Dirichlet-bounded dimensions are used as
     the boundary values throughout the solve.
     """
+    control_feasibility: Optional[Callable[[np.ndarray, np.ndarray], np.ndarray]] = None
+    """Optional state-dependent admissible-control mask.
+
+    Signature: ``control_feasibility(state_points, control_array) -> mask`` where
+    ``state_points`` has shape ``(n, ndim)``, ``control_array`` has shape
+    ``(n, n_controls)`` (the same flat per-(state, control) layout the dynamics /
+    diffusion / jump callbacks receive during policy improvement), and the returned
+    array is broadcastable to ``(n,)`` and truthy for ADMISSIBLE pairs.
+
+    During policy improvement the Hamiltonian at inadmissible ``(state, control)``
+    pairs is set to ``-inf`` so the argmax never selects them -- a hard control
+    constraint, not a soft penalty. The constraint is applied ONLY to control
+    selection; the value-function update then marches under the (now feasible)
+    optimal policy, so the returned value reflects the constrained optimum. If every
+    sampled control is inadmissible at a state, the solver falls back to the first
+    control sample of each control variable (``ControlVariable.get_values()[0]`` --
+    the grid minimum, e.g. the smallest retention / most coverage), the safe default
+    for a state that cannot satisfy the constraint with any admissible control.
+
+    Defaults to ``None`` (every control admissible), so solves that do not set it are
+    unchanged. Used by notebook 07 to bound the retention by the endogenous
+    single-loss-insolvency threshold ``T = (E - E_floor) / (1 + LAE)`` (issue #1649),
+    making ``SIR* <= equity`` hold by construction without a deployment-time cap.
+    """
 
     def __post_init__(self):
         """Validate problem specification."""
@@ -1893,6 +1917,18 @@ class HJBSolver:
                 )
                 hamiltonian_2d += jump_vals.reshape(n_chunk, n_states)
 
+            # Hard state-dependent control constraint (optional): blank out
+            # inadmissible (state, control) pairs to -inf so the argmax below can
+            # never select them (issue #1649). States where every control is
+            # inadmissible keep -inf here and are repaired by the min-control
+            # fallback in _policy_improvement.
+            if self.problem.control_feasibility is not None:
+                feasible = np.asarray(
+                    self.problem.control_feasibility(states_tiled, controls_tiled),
+                    dtype=bool,
+                ).reshape(n_chunk, n_states)
+                hamiltonian_2d = np.where(feasible, hamiltonian_2d, -np.inf)
+
             # Find best combo per state within this chunk
             chunk_best_idx = np.argmax(hamiltonian_2d, axis=0)  # (n_states,)
             chunk_best_vals = hamiltonian_2d[chunk_best_idx, np.arange(n_states)]
@@ -1953,6 +1989,15 @@ class HJBSolver:
                     state_points, control_broadcast, self.value_function
                 )
                 hamiltonian = hamiltonian + jump_vals
+
+            # Hard state-dependent control constraint (optional): inadmissible
+            # (state, this-control) pairs cannot improve the best value (issue #1649).
+            if self.problem.control_feasibility is not None:
+                feasible = np.asarray(
+                    self.problem.control_feasibility(state_points, control_broadcast),
+                    dtype=bool,
+                ).ravel()
+                hamiltonian = np.where(feasible, hamiltonian, -np.inf)
 
             improved = hamiltonian > best_values
             best_values[improved] = hamiltonian[improved]
@@ -2130,6 +2175,18 @@ class HJBSolver:
         else:
             # "loop" or any unrecognized value falls back to legacy
             self._policy_improvement_loop(*args)
+
+        # Constrained solves (issue #1649): states where every sampled control was
+        # inadmissible keep best_values == -inf (the whole row was masked to -inf, so
+        # no combo "improved"). Fall back to each control variable's first sample --
+        # the grid minimum, e.g. the smallest retention / most coverage -- the safe
+        # default when no admissible control exists. No-op when control_feasibility is
+        # None (best_values is always finite then).
+        if self.problem.control_feasibility is not None:
+            no_feasible = ~np.isfinite(best_values)
+            if np.any(no_feasible):
+                for j in range(n_controls):
+                    best_controls[no_feasible, j] = control_samples[j][0]
 
         # Write optimal controls back to policy arrays
         for j, cv in enumerate(self.problem.control_variables):

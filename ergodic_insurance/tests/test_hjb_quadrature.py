@@ -28,6 +28,7 @@ from ergodic_insurance.hjb_quadrature import (
     make_jump_term_2d,
     pareto_stratified_atoms,
     severity_cdf,
+    single_loss_insolvency_retention_cap,
 )
 from ergodic_insurance.insurance_pricing import LayerPricer
 from ergodic_insurance.loss_distributions import LognormalLoss, ParetoLoss
@@ -819,5 +820,53 @@ class TestEquityCappedRetention:
         vec = equity_capped_retention(raw, equity, self.KAPPA)
         scalar = np.array(
             [float(equity_capped_retention(r, e, self.KAPPA)) for r, e in zip(raw, equity)]
+        )
+        np.testing.assert_allclose(vec, scalar)
+
+
+class TestSingleLossInsolvencyRetentionCap:
+    """Endogenous single-loss-insolvency retention bound T (issue #1649).
+
+    T = (equity - e_floor) / (1 + LAE) is the largest retention that cannot bankrupt
+    the firm on one event; it has no hand-set knob (only the ruin floor and LAE), so
+    it can bound the HJB control selection endogenously and replace the #1633 kappa cap.
+    """
+
+    LAE = 0.12
+    E_FLOOR = 100_000.0
+
+    def test_formula(self):
+        eq = 5_000_000.0
+        T = float(single_loss_insolvency_retention_cap(eq, self.LAE, self.E_FLOOR))
+        assert T == pytest.approx((eq - self.E_FLOOR) / (1.0 + self.LAE))
+
+    def test_worst_single_loss_hits_floor_exactly(self):
+        # At SIR = T the worst retained working-layer loss (gross of LAE) drives
+        # post-loss equity to precisely the floor -- the boundary of p_ruin's step.
+        eq = 8_000_000.0
+        T = float(single_loss_insolvency_retention_cap(eq, self.LAE, self.E_FLOOR))
+        post_equity = eq - (1.0 + self.LAE) * T
+        assert post_equity == pytest.approx(self.E_FLOOR)
+
+    def test_monotone_increasing_in_equity(self):
+        eqs = np.array([0.2e6, 1e6, 5e6, 50e6])
+        caps = single_loss_insolvency_retention_cap(eqs, self.LAE, self.E_FLOOR)
+        assert np.all(np.diff(caps) > 0)
+
+    def test_below_equity_in_operating_regime(self):
+        # SIR <= T implies SIR < equity for any firm above the floor (the #1589 motive).
+        eqs = np.array([0.5e6, 1e6, 10e6, 100e6])
+        caps = single_loss_insolvency_retention_cap(eqs, self.LAE, self.E_FLOOR)
+        assert np.all(caps < eqs)
+
+    def test_impaired_firm_floored_at_zero(self):
+        # equity below the floor -> negative raw bound -> floored to 0 (max coverage).
+        assert float(single_loss_insolvency_retention_cap(50_000.0, self.LAE, self.E_FLOOR)) == 0.0
+
+    def test_vectorized_matches_scalar(self):
+        eqs = np.array([1e6, 5e6, 30e6, 80e6])
+        vec = single_loss_insolvency_retention_cap(eqs, self.LAE, self.E_FLOOR)
+        scalar = np.array(
+            [float(single_loss_insolvency_retention_cap(e, self.LAE, self.E_FLOOR)) for e in eqs]
         )
         np.testing.assert_allclose(vec, scalar)
