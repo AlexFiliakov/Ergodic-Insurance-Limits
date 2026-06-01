@@ -44,6 +44,7 @@ __all__ = [
     "build_equity_jump_operator_2d_sizescaled",
     "make_jump_term_2d",
     "equity_capped_retention",
+    "single_loss_insolvency_retention_cap",
 ]
 
 
@@ -715,3 +716,50 @@ def equity_capped_retention(
         return raw  # uncapped baseline (e.g. kappa = inf in the calibration sweep)
     eq = np.maximum(np.asarray(equity, dtype=float), 0.0)
     return np.asarray(np.minimum(raw, kappa * eq))
+
+
+def single_loss_insolvency_retention_cap(
+    equity: Any,
+    lae_ratio: float,
+    e_floor: float,
+) -> np.ndarray:
+    """Endogenous single-loss-insolvency retention bound ``T`` (issue #1649).
+
+    A retained loss costs the firm its gross retained amount ``(1 + LAE) * min(X, SIR)``
+    at the instant of the claim -- limited liability means no tax deferral can postpone
+    an insolvency. A firm choosing retention ``SIR`` is therefore solvent against any
+    single working-layer loss iff the worst such loss still leaves equity at or above
+    the operational floor::
+
+        E - (1 + LAE) * min(X, SIR) >= e_floor   for every X
+        <=>  (1 + LAE) * SIR <= E - e_floor
+        <=>  SIR <= T,     T = (E - e_floor) / (1 + LAE)
+
+    so ``T`` is the largest retention that cannot, by itself, bankrupt the firm on a
+    single event. It depends only on the model's own ruin floor ``e_floor`` and the LAE
+    markup -- there is no hand-set knob -- which is exactly why it can bound the optimal
+    retention *endogenously*: notebook 07 feeds it to the HJB control constraint
+    (:attr:`HJBProblem.control_feasibility`) so ``SIR* <= equity`` holds by construction,
+    and reuses it as the deployment-time clip that replaces the #1633 ``kappa * equity``
+    cap. At ``SIR = T`` exactly, the worst single retained loss ``(1 + LAE) * T =
+    E - e_floor`` drives post-loss equity to precisely ``e_floor`` -- the boundary of
+    the ruin region the jump operator's ``p_ruin`` steps across.
+
+    This is the same gross-loss insolvency test the per-event Monte Carlo (#1598) and
+    the jump operator's ``p_ruin`` mask already apply when *updating* the value; here it
+    bounds the *control selection* so the policy is self-consistent with that test.
+
+    Args:
+        equity: Firm equity (dollars) at the state. Scalar or array.
+        lae_ratio: Loss-adjustment-expense markup on the retained loss (e.g. ``0.12``).
+        e_floor: Equity operational ruin floor (dollars), e.g. ``RUIN_THRESHOLD``.
+
+    Returns:
+        ``T = (equity - e_floor) / (1 + lae_ratio)`` as a float array (0-d for scalar
+        input), floored at ``0`` so an already-impaired firm (``equity <= e_floor``)
+        yields a non-negative bound. Callers still clamp ``T`` up to their control-grid
+        minimum (the smallest available retention / most coverage) before deploying.
+    """
+    eq = np.asarray(equity, dtype=float)
+    cap = (eq - e_floor) / (1.0 + lae_ratio)
+    return np.asarray(np.maximum(cap, 0.0))

@@ -2448,3 +2448,145 @@ def test_hjb_basin_anchored_tolerance_falls_back_to_full_span_when_cliff_off_gri
     match_basin = _basin_match_verdict(sir_grid, H, idx_star, idx_argmax, T_cliff, anchor="basin")
     match_full = _basin_match_verdict(sir_grid, H, idx_star, idx_argmax, T_cliff, anchor="full")
     assert match_basin == match_full  # basin anchor falls back to the full span
+
+
+class TestControlFeasibilityConstraint:
+    """Hard state-dependent admissible-control constraint (issue #1649).
+
+    ``HJBProblem.control_feasibility`` masks inadmissible (state, control) pairs to
+    ``-inf`` during policy improvement, so the argmax respects the constraint by
+    construction -- a hard control constraint, not a soft penalty. States with no
+    admissible control fall back to the grid-minimum control. ``None`` (the default)
+    leaves the solve unchanged. Notebook 07 uses this to bound the retention by the
+    endogenous single-loss-insolvency threshold ``T`` so ``SIR* <= equity`` holds
+    without a deployment-time cap.
+    """
+
+    @staticmethod
+    def _make_problem(control_feasibility=None, n_states=11, n_u=5):
+        """A small 1-D problem where the unconstrained argmax wants the LARGEST control.
+
+        Drift rises with the control and the running reward ``log(x)`` makes ``V``
+        increasing in ``x`` (so ``grad V > 0`` and a bigger drift is always better) --
+        a clean setting in which a state-dependent upper bound on the control visibly
+        binds.
+        """
+        state_space = StateSpace(
+            [
+                StateVariable(
+                    "x", min_value=1.0, max_value=10.0, num_points=n_states, log_scale=False
+                )
+            ]
+        )
+        control_variables = [ControlVariable("u", min_value=0.0, max_value=1.0, num_points=n_u)]
+
+        def dynamics(state, control, t):
+            return (0.02 + 0.10 * control[..., 0:1]) * state[..., 0:1]
+
+        def running_cost(state, control, t):
+            return np.log(np.maximum(state[..., 0], 1e-9))
+
+        return HJBProblem(
+            state_space=state_space,
+            control_variables=control_variables,
+            utility_function=LogUtility(),
+            dynamics=dynamics,
+            running_cost=running_cost,
+            discount_rate=0.05,
+            control_feasibility=control_feasibility,
+        )
+
+    @staticmethod
+    def _upper_bound(x):
+        """Admissible region: ``u <= x / 10`` (state-dependent)."""
+        return x / 10.0
+
+    @classmethod
+    def _feasible(cls, states, controls):
+        return controls[..., 0] <= cls._upper_bound(states[..., 0]) + 1e-12
+
+    def test_defaults_to_none(self):
+        assert self._make_problem().control_feasibility is None
+
+    def test_all_feasible_mask_matches_unconstrained(self):
+        """An always-True mask is a no-op: result is bit-identical to no constraint."""
+        cfg = HJBSolverConfig(time_step=0.05, max_iterations=30, tolerance=1e-7, verbose=False)
+        v0, pol0 = HJBSolver(self._make_problem(), cfg).solve()
+
+        def all_true(states, controls):
+            return np.ones(states.shape[0], dtype=bool)
+
+        v1, pol1 = HJBSolver(self._make_problem(all_true), cfg).solve()
+        np.testing.assert_array_equal(v0, v1)
+        np.testing.assert_array_equal(pol0["u"], pol1["u"])
+
+    def test_constraint_bounds_policy_vectorized(self):
+        """The selected control obeys the state-dependent bound everywhere (argmax)."""
+        cfg = HJBSolverConfig(
+            time_step=0.05,
+            max_iterations=60,
+            tolerance=1e-8,
+            verbose=False,
+            control_search_strategy="vectorized",
+        )
+        _, pol = HJBSolver(self._make_problem(self._feasible), cfg).solve()
+        x = self._make_problem().state_space.grids[0]
+        assert np.all(pol["u"] <= self._upper_bound(x) + 1e-9)
+
+    def test_constraint_bounds_policy_loop_strategy(self):
+        """The legacy loop strategy honors the constraint too."""
+        cfg = HJBSolverConfig(
+            time_step=0.05,
+            max_iterations=60,
+            tolerance=1e-8,
+            verbose=False,
+            control_search_strategy="loop",
+        )
+        _, pol = HJBSolver(self._make_problem(self._feasible), cfg).solve()
+        x = self._make_problem().state_space.grids[0]
+        assert np.all(pol["u"] <= self._upper_bound(x) + 1e-9)
+
+    def test_constraint_actually_binds(self):
+        """Sanity: the unconstrained optimum violates the bound, so the constraint
+        is doing real work (not vacuously satisfied)."""
+        cfg = HJBSolverConfig(time_step=0.05, max_iterations=60, tolerance=1e-8, verbose=False)
+        _, pol_free = HJBSolver(self._make_problem(), cfg).solve()
+        _, pol_con = HJBSolver(self._make_problem(self._feasible), cfg).solve()
+        x = self._make_problem().state_space.grids[0]
+        i = 5  # a mid-grid interior state (x ~ 5.5, bound ~ 0.55)
+        assert pol_free["u"][i] > self._upper_bound(x[i])  # unconstrained exceeds the bound
+        assert pol_con["u"][i] <= self._upper_bound(x[i]) + 1e-9  # constrained respects it
+
+    def test_all_infeasible_falls_back_to_min_control(self):
+        """When no control is admissible anywhere, every state takes the grid-min control."""
+        cfg = HJBSolverConfig(time_step=0.05, max_iterations=10, tolerance=1e-6, verbose=False)
+
+        def none_feasible(states, controls):
+            return np.zeros(states.shape[0], dtype=bool)
+
+        _, pol = HJBSolver(self._make_problem(none_feasible), cfg).solve()
+        u_min = self._make_problem().control_variables[0].get_values()[0]
+        np.testing.assert_allclose(pol["u"], u_min)
+
+    def test_constrained_value_not_above_unconstrained(self):
+        """Restricting the admissible set cannot raise the maximized value function."""
+        cfg = HJBSolverConfig(time_step=0.05, max_iterations=120, tolerance=1e-9, verbose=False)
+        v_free, _ = HJBSolver(self._make_problem(), cfg).solve()
+        v_con, _ = HJBSolver(self._make_problem(self._feasible), cfg).solve()
+        assert np.all(v_con <= v_free + 1e-6)
+
+    def test_constraint_respected_in_finite_horizon(self):
+        """The finite-horizon march (the notebook's solve path) also honors the bound."""
+        prob = self._make_problem(self._feasible)
+        prob.time_horizon = 2.0
+        prob.terminal_value = lambda s: np.log(np.maximum(s[..., 0], 1e-9))
+        cfg = HJBSolverConfig(
+            time_step=0.1,
+            verbose=False,
+            scheme=TimeSteppingScheme.EXPLICIT,
+            auto_cfl=False,
+            control_search_strategy="vectorized",
+        )
+        _, pol = HJBSolver(prob, cfg).solve_finite_horizon()
+        x = prob.state_space.grids[0]
+        assert np.all(pol["u"] <= self._upper_bound(x) + 1e-9)
