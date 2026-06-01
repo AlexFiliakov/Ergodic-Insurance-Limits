@@ -17,8 +17,10 @@ from typing import Any
 
 import numpy as np
 import pytest
+from scipy import stats
 
 from ergodic_insurance.hjb_quadrature import (
+    annual_aggregate_retained_quantile,
     build_equity_jump_operator_2d,
     build_equity_jump_operator_2d_sizescaled,
     build_loss_atoms,
@@ -26,6 +28,7 @@ from ergodic_insurance.hjb_quadrature import (
     equity_capped_retention,
     lognormal_gauss_hermite_nodes,
     make_jump_term_2d,
+    multi_loss_insolvency_retention_cap,
     pareto_stratified_atoms,
     severity_cdf,
     single_loss_insolvency_retention_cap,
@@ -78,8 +81,6 @@ class TestSeverityCdf:
     """severity_cdf: analytical CDF for lognormal and Pareto."""
 
     def test_lognormal_cdf_matches_scipy(self):
-        from scipy import stats
-
         sev = LognormalLoss(mean=500_000, cv=2.5)
         for x in [10_000, 100_000, 1_000_000, 10_000_000]:
             expected = float(stats.norm.cdf((np.log(x) - sev.mu) / sev.sigma))
@@ -870,3 +871,151 @@ class TestSingleLossInsolvencyRetentionCap:
             [float(single_loss_insolvency_retention_cap(e, self.LAE, self.E_FLOOR)) for e in eqs]
         )
         np.testing.assert_allclose(vec, scalar)
+
+
+class TestMultiLossInsolvencyRetentionCap:
+    """Endogenous N-event-survivability retention bound T / N (issue #1659).
+
+    Generalizes the single-loss bound T to require surviving N worst-case retained events
+    in a year. With the knob-free N = E[#losses/yr] (lambda_ref ~ 1.74 at the notebook's
+    reference firm), T / N lands at ~0.51 * equity -- reproducing the empirically
+    value-creating kappa = 0.50 deployment cap (issue #1633) it retires, with no hand-set
+    retention fraction.
+    """
+
+    LAE = 0.12
+    E_FLOOR = 100_000.0
+    LAMBDA_REF = 1.74  # sum of the notebook's base layer frequencies (1.25 + 0.40 + 0.09)
+
+    def test_formula(self):
+        eq = 5_000_000.0
+        cap = float(multi_loss_insolvency_retention_cap(eq, self.LAE, self.E_FLOOR, 3.0))
+        assert cap == pytest.approx((eq - self.E_FLOOR) / (1.0 + self.LAE) / 3.0)
+
+    def test_reduces_to_single_loss_at_n1(self):
+        # N = 1 recovers the single-loss bound exactly.
+        eqs = np.array([0.5e6, 1e6, 5e6, 50e6])
+        multi = multi_loss_insolvency_retention_cap(eqs, self.LAE, self.E_FLOOR, 1.0)
+        single = single_loss_insolvency_retention_cap(eqs, self.LAE, self.E_FLOOR)
+        np.testing.assert_allclose(multi, single)
+
+    def test_n_clamped_to_at_least_one(self):
+        # N < 1 must not loosen the bound beyond the single-loss cap (preserves SIR <= equity).
+        eqs = np.array([1e6, 10e6])
+        single = single_loss_insolvency_retention_cap(eqs, self.LAE, self.E_FLOOR)
+        np.testing.assert_allclose(
+            multi_loss_insolvency_retention_cap(eqs, self.LAE, self.E_FLOOR, 0.3), single
+        )
+
+    def test_never_looser_than_single_loss(self):
+        eqs = np.array([0.5e6, 1e6, 10e6, 100e6])
+        multi = multi_loss_insolvency_retention_cap(eqs, self.LAE, self.E_FLOOR, self.LAMBDA_REF)
+        single = single_loss_insolvency_retention_cap(eqs, self.LAE, self.E_FLOOR)
+        assert np.all(multi <= single)
+        assert np.all(multi < eqs)  # strictly inside the SIR <= equity region
+
+    def test_n_worst_events_hit_floor_exactly(self):
+        # At SIR = T / N, N worst single-event retentions (gross of LAE) drive equity to the floor.
+        eq = 8_000_000.0
+        n = 4.0
+        sir = float(multi_loss_insolvency_retention_cap(eq, self.LAE, self.E_FLOOR, n))
+        post_equity = eq - n * (1.0 + self.LAE) * sir
+        assert post_equity == pytest.approx(self.E_FLOOR)
+
+    def test_monotone_increasing_in_equity(self):
+        eqs = np.array([0.2e6, 1e6, 5e6, 50e6])
+        caps = multi_loss_insolvency_retention_cap(eqs, self.LAE, self.E_FLOOR, self.LAMBDA_REF)
+        assert np.all(np.diff(caps) > 0)
+
+    def test_reference_fraction_matches_kappa(self):
+        # The headline relationship (issue #1659 AC3): T / lambda_ref ~ 0.51 * equity ~ kappa=0.50,
+        # near-constant across firm sizes (within the empirically value-creating 0.40-0.55 band).
+        for eq in [3.25e6, 6.5e6, 16.25e6, 32.5e6]:
+            frac = (
+                float(
+                    multi_loss_insolvency_retention_cap(eq, self.LAE, self.E_FLOOR, self.LAMBDA_REF)
+                )
+                / eq
+            )
+            assert 0.40 <= frac <= 0.55
+
+    def test_vectorized_matches_scalar(self):
+        eqs = np.array([1e6, 5e6, 30e6, 80e6])
+        vec = multi_loss_insolvency_retention_cap(eqs, self.LAE, self.E_FLOOR, self.LAMBDA_REF)
+        scalar = np.array(
+            [
+                float(
+                    multi_loss_insolvency_retention_cap(e, self.LAE, self.E_FLOOR, self.LAMBDA_REF)
+                )
+                for e in eqs
+            ]
+        )
+        np.testing.assert_allclose(vec, scalar)
+
+
+class TestAnnualAggregateRetainedQuantile:
+    """FFT compound-Poisson annual-aggregate retained-loss quantile (issue #1659).
+
+    The Option-1 cross-validation / fallback for the N-event bound: the q-quantile of the
+    annual aggregate retained loss S = sum_i (1+LAE)*(min(X_i, SIR) + (X_i - tower)+), with
+    the event count Poisson(lam). Computed by FFT of the compound-Poisson characteristic
+    function and validated against the analytic scaled-Poisson (degenerate severity) and a
+    seeded Monte Carlo.
+    """
+
+    LAE = 0.12
+
+    def test_degenerate_severity_matches_scaled_poisson(self):
+        # A single severity atom c (with min(c, SIR) = c) makes S = r * M, M ~ Poisson(lam),
+        # r = (1+LAE)*c -- so the q-quantile is r * poisson.ppf(q, lam), exactly.
+        for lam, c, sir, q in [
+            (2.0, 1e6, 5e6, 0.95),
+            (1.74, 8e5, 2e6, 0.99),
+            (5.0, 3e5, 4e5, 0.90),
+        ]:
+            r = (1.0 + self.LAE) * min(c, sir)
+            analytic = r * float(stats.poisson.ppf(q, lam))
+            fft = annual_aggregate_retained_quantile([c], [1.0], lam, sir, self.LAE, q)
+            assert fft == pytest.approx(analytic, rel=0.01)
+
+    def test_zero_intensity_returns_zero(self):
+        x = np.geomspace(1e4, 5e6, 40)
+        p = np.ones(40) / 40
+        assert annual_aggregate_retained_quantile(x, p, 0.0, 2e6, self.LAE, 0.95) == 0.0
+
+    def test_monotone_in_quantile(self):
+        x = np.geomspace(1e4, 5e6, 60)
+        p = np.ones(60) / 60
+        vals = [
+            annual_aggregate_retained_quantile(x, p, 1.74, 2e6, self.LAE, q)
+            for q in [0.5, 0.8, 0.95, 0.99]
+        ]
+        assert all(np.diff(vals) >= -1e-6)
+
+    def test_monotone_nondecreasing_in_sir(self):
+        # More retention (higher SIR) cannot lower the aggregate retained quantile.
+        x = np.geomspace(1e4, 5e6, 60)
+        p = np.ones(60) / 60
+        vals = [
+            annual_aggregate_retained_quantile(x, p, 1.74, s, self.LAE, 0.95)
+            for s in [5e5, 1e6, 2e6, 5e6]
+        ]
+        assert all(np.diff(vals) >= -1e-6)
+
+    def test_matches_monte_carlo(self):
+        # Mixed lognormal-ish atom table vs a seeded compound-Poisson MC (loose tolerance).
+        rng = np.random.default_rng(20240601)
+        x = np.geomspace(1e4, 8e6, 200)
+        # a roughly log-uniform severity with a light tail
+        p = 1.0 / x
+        p = p / p.sum()
+        lam, sir, q = 2.5, 1.5e6, 0.95
+        fft = annual_aggregate_retained_quantile(x, p, lam, sir, self.LAE, q)
+        n_years = 600_000
+        counts = rng.poisson(lam, n_years)
+        draws = rng.choice(len(x), size=int(counts.sum()), p=p)
+        retained = (1.0 + self.LAE) * np.minimum(x[draws], sir)
+        totals = np.zeros(n_years)
+        np.add.at(totals, np.repeat(np.arange(n_years), counts), retained)
+        mc = float(np.quantile(totals, q))
+        assert fft == pytest.approx(mc, rel=0.05)

@@ -45,6 +45,8 @@ __all__ = [
     "make_jump_term_2d",
     "equity_capped_retention",
     "single_loss_insolvency_retention_cap",
+    "multi_loss_insolvency_retention_cap",
+    "annual_aggregate_retained_quantile",
 ]
 
 
@@ -763,3 +765,124 @@ def single_loss_insolvency_retention_cap(
     eq = np.asarray(equity, dtype=float)
     cap = (eq - e_floor) / (1.0 + lae_ratio)
     return np.asarray(np.maximum(cap, 0.0))
+
+
+def multi_loss_insolvency_retention_cap(
+    equity: Any,
+    lae_ratio: float,
+    e_floor: float,
+    n_events: float,
+) -> np.ndarray:
+    """Endogenous N-event-survivability retention bound ``T / N`` (issue #1659).
+
+    Generalizes :func:`single_loss_insolvency_retention_cap` (the ``N = 1`` single-loss
+    bound ``T``) to require the firm survive ``N`` worst-case retained events in a year, not
+    just one. Over a 25-year horizon a firm faces *many* losses (intensity ``lambda`` of
+    several events/yr), so the single-loss bound ``T ~ 0.89 * equity`` is necessary but not
+    sufficient -- it lets a grown firm self-insure ~0.6 * assets just below the cliff,
+    survivable per event yet value-destroying over the horizon (issue #1659 / #1649 AC2). A
+    firm choosing retention ``SIR`` absorbs ``(1 + LAE) * SIR`` per worst-case event, so it
+    survives ``N`` such events iff::
+
+        E - (1 + LAE) * N * SIR >= e_floor
+        <=>  (1 + LAE) * N * SIR <= E - e_floor
+        <=>  SIR <= T / N,    T = (E - e_floor) / (1 + LAE)
+
+    Choosing ``N = E[#losses/yr]`` (the model's own loss intensity ``lambda``) makes the
+    bound **knob-free** -- derived entirely from the loss frequency and the LAE markup, with
+    no hand-set retention fraction. At the notebook's reference firm
+    (``N = lambda_ref ~ 1.74`` events/yr, ``LAE = 0.12``) it lands at ``T / N ~ 0.51 *
+    equity``, reproducing the empirically value-creating ``kappa = 0.50`` deployment cap
+    (issue #1633) it replaces -- and, unlike a count that scales with the firm, it stays a
+    near-constant fraction of equity across firm sizes.
+
+    ``n_events`` is clamped to ``>= 1`` so the multi-loss bound is never *looser* than the
+    single-loss bound ``T``; it therefore always stays within the ``SIR <= equity`` region,
+    preserving issue #1649 AC1 by construction.
+
+    Args:
+        equity: Firm equity (dollars) at the state. Scalar or array.
+        lae_ratio: Loss-adjustment-expense markup on the retained loss (e.g. ``0.12``).
+        e_floor: Equity operational ruin floor (dollars), e.g. ``RUIN_THRESHOLD``.
+        n_events: Number of worst-case retained events to survive, ``N``. Use
+            ``E[#losses/yr]`` (the loss intensity) for the knob-free bound. Clamped to
+            ``>= 1`` (``N = 1`` recovers the single-loss bound exactly).
+
+    Returns:
+        ``T / max(N, 1) = (equity - e_floor) / ((1 + lae_ratio) * max(N, 1))`` as a float
+        array (0-d for scalar input), floored at ``0`` (inherited from the single-loss
+        bound) so an already-impaired firm yields a non-negative bound. Callers still clamp
+        the result up to their control-grid minimum before deploying.
+    """
+    n = max(float(n_events), 1.0)
+    return np.asarray(single_loss_insolvency_retention_cap(equity, lae_ratio, e_floor) / n)
+
+
+def annual_aggregate_retained_quantile(
+    x_atoms: Any,
+    p_atoms: Any,
+    lam: float,
+    sir: float,
+    lae_ratio: float,
+    q: float,
+    *,
+    tower_top: float = float("inf"),
+    n_grid: int = 1 << 18,
+) -> float:
+    """``q``-quantile of the annual aggregate RETAINED loss (compound Poisson; issue #1659).
+
+    Option-1 cross-validation / fallback for the N-event retention bound
+    (:func:`multi_loss_insolvency_retention_cap`). The per-event retained loss is
+    ``L_ret(X, SIR) = (1 + LAE) * (min(X, SIR) + (X - tower_top)+)`` -- the same gross-of-LAE
+    retention the jump operator and the per-event Monte Carlo (#1598) use. The annual
+    aggregate ``S = sum_{i=1}^{M} L_ret(X_i, SIR)`` with ``M ~ Poisson(lam)`` is a
+    compound-Poisson sum; its ``q``-quantile (the value a deployment-time annual-aggregate
+    survivability bound would target) is computed by FFT of the characteristic function:
+    discretize the retained severity onto a uniform grid, form the aggregate PMF
+    ``agg = irfft(exp(lam * (rfft(sev_pmf) - 1)))``, and read the quantile off its CDF.
+
+    The grid spans ``[0, mean + 12*std + max_retained]`` (covering the aggregate's upper
+    tail) with ``n_grid`` points; the FFT-Panjer result is exact up to that discretization
+    (validated < 1% vs Monte Carlo across firm sizes and retentions). The severity atoms
+    ``(x_atoms, p_atoms)`` are the notebook's :func:`build_loss_atoms` output and ``lam`` is
+    the total loss intensity ``sum_c freq_c``.
+
+    Args:
+        x_atoms: Per-event severity support values (dollars), 1-D array-like.
+        p_atoms: Per-event severity probabilities (sum to 1), aligned with ``x_atoms``.
+        lam: Poisson loss intensity (events/yr); ``<= 0`` returns ``0.0``.
+        sir: Self-insured retention (dollars).
+        lae_ratio: LAE markup on the retained loss.
+        q: Quantile in ``[0, 1)`` (e.g. ``0.95``).
+        tower_top: Top of the insurance tower; losses above it are retained again
+            (default ``inf`` -> no excess-of-tower retention).
+        n_grid: FFT grid size (a power of two is recommended).
+
+    Returns:
+        The ``q``-quantile of the annual aggregate retained loss (dollars), as a float.
+    """
+    x = np.asarray(x_atoms, dtype=float)
+    p = np.asarray(p_atoms, dtype=float)
+    p = p / p.sum()
+    retained = (1.0 + lae_ratio) * (np.minimum(x, sir) + np.maximum(x - tower_top, 0.0))
+    max_retained = float(retained.max())
+    if lam <= 0.0 or max_retained <= 0.0:
+        return 0.0
+    mean_sev = float(np.sum(p * retained))
+    second_sev = float(np.sum(p * retained**2))
+    agg_mean = lam * mean_sev
+    agg_std = float(np.sqrt(max(lam * second_sev, 0.0)))
+    span = agg_mean + 12.0 * agg_std + max_retained
+    h = span / n_grid
+    # Discretize the retained severity onto the uniform grid [0, span).
+    bins = np.minimum((retained / h).astype(int), n_grid - 1)
+    sev_pmf = np.bincount(bins, weights=p, minlength=n_grid).astype(float)
+    sev_pmf /= sev_pmf.sum()
+    # Compound-Poisson aggregate PMF via the characteristic function (FFT-Panjer).
+    cf = np.fft.rfft(sev_pmf)
+    agg_cf = np.exp(lam * (cf - 1.0))
+    agg_pmf = np.maximum(np.fft.irfft(agg_cf, n=n_grid), 0.0)
+    agg_pmf /= agg_pmf.sum()
+    cdf = np.cumsum(agg_pmf)
+    k = min(int(np.searchsorted(cdf, q)), n_grid - 1)
+    return float(k * h)
