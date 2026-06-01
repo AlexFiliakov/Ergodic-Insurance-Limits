@@ -9,7 +9,12 @@ from ergodic_insurance.config import ManufacturerConfig
 from ergodic_insurance.insurance_program import EnhancedInsuranceLayer, InsuranceProgram
 from ergodic_insurance.loss_distributions import ManufacturingLossGenerator
 from ergodic_insurance.manufacturer import WidgetManufacturer
-from ergodic_insurance.monte_carlo import MonteCarloConfig, MonteCarloEngine, MonteCarloResults
+from ergodic_insurance.monte_carlo import (
+    MonteCarloConfig,
+    MonteCarloEngine,
+    MonteCarloResults,
+    _flatten_parallel_results,
+)
 
 
 class TestPeriodicRuinTracking:
@@ -146,7 +151,10 @@ class TestPeriodicRuinTracking:
         loss_generator, insurance_program, manufacturer = setup_real_engine
 
         config = MonteCarloConfig(
-            n_simulations=1000,  # Reduced for faster testing
+            # 100 sims is plenty for the STRUCTURAL assertions below (dict shape, values in
+            # [0, 1], all eval keys present); the old 1000 made the per-test runtime exceed the
+            # 300s CI timeout under coverage when the parallel reduce fell back to sequential.
+            n_simulations=100,
             n_years=20,
             ruin_evaluation=[5, 10, 15],
             parallel=True,
@@ -296,3 +304,37 @@ class TestPeriodicRuinTracking:
                 current_prob >= prev_prob
             ), f"Ruin probability did not increase from previous {prev_prob} to current {current_prob} at year {year}"
             prev_prob = current_prob
+
+
+class TestFlattenParallelResults:
+    """Regression for the enhanced-parallel reduce shape bug.
+
+    ``combine_results_enhanced`` used to ``extend`` each item of a FLAT list of per-simulation
+    dicts, which iterates a dict into its string KEYS -- producing
+    ``Unexpected result format: <class 'str'>`` for every result, zero valid simulations, and a
+    silent (slow) fallback to sequential execution on every enhanced-parallel run.
+    ``_flatten_parallel_results`` appends dicts whole and only flattens genuine nested lists.
+    """
+
+    def test_flat_list_of_dicts_preserved(self):
+        # Each per-sim dict must survive AS a dict (not be split into its keys).
+        results = [{"final_assets": 1.0}, {"final_assets": 2.0}]
+        out = _flatten_parallel_results(results)
+        assert out == results
+        assert all(isinstance(r, dict) for r in out)
+
+    def test_no_string_keys_leak(self):
+        # The exact bug signature: a key-string must never appear in the output.
+        out = _flatten_parallel_results([{"final_assets": 1.0, "ruin_at_year": {5: False}}])
+        assert "final_assets" not in out and "ruin_at_year" not in out
+        assert out[0]["final_assets"] == 1.0
+
+    def test_legacy_list_of_lists_flattened(self):
+        out = _flatten_parallel_results([[{"a": 1}], [{"a": 2}, {"a": 3}]])
+        assert out == [{"a": 1}, {"a": 2}, {"a": 3}]
+
+    def test_none_entries_skipped(self):
+        assert _flatten_parallel_results([{"a": 1}, None, {"a": 2}]) == [{"a": 1}, {"a": 2}]
+
+    def test_empty_input(self):
+        assert _flatten_parallel_results([]) == []
