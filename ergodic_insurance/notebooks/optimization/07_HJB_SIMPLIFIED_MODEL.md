@@ -65,7 +65,7 @@ The notebook works hard to keep the two simplified models **calibrated to** the 
 
 8. **LAE is `0.12` everywhere** — a flat markup on retained loss in the simple MC and HJB; the full model's `lae_ratio = 0.12` per ASC 944-40 (`manufacturer_claims.py`).
 
-9. **The ergodic objective and ruin floor are shared.** The decision metric `g_CE` floors terminal equity at `RUIN_THRESHOLD = $100K` and takes the geometric mean of log-equity. The HJB's terminal condition is `V(A, e, T) = log(max(e·A, E_FLOOR))` with the **same** `E_FLOOR = $100K` (cell 20:316), and its ruin atom carries `V_RUIN = log(E_FLOOR)`. So the growth function the solver maximizes and the metric the MC reports are the *same* objective, by construction. (`LogUtility`, `hjb_solver.py:252`, is documented as the logarithmic *ergodicity transformation*, not a risk-preference.)
+9. **The ergodic objective and ruin floor are shared.** The decision metric `g_CE` (certainty-equivalent log-growth — full explainer in §9) floors terminal equity at `RUIN_THRESHOLD = $100K` and takes the geometric mean of log-equity. The HJB's terminal condition is `V(A, e, T) = log(max(e·A, E_FLOOR))` with the **same** `E_FLOOR = $100K` (cell 20:316), and its ruin atom carries `V_RUIN = log(E_FLOOR)`. So the growth function the solver maximizes and the metric the MC reports are the *same* objective, by construction. (`LogUtility`, `hjb_solver.py:252`, is documented as the logarithmic *ergodicity transformation*, not a risk-preference.)
 
 10. **CRN op-income shocks are shared.** All three apply the same lognormal multiplier `exp(σz − σ²/2)`, `σ = REL_OP_INC_VOL = 0.30`; the full-model sweep injects the identical `z` draws via a custom `_SweepCRNShock` process (cell 16).
 
@@ -191,6 +191,54 @@ How the §4–§5 simplifications actually move the numbers, and how the noteboo
 | "Does no-loss growth match?" | **Part 10c** reconciliation | Confirms the basis alignment before attributing differences to insurance. |
 
 Rule of thumb: **explore in the simple model, optimize in the HJB, confirm in the full model.** Treat a sub-2-SE full-model gap as value-neutral.
+
+---
+
+## 9. The `g_CE` metric — what it is, and why "CE"
+
+`g_CE` is the report's headline decision metric — the single ruin-aware growth rate on which all three models are compared. It appears in every advantage figure (`+2.98 pp/yr`, `+0.79 ± 0.26 pp/yr`, …) and is the quantity the HJB maximizes.
+
+**Definition.**
+```
+g_CE = exp( (1/T) · mean_paths[ log( max(W_T, $100K) / W_0 ) ] ) − 1
+```
+Floor each path's terminal equity at the operational ruin threshold ($100K), take the mean of log-growth (= log of the geometric mean), annualize over `T = 25` years, and report a per-year rate. `W_0 = START_EQUITY ≈ $3.89M`.
+
+### What "CE" stands for: **Certainty Equivalent**
+
+The *certainty equivalent* of a risky payoff is the single **guaranteed** amount you would accept in place of the gamble. Formally, under a transform `u`, the CE of a random terminal wealth `W_T` is `u⁻¹(E[u(W_T)])`. Here the transform is the logarithm, so the certainty-equivalent terminal wealth is the **geometric mean** of the (floored) terminal wealth:
+```
+W_CE = exp( E[ log max(W_T, $100K) ] )
+```
+and `g_CE` is just the **constant, deterministic growth rate that turns `W_0` into `W_CE` over `T` years**:
+```
+g_CE = (W_CE / W_0)^(1/T) − 1.
+```
+So a strategy with `g_CE = 4%/yr` is one you would be *indifferent to versus a certain 4%/yr* (under the log transform): the entire distribution of risky outcomes — booms, busts, and ruins — is collapsed into one equivalent sure-thing growth rate. That collapse is precisely what lets strategies with very different ruin rates be ranked on a single axis.
+
+### The ergodicity-economics reading (why this is **not** a utility statement)
+
+The "certainty equivalent" label is inherited from decision theory, where it is tied to a *subjective utility function*. **In this framework it is not.** The logarithm here is the **ergodicity transformation** — forced by the multiplicative dynamics of wealth, not chosen to encode a risk taste — so `E[log W_T]` is the expected value of the *time-average* growth, and `g_CE` is the **ruin-aware time-average (geometric-mean) growth rate**: the deterministic rate one firm actually compounds at along its single path. Read "certainty-equivalent growth" as "**deterministic-equivalent time-average growth**," with no appeal to preferences (consistent with the project's reading of `LogUtility` as the ergodicity transform — see §3 item 9, `hjb_solver.py:252`).
+
+### Why the $100K floor (ruin-awareness)
+
+Under an absorbing ruin barrier the *unconditional* `E[log W_T]` is `−∞` (any path at `log 0`). Flooring at `RUIN_THRESHOLD = $100K` **charges a ruined path the floor** instead of (a) sending the average to `−∞`, or (b) discarding it — which would bias toward the lucky-survivor cohort, the wrong reference class for a decision made *before* you know whether this firm survives. The same `$100K` is the HJB's `E_FLOOR` and every model's ruin trigger, so the floor is *shared, not a free knob*. Rough exchange rate at `W_0 ≈ $3.89M`, `T = 25`: each **1% of ruin probability docks ~0.16 pp/yr** of `g_CE`.
+
+### `g_CE` vs. survival-conditional growth `g`
+
+The notebook also reports survival-conditional growth `g` (geometric mean over *survivors only*, no floor — sometimes tagged "TAG | Survival"). They answer different questions: `g` = "how fast did the firms that *lived* compound?"; `g_CE` = "what all-in, ruin-charged growth should I expect by choosing this strategy *in advance*?" For any single decision (the Part 11 regret curve, every advantage figure) `g_CE` is the correct axis; `g` silently flatters strategies that let their riskiest paths die.
+
+### How it ties the three models together
+
+Because `g_CE` is a pure function of `(terminal_equities, W_0, T)`, it applies *identically* to the simple-cash sim and the full `WidgetManufacturer` — both emit per-path terminal equity. The **HJB** does not emit Monte-Carlo paths, but its growth function is the same object: with terminal `V = log(max(E_T, E_FLOOR))`, `ρ = 0`, and zero running cost, `V(A₀, e₀, 0) = max_policy E[log max(E_T, $100K)]`. Hence the HJB's own optimal-policy certainty equivalent is recoverable straight from the solve:
+```
+g_CE_HJB(theory) = exp( ( V(A₀, e₀, 0) − log W_0 ) / T ) − 1.
+```
+The HJB is, by construction, a `g_CE`-**maximizer**; the "HJB g_CE" printed in the comparison tables is obtained by *deploying* its policy `SIR(A, e)` through one of the two simulators (`simulate_hjb_adaptive` or the full modeler) and applying the same helper.
+
+### Implementation
+
+A **notebook-local NumPy helper** (not a library function), defined equivalently in several cells — canonically `_gce(finals, start, years)` (cell 16), a paired-CRN advantage+SE variant `_paired_adv_se` (cell 16), and local copies (`_gce_equity` cell 37, `_gce_one` cells 62/64, `_tavg_gce` cell 63; the locals dodge a name-clash where Part 12 rebinds the global `_gce`). The two spellings `exp(mean(log r)/T) − 1` and `exp(mean(log r))**(1/T) − 1` are algebraically identical. It is *not* part of the installable `ergodic_insurance` package — `ErgodicAnalyzer` computes time-average growth but not this floored certainty-equivalent variant. One wrinkle: the walk-forward cells (47/49) additionally condition on paths being alive at *window start* before flooring the endpoint; the full-horizon definition used everywhere else floors only.
 
 ---
 
