@@ -148,10 +148,17 @@ class IncomeCalculationMixin:
         else:
             period_rate = to_decimal(letter_of_credit_rate)
 
-        collateral_costs = self.collateral * period_rate
+        # Single LOC fee basis (Issues #1637/#1644): restricted cash (legacy cash-trust model)
+        # PLUS the outstanding letter-of-credit-backed reserve (the default LOC model, where no
+        # cash is locked).  Exactly one of the two terms is non-zero per claim, so a retained
+        # loss carries one collateral cost, never both a cash lock and a fee on the same dollars.
+        loc_reserve = getattr(self, "loc_collateralized_reserve", ZERO)
+        fee_basis = self.collateral + loc_reserve
+        collateral_costs = fee_basis * period_rate
         if collateral_costs > ZERO:
             logger.debug(
-                f"Collateral costs ({time_period}): ${collateral_costs:,.2f} on ${self.collateral:,.2f} collateral"
+                f"Collateral costs ({time_period}): ${collateral_costs:,.2f} on ${fee_basis:,.2f} "
+                f"basis (restricted ${self.collateral:,.2f} + LOC reserve ${loc_reserve:,.2f})"
             )
         return collateral_costs
 

@@ -307,6 +307,57 @@ class SolvencyMixin:
         )
         return z_prime
 
+    def effective_facility_limit(self) -> Optional[Decimal]:
+        """Compute the effective working-capital facility limit (Issue #1625).
+
+        A real commercial revolver is sized to the working-capital base
+        (receivables + inventory), roughly 15-20% of revenue, and grows as the
+        firm grows. When ``working_capital_facility_ratio`` is set, the effective
+        limit therefore scales with revenue::
+
+            effective_limit = working_capital_facility_ratio * current_revenue
+
+        computed on the fly on an annual-revenue basis (intra-period liquidity
+        checks reuse the same effective limit). When the ratio is ``None`` the
+        method falls back to the fixed ``working_capital_facility_limit``. The
+        ratio takes precedence over the fixed limit when both are set.
+
+        Returns:
+            Optional[Decimal]: Effective facility limit in dollars, or ``None``
+                for an unlimited facility (legacy behavior when neither the
+                ratio nor the fixed limit is configured).
+        """
+        ratio = getattr(self.config, "working_capital_facility_ratio", None)
+        if ratio is not None:
+            # Ratio sizes the revolver to revenue, so the facility grows with
+            # the firm rather than staying a fixed (and eventually tiny) amount.
+            return to_decimal(ratio) * self.calculate_revenue()
+        fixed = getattr(self.config, "working_capital_facility_limit", None)
+        if fixed is not None:
+            return to_decimal(fixed)
+        return None
+
+    def _liquidity_floor(self) -> Optional[Decimal]:
+        """Cash floor below which the firm is liquidity-insolvent (Issue #1631).
+
+        Returns ``-effective_facility_limit()``: the firm may draw its
+        working-capital revolver down to this floor to bridge a temporary cash
+        dip, so a cash balance at or above the floor is NOT insolvency. ``None``
+        means an unlimited facility (no cash-floor insolvency at all).
+
+        This is the single source of truth for the liquidity floor shared by the
+        intra-year check (:meth:`check_liquidity_constraints`) and ``step()``'s
+        post-payment crisis check, so the two can never drift to inconsistent
+        floors (e.g. ``0`` vs ``-facility``). It mirrors the facility-breach
+        test in :meth:`check_solvency` (Tier 1a, ASC 205-40-50-12).
+
+        Returns:
+            Optional[Decimal]: ``-effective_facility_limit()`` in dollars, or
+                ``None`` for an unlimited facility.
+        """
+        facility = self.effective_facility_limit()
+        return -facility if facility is not None else None
+
     def check_solvency(self) -> bool:
         """Check if the company is solvent using ASC 205-40 going concern assessment.
 
@@ -327,10 +378,11 @@ class SolvencyMixin:
         """
         # Per ASC 470-10 (Issue #496), negative cash represents a draw on the
         # working capital facility and is reclassified as short-term borrowings.
-        facility_limit = getattr(self.config, "working_capital_facility_limit", None)
+        # The effective limit scales with revenue when a ratio is configured
+        # (Issue #1625); otherwise it is the fixed limit (None = unlimited).
+        facility_limit_d = self.effective_facility_limit()
         if self.cash < ZERO:
-            if facility_limit is not None:
-                facility_limit_d = to_decimal(facility_limit)
+            if facility_limit_d is not None:
                 logger.info(
                     f"Working capital facility in use: cash ${self.cash:,.2f}, "
                     f"facility limit ${facility_limit_d:,.2f}, "
@@ -347,8 +399,7 @@ class SolvencyMixin:
         # Tier 1a: Working capital facility breach (Issue #1337, ASC 205-40-50-12)
         # When a facility limit is configured, cash below -(limit) means the
         # company has exhausted its credit facility and cannot meet obligations.
-        if facility_limit is not None:
-            facility_limit_d = to_decimal(facility_limit)
+        if facility_limit_d is not None:
             if self.cash < -facility_limit_d:
                 logger.warning(
                     f"LIQUIDITY INSOLVENCY: Cash ${self.cash:,.2f} breaches "
@@ -524,12 +575,22 @@ class SolvencyMixin:
 
         min_cash, min_month = self.estimate_minimum_cash_point(time_resolution)
 
-        if min_cash < ZERO:
+        # Issue #1631: floor the mid-year insolvency decision at the
+        # working-capital facility, NOT at 0. A temporary intra-year cash trough
+        # the revolver would cover (e.g. the annual premium outflow before
+        # revenue accrues) is not insolvency — the firm draws on the facility to
+        # bridge it, exactly as step()'s claim-payment path and post-payment
+        # crisis check already do. ``None`` => unlimited facility => no
+        # cash-floor mid-year insolvency (mirrors check_solvency Tier 1a).
+        floor = self._liquidity_floor()
+        if floor is not None and min_cash < floor:
             self.is_ruined = True
             self.ruin_month = min_month
             logger.warning(
                 f"MID-YEAR INSOLVENCY: Company would become insolvent in month {min_month} "
-                f"with estimated cash of ${min_cash:,.2f}. Year {self.current_year}, "
+                f"with estimated cash of ${min_cash:,.2f} "
+                f"(below working-capital facility floor ${floor:,.2f}). "
+                f"Year {self.current_year}, "
                 f"premium payment month: {getattr(self.config, 'premium_payment_month', 0)}"
             )
             return False

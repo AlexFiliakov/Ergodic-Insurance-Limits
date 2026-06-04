@@ -100,6 +100,13 @@ class ClaimLiability:
     remaining_amount: Decimal
     year_incurred: int
     is_insured: bool = True  # Default to insured for backward compatibility
+    # Letter-of-credit collateral flag (Issues #1637/#1644). When True the retained
+    # (company) portion of an insured claim is backed by a letter of credit rather than a
+    # cash lock: it is NOT funded from restricted cash but paid from operating cash over the
+    # development schedule (like an uninsured claim), and the LOC carry fee accrues on its
+    # outstanding balance. Only meaningful when is_insured is True. Default False preserves
+    # the legacy cash-collateralized behavior for all existing constructions.
+    is_loc_collateralized: bool = False
     development_strategy: ClaimDevelopment = field(
         default_factory=ClaimDevelopment.create_long_tail_10yr
     )
@@ -281,6 +288,7 @@ class ClaimLiability:
             remaining_amount=copy.deepcopy(self.remaining_amount, memo),
             year_incurred=self.year_incurred,
             is_insured=self.is_insured,
+            is_loc_collateralized=self.is_loc_collateralized,
             development_strategy=copied_strategy,
             true_ultimate=copy.deepcopy(self.true_ultimate, memo),
             _noise_std=self._noise_std,

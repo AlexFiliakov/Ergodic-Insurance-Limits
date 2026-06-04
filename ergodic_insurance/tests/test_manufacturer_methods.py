@@ -9,17 +9,23 @@ from ergodic_insurance.manufacturer import WidgetManufacturer
 
 
 class TestProcessInsuranceClaim:
-    """Test suite for process_insurance_claim() method."""
+    """Test suite for process_insurance_claim() method (legacy cash-trust collateral model).
+
+    These tests assert the cash-collateralized retention mechanics, so the fixture pins
+    sir_collateral_mode="cash". The default "letter_of_credit" model (no cash lock; deferred
+    reserve; LOC fee on the reserve) is covered in test_sir_collateral_mode.py (Issues #1637/#1644).
+    """
 
     @pytest.fixture
     def manufacturer(self):
-        """Create a manufacturer for testing."""
+        """Create a manufacturer for testing (cash-trust collateral model)."""
         config = ManufacturerConfig(
             initial_assets=10_000_000,
             asset_turnover_ratio=1.0,
             base_operating_margin=0.1,
             tax_rate=0.25,
             retention_ratio=0.5,
+            sir_collateral_mode="cash",
         )
         return WidgetManufacturer(config)
 
@@ -361,13 +367,19 @@ class TestStepMethod:
 
     @pytest.fixture
     def manufacturer(self):
-        """Create a manufacturer for testing."""
+        """Create a manufacturer for testing.
+
+        Pinned to the legacy cash-trust collateral model: two tests here assert the
+        cash-collateralized retention (collateral == deductible). The default
+        "letter_of_credit" model is covered in test_sir_collateral_mode.py (Issues #1637/#1644).
+        """
         config = ManufacturerConfig(
             initial_assets=10_000_000,
             asset_turnover_ratio=1.0,
             base_operating_margin=0.1,
             tax_rate=0.25,
             retention_ratio=0.5,
+            sir_collateral_mode="cash",
         )
         return WidgetManufacturer(config)
 

@@ -426,6 +426,166 @@ class TestCatastrophicLossGenerator:
         assert max(amounts) > 2_000_000  # More reasonable threshold
 
 
+class TestSeverityScaling1607:
+    """Size-scaled catastrophe severity -- issue #1607.
+
+    Catastrophic and large per-event severity may scale with firm size as
+    ``(revenue / reference_revenue) ** gamma`` (the exposed-value / PML bound),
+    while attritional severity stays fixed.  ``gamma = 0`` is bit-identical to the
+    historical fixed-severity behaviour (the default), with the frequency exponent
+    reduced to ``1 - gamma`` on the large layer so its aggregate stays proportional
+    to exposure (the no-double-count rule).
+    """
+
+    REF = 10_000_000
+
+    def _amounts(self, gen, revenue, seed, duration=200):
+        """Deterministic per-event amounts: reseed, then generate once."""
+        gen.reseed(seed)
+        return np.array([e.amount for e in gen.generate_losses(duration=duration, revenue=revenue)])
+
+    def test_catastrophic_severity_scales_with_size(self):
+        """Cat per-event severity scales by (rev/ref)**gamma (frequency flat to isolate it)."""
+        gamma = 0.5
+        gen = CatastrophicLossGenerator(
+            base_frequency=2.0,
+            severity_alpha=2.5,
+            severity_xm=1_000_000,
+            revenue_scaling_exponent=0.0,  # isolate severity: identical event count at both revenues
+            reference_revenue=self.REF,
+            severity_scaling_exponent=gamma,
+            seed=123,
+        )
+        ref = self._amounts(gen, self.REF, 123)
+        up = self._amounts(gen, 4 * self.REF, 123)
+        assert len(ref) == len(up) > 0
+        np.testing.assert_allclose(up / ref, 4.0**gamma, rtol=1e-10)
+
+    def test_large_severity_scales_with_size(self):
+        """Large per-event severity scales by (rev/ref)**gamma (frequency flat to isolate it)."""
+        gamma = 0.75
+        gen = LargeLossGenerator(
+            base_frequency=2.0,
+            severity_mean=500_000,
+            severity_cv=2.0,
+            revenue_scaling_exponent=0.0,
+            reference_revenue=self.REF,
+            severity_scaling_exponent=gamma,
+            seed=7,
+        )
+        ref = self._amounts(gen, self.REF, 7)
+        up = self._amounts(gen, 4 * self.REF, 7)
+        assert len(ref) == len(up) > 0
+        np.testing.assert_allclose(up / ref, 4.0**gamma, rtol=1e-10)
+
+    def test_attritional_severity_fixed_by_default(self):
+        """Attritional severity is unscaled by default (severity_scaling_exponent=0)."""
+        gen = AttritionalLossGenerator(
+            base_frequency=5.0,
+            severity_mean=25_000,
+            severity_cv=1.5,
+            revenue_scaling_exponent=0.0,
+            reference_revenue=self.REF,
+            seed=99,
+        )
+        assert gen.severity_scaling_exponent == 0.0
+        ref = self._amounts(gen, self.REF, 99, duration=100)
+        up = self._amounts(gen, 4 * self.REF, 99, duration=100)
+        assert len(ref) == len(up) > 0
+        np.testing.assert_allclose(up, ref, rtol=1e-12)  # identical -- severity not scaled
+
+    def test_gamma_zero_is_bit_identical_noop(self):
+        """gamma=0 in the param dicts is identical to omitting it (the default)."""
+        import copy
+
+        params = {
+            "attritional_params": {
+                "base_frequency": 2.0,
+                "severity_mean": 10_000,
+                "severity_cv": 1.5,
+            },
+            "large_params": {"base_frequency": 0.5, "severity_mean": 500_000, "severity_cv": 2.0},
+            "catastrophic_params": {
+                "base_frequency": 0.2,
+                "severity_alpha": 2.2,
+                "severity_xm": 800_000,
+            },
+        }
+        gen_default = ManufacturingLossGenerator(**copy.deepcopy(params), seed=42)
+        params_zero = copy.deepcopy(params)
+        for key in ("attritional_params", "large_params", "catastrophic_params"):
+            params_zero[key]["severity_scaling_exponent"] = 0.0
+        gen_zero = ManufacturingLossGenerator(**params_zero, seed=42)
+
+        a, _ = gen_default.generate_losses(duration=50, revenue=12_000_000)
+        b, _ = gen_zero.generate_losses(duration=50, revenue=12_000_000)
+        assert sorted(e.amount for e in a) == sorted(e.amount for e in b)
+
+    def test_no_double_count_large_is_exposure_preserving(self):
+        """Large layer: freq exp (1-gamma) + sev exp gamma -> expected aggregate ~ revenue^1.0."""
+        gamma = 0.5
+
+        def expected_aggregate(revenue, duration=10.0):
+            gen = LargeLossGenerator(
+                base_frequency=1.0,
+                severity_mean=500_000,
+                severity_cv=2.0,
+                revenue_scaling_exponent=1.0 - gamma,
+                reference_revenue=self.REF,
+                severity_scaling_exponent=gamma,
+            )
+            freq = gen.frequency_generator.get_scaled_frequency(revenue)
+            sev_mean = gen.severity_distribution.mean * (revenue / self.REF) ** gamma
+            return freq * duration * sev_mean
+
+        ratio = expected_aggregate(4 * self.REF) / expected_aggregate(self.REF)
+        np.testing.assert_allclose(ratio, 4.0**1.0, rtol=1e-12)  # NOT 4^1.5 (the double-count bug)
+
+    def test_no_double_count_cat_grows_superlinearly(self):
+        """Cat layer: freq exp 1.0 + sev exp gamma -> expected aggregate ~ revenue^(1+gamma)."""
+        gamma = 0.5
+
+        def expected_aggregate(revenue, duration=10.0):
+            gen = CatastrophicLossGenerator(
+                base_frequency=0.5,
+                severity_alpha=2.5,
+                severity_xm=800_000,
+                revenue_scaling_exponent=1.0,
+                reference_revenue=self.REF,
+                severity_scaling_exponent=gamma,
+            )
+            freq = gen.frequency_generator.get_scaled_frequency(revenue)
+            sev_mean = gen.severity_distribution.expected_value() * (revenue / self.REF) ** gamma
+            return freq * duration * sev_mean
+
+        ratio = expected_aggregate(4 * self.REF) / expected_aggregate(self.REF)
+        np.testing.assert_allclose(ratio, 4.0 ** (1.0 + gamma), rtol=1e-12)
+
+    def test_no_double_count_large_aggregate_mc(self):
+        """Generated large-layer aggregate tracks revenue^1.0 (exposure-preserving), not ^1.5."""
+        gamma = 0.5
+
+        def mc_mean_aggregate(revenue, n_seeds=200, duration=25.0):
+            totals = []
+            for s in range(n_seeds):
+                gen = LargeLossGenerator(
+                    base_frequency=1.0,
+                    severity_mean=500_000,
+                    severity_cv=1.5,
+                    revenue_scaling_exponent=1.0 - gamma,
+                    reference_revenue=self.REF,
+                    severity_scaling_exponent=gamma,
+                    seed=2000 + s,
+                )
+                losses = gen.generate_losses(duration=duration, revenue=revenue)
+                totals.append(sum(e.amount for e in losses))
+            return float(np.mean(totals))
+
+        ratio = mc_mean_aggregate(4 * self.REF) / mc_mean_aggregate(self.REF)
+        # ~4x (exposure-preserving); 4^1.5 = 8x would signal the double-count bug.
+        assert 3.2 < ratio < 4.8, f"large aggregate ratio {ratio:.2f} not ~4 (exposure-preserving)"
+
+
 class TestManufacturingLossGenerator:
     """Test the composite ManufacturingLossGenerator class."""
 

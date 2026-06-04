@@ -154,6 +154,10 @@ class TestWidgetManufacturer:
             tax_rate=0.25,
             retention_ratio=1.0,
             ppe_ratio=0.1,  # Lower PPE ratio ensures sufficient cash for large claim tests
+            # This suite validates the legacy cash-trust collateral model (a retained SIR is
+            # cash-collateralized to RESTRICTED_CASH). The default is now "letter_of_credit"
+            # (Issues #1637/#1644); the LOC model is covered in test_sir_collateral_mode.py.
+            sir_collateral_mode="cash",
         )
 
     @pytest.fixture
@@ -1283,6 +1287,10 @@ class TestWidgetManufacturer:
         """
         # Create manufacturer with working capital to tie up cash in non-liquid assets
         manufacturer = WidgetManufacturer(config)
+        # Issue #1631: no working-capital revolver (facility=0) so a loss
+        # exceeding cash is a genuine liquidity crisis (Check 2 fires) even with
+        # positive book equity; with a facility the firm would draw it instead.
+        manufacturer.config.working_capital_facility_limit = 0
 
         # Set up scenario: Positive equity but most cash tied up in working capital
         # Adjust balance sheet via ledger to create cash constraint (Issue #275)
@@ -1451,6 +1459,10 @@ class TestWidgetManufacturer:
         """
         import logging
 
+        # Issue #1631: no working-capital revolver (facility=0) so the cash
+        # shortfall is a genuine liquidity-crisis insolvency (Check 2 fires).
+        manufacturer.config.working_capital_facility_limit = 0
+
         # Set up cash-constrained scenario via ledger (Issue #275)
         target_cash = to_decimal(100_000)
         current_cash = manufacturer.cash
@@ -1489,6 +1501,10 @@ class TestWidgetManufacturer:
         meet obligations, leading to insolvency.
         """
         manufacturer = WidgetManufacturer(config)
+        # Issue #1631: no working-capital revolver (facility=0) so a loss
+        # exceeding cash is a genuine liquidity crisis (Check 2 fires) even with
+        # positive book equity; with a facility the firm would draw it instead.
+        manufacturer.config.working_capital_facility_limit = 0
 
         # Run one period to establish working capital
         manufacturer.step()
@@ -1639,6 +1655,10 @@ class TestMidYearLiquidity:
             retention_ratio=0.7,
             premium_payment_month=0,  # January
             check_intra_period_liquidity=True,
+            # Issue #1631: with no working-capital revolver the floor is $0, so a
+            # premium-driven cash trough below 0 is genuine mid-year insolvency.
+            # (The facility-aware floor is covered in test_facility_limit_insolvency.py.)
+            working_capital_facility_limit=0,
         )
         manufacturer = WidgetManufacturer(config)
 
@@ -1668,6 +1688,9 @@ class TestMidYearLiquidity:
             retention_ratio=0.7,
             premium_payment_month=0,
             check_intra_period_liquidity=True,
+            # Issue #1631: no revolver => $0 floor, so the mid-year premium
+            # trough below 0 still ruins the firm via the intra-year check.
+            working_capital_facility_limit=0,
         )
         manufacturer = WidgetManufacturer(config)
 
@@ -1765,6 +1788,9 @@ class TestMidYearLiquidity:
             retention_ratio=0.7,
             premium_payment_month=0,  # January - premium causes early ruin
             check_intra_period_liquidity=True,
+            # Issue #1631: no revolver => $0 floor, so the early-year premium
+            # trough below 0 is genuine mid-year insolvency with a tracked month.
+            working_capital_facility_limit=0,
         )
         manufacturer = WidgetManufacturer(config)
 
@@ -1961,6 +1987,9 @@ class TestMidYearLiquidity:
             retention_ratio=0.7,
             premium_payment_month=3,  # Coincides with first tax month
             check_intra_period_liquidity=True,
+            # Issue #1631: no revolver => $0 floor. Without NOL the premium+tax
+            # trough dips below 0 (insolvent); the NOL-reduced tax keeps it >= 0.
+            working_capital_facility_limit=0,
         )
 
         # Without NOL — triggers insolvency

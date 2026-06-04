@@ -15,12 +15,14 @@ Author: Alex Filiakov
 Date: 2025-01-26
 """
 
+# pylint: disable=too-many-lines  # large cohesive HJB solver module (cf. manufacturer.py)
+
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from enum import Enum
 from itertools import product as itertools_product
 import logging
-from typing import Any, Callable, Dict, List, Optional, Tuple
+from typing import Any, Callable, Dict, List, Optional, Tuple, TypedDict
 
 import numpy as np
 from scipy import interpolate, sparse
@@ -41,8 +43,6 @@ _DEFAULT_MEMORY_BUDGET_MB = 256  # Max memory for batched evaluation
 
 class NumericalDivergenceError(RuntimeError):
     """Raised when the HJB solver detects NaN or Inf in the value function."""
-
-    pass
 
 
 class TimeSteppingScheme(Enum):
@@ -420,6 +420,30 @@ class HJBProblem:
     ``V[0]`` / ``V[-1]`` along Dirichlet-bounded dimensions are used as
     the boundary values throughout the solve.
     """
+    control_feasibility: Optional[Callable[[np.ndarray, np.ndarray], np.ndarray]] = None
+    """Optional state-dependent admissible-control mask.
+
+    Signature: ``control_feasibility(state_points, control_array) -> mask`` where
+    ``state_points`` has shape ``(n, ndim)``, ``control_array`` has shape
+    ``(n, n_controls)`` (the same flat per-(state, control) layout the dynamics /
+    diffusion / jump callbacks receive during policy improvement), and the returned
+    array is broadcastable to ``(n,)`` and truthy for ADMISSIBLE pairs.
+
+    During policy improvement the Hamiltonian at inadmissible ``(state, control)``
+    pairs is set to ``-inf`` so the argmax never selects them -- a hard control
+    constraint, not a soft penalty. The constraint is applied ONLY to control
+    selection; the value-function update then marches under the (now feasible)
+    optimal policy, so the returned value reflects the constrained optimum. If every
+    sampled control is inadmissible at a state, the solver falls back to the first
+    control sample of each control variable (``ControlVariable.get_values()[0]`` --
+    the grid minimum, e.g. the smallest retention / most coverage), the safe default
+    for a state that cannot satisfy the constraint with any admissible control.
+
+    Defaults to ``None`` (every control admissible), so solves that do not set it are
+    unchanged. Used by notebook 07 to bound the retention by the endogenous
+    single-loss-insolvency threshold ``T = (E - E_floor) / (1 + LAE)`` (issue #1649),
+    making ``SIR* <= equity`` hold by construction without a deployment-time cap.
+    """
 
     def __post_init__(self):
         """Validate problem specification."""
@@ -436,12 +460,26 @@ class HJBProblem:
 
 @dataclass
 class HJBSolverConfig:
-    """Configuration for HJB solver."""
+    """Configuration for HJB solver.
+
+    Attributes:
+        auto_cfl: EXPLICIT scheme only. When True (default) the solver runs a
+            one-off CFL stability trial and auto-reduces ``time_step`` if the
+            configured step is unstable. Set False to take explicit Euler steps
+            at exactly ``time_step`` and skip the auto-CFL trial -- appropriate
+            on log-spaced grids where the conservative global-max-sigma^2 /
+            global-min-dx CFL estimate (which pairs coefficients and spacings
+            from opposite ends of the grid) collapses ``dt`` needlessly. The
+            caller then owns dt stability; the per-step NaN/Inf guard still
+            applies and :meth:`HJBSolver.compute_cfl_diagnostics` reports the
+            realized (local) CFL. See issue #1611.
+    """
 
     time_step: float = 0.01
     max_iterations: int = 1000
     tolerance: float = 1e-6
     scheme: TimeSteppingScheme = TimeSteppingScheme.EXPLICIT
+    auto_cfl: bool = True
     use_sparse: bool = True
     verbose: bool = True
     inner_max_iterations: int = 100
@@ -449,6 +487,77 @@ class HJBSolverConfig:
     rannacher_steps: int = 2  # Number of implicit half-step pairs for CN startup
     control_search_strategy: str = "auto"  # "auto", "vectorized", "adaptive", "loop", "gradient"
     control_memory_budget_mb: int = 256  # Max memory for batched control evaluation
+
+
+class CFLDiagnostics(TypedDict):
+    """Realized-CFL report returned by :meth:`HJBSolver.compute_cfl_diagnostics`."""
+
+    advection_cfl: float
+    diffusion_cfl: float
+    cfl: float
+    dt: float
+    stable: bool
+
+
+@dataclass
+class HamiltonianTerms:
+    r"""Per-term HJB Hamiltonian on the state grid at a fixed control policy.
+
+    Returned by :meth:`HJBSolver.hamiltonian_terms`. The HJB operator the solver
+    integrates is
+
+    .. math::
+
+        -\partial_t V = \mathcal{H}
+        = f(x,u) + \mu(x,u)\cdot\nabla V + \tfrac12\sigma^2(x,u)\cdot\nabla^2 V
+          + \lambda\,\mathbb{E}_X[V(x-L)-V(x)] - \rho V
+
+    so :attr:`total` equals the solver's :math:`-\partial_t V` at this
+    ``(value, policy)`` and satisfies the exact decomposition
+
+    .. math::
+
+        \text{total} = \text{drift} + \text{diffusion} + \text{jump}
+                       + \text{running\_cost} + \text{discount}.
+
+    Crucially, :attr:`drift`, :attr:`diffusion` and :attr:`jump` are computed with
+    the **same discretization the solver integrates** -- the upwind first
+    derivative (:meth:`HJBSolver._apply_upwind_scheme`), the non-uniform compact
+    second-derivative stencil (:meth:`HJBSolver._compute_second_derivatives`), and
+    the problem's ``jump_term`` callback -- **not** ``np.gradient``. They therefore
+    reproduce the forces the solver actually balanced rather than re-deriving them
+    from ``V`` (which, via a twice-applied central difference, amplifies grid-scale
+    noise by :math:`\sim 1/\Delta x^2`).
+
+    Attributes:
+        drift: :math:`\mu(x,u)\cdot\nabla V` using the solver's **upwind** ``∇V``.
+        diffusion: :math:`\tfrac12\sigma^2(x,u)\cdot\nabla^2 V` using the compact
+            non-uniform central stencil; all-zeros if the problem has no diffusion.
+        jump: :math:`\lambda\,\mathbb{E}_X[V(x-L)-V(x)]` from the ``jump_term``
+            callback; all-zeros if the problem has no jump term.
+        running_cost: :math:`f(x,u)`.
+        discount: :math:`-\rho V`.
+        total: the full Hamiltonian :math:`-\partial_t V` (sum of the five above).
+        grad: central-difference :math:`\nabla V`, provided **for display only**
+            (e.g. a smooth ``∂V/∂A`` panel). Shape ``state_shape + (ndim,)``. This
+            is **not** the upwind ``∇V`` used inside :attr:`drift`, so in general
+            ``drift != sum_d mu_d * grad_d`` -- the two are intentionally different
+            discretizations (upwind for the faithful operator, central for display).
+        d2v: the compact non-uniform :math:`\nabla^2 V` used by :attr:`diffusion`
+            (``diffusion = sum_d 0.5 * sigma^2_d * d2v_d``). Shape
+            ``state_shape + (ndim,)``.
+
+    All scalar-field attributes have shape ``state_space.shape``.
+    """
+
+    drift: np.ndarray
+    diffusion: np.ndarray
+    jump: np.ndarray
+    running_cost: np.ndarray
+    discount: np.ndarray
+    total: np.ndarray
+    grad: np.ndarray
+    d2v: np.ndarray
 
 
 class HJBSolver:
@@ -542,6 +651,124 @@ class HJBSolver:
                 diffusion_cfl = max(diffusion_cfl, 0.5 * sigma_sq_max * dt / (dx_min**2))
 
         return advection_cfl, diffusion_cfl
+
+    def _local_node_spacing(self, dim: int) -> np.ndarray:
+        """Per-node local grid spacing along ``dim`` (length == grid size).
+
+        For interior nodes this is the smaller of the two adjacent intervals
+        (the binding spacing for explicit stability); the endpoints use their
+        single adjacent interval. Works for non-uniform / log-spaced grids.
+        """
+        diffs = np.atleast_1d(self.dx[dim])
+        n = int(self.problem.state_space.shape[dim])
+        if n <= 1:
+            return np.ones(1)
+        if diffs.size == 1:
+            return np.full(n, float(diffs[0]))
+        node_dx = np.empty(n)
+        node_dx[0] = diffs[0]
+        node_dx[-1] = diffs[-1]
+        node_dx[1:-1] = np.minimum(diffs[:-1], diffs[1:])
+        return node_dx
+
+    def compute_cfl_diagnostics(self, dt: Optional[float] = None) -> CFLDiagnostics:
+        """Realized (local) CFL numbers at the current policy and value.
+
+        A post-solve stability guardrail, primarily for explicit solves run
+        with ``auto_cfl=False``: it confirms the configured ``time_step``
+        actually satisfies the explicit-Euler CFL condition at the converged
+        policy.
+
+        Unlike the conservative auto-CFL trial (:meth:`_compute_cfl_number`,
+        which pairs the *global* max diffusion/drift with the *global* min grid
+        spacing), this pairs each grid cell's coefficients with that **same
+        cell's** local spacing, then maxes over cells. On a log-spaced grid
+        where ``sigma^2 ~ x^2`` and ``dx ~ x`` the global extrema sit at opposite
+        ends and the global estimate is pathologically large; the local number
+        here is the honest stability ratio.
+
+        Args:
+            dt: Step size to evaluate the CFL numbers at. Defaults to
+                ``config.time_step``.
+
+        Returns:
+            Dict with ``advection_cfl`` and ``diffusion_cfl`` (per-dimension
+            maxima over cells), ``cfl`` (the combined per-cell stability number
+            ``dt * (sum_d |a_d|/dx_d + 0.5 sigma_d^2/dx_d^2) + dt * rho``),
+            ``dt``, and ``stable`` (True iff ``cfl <= 1``).
+
+        Raises:
+            RuntimeError: If called before a solve (no policy/value available).
+        """
+        if self.value_function is None or self.optimal_policy is None:
+            raise RuntimeError(
+                "compute_cfl_diagnostics requires a prior solve() / "
+                "solve_finite_horizon() to populate the policy and value function."
+            )
+        dt = float(self.config.time_step if dt is None else dt)
+
+        state_points = np.stack(self.problem.state_space.flat_grids, axis=-1)
+        control_array = np.stack(
+            [self.optimal_policy[cv.name].ravel() for cv in self.problem.control_variables],
+            axis=-1,
+        )
+        drift = self.problem.dynamics(state_points, control_array, 0.0)
+        drift = drift.reshape(self.problem.state_space.shape + (-1,))
+        sigma_sq = None
+        if self.problem.diffusion is not None:
+            sigma_sq_raw = self.problem.diffusion(state_points, control_array, 0.0)
+            sigma_sq = sigma_sq_raw.reshape(self.problem.state_space.shape + (-1,))
+
+        ndim = self.problem.state_space.ndim
+        n_dims = min(drift.shape[-1], len(self.problem.state_space.state_variables))
+        combined_rate = np.full(self.problem.state_space.shape, float(self.problem.discount_rate))
+        advection_cfl = 0.0
+        diffusion_cfl = 0.0
+        for dim in range(n_dims):
+            node_dx = self._local_node_spacing(dim)
+            bshape = [1] * ndim
+            bshape[dim] = node_dx.size
+            node_dx_b = node_dx.reshape(bshape)
+            adv_rate = np.abs(drift[..., dim]) / node_dx_b
+            advection_cfl = max(advection_cfl, float(np.max(adv_rate)) * dt)
+            combined_rate = combined_rate + adv_rate
+            if sigma_sq is not None:
+                diff_rate = 0.5 * np.abs(sigma_sq[..., dim]) / node_dx_b**2
+                diffusion_cfl = max(diffusion_cfl, float(np.max(diff_rate)) * dt)
+                combined_rate = combined_rate + diff_rate
+        cfl = float(np.max(combined_rate)) * dt
+        return {
+            "advection_cfl": advection_cfl,
+            "diffusion_cfl": diffusion_cfl,
+            "cfl": cfl,
+            "dt": dt,
+            "stable": bool(cfl <= 1.0),
+        }
+
+    def _warn_unsupported_scheme(self) -> None:
+        """Surface an implicit/CN -> explicit fallback so it is never silent (#1611).
+
+        Implicit and Crank-Nicolson are only implemented for 1-D state spaces;
+        for higher dimensions :meth:`_advance_value_one_step` falls back to
+        explicit Euler. Logging it here -- once per solve call, regardless of the
+        CFL-check flag -- means a reader who sets ``scheme=IMPLICIT`` on a
+        multi-dimensional problem cannot mistake the result for an
+        unconditionally-stable implicit solve.
+        """
+        scheme = self.config.scheme
+        if (
+            scheme in (TimeSteppingScheme.IMPLICIT, TimeSteppingScheme.CRANK_NICOLSON)
+            and self.problem.state_space.ndim != 1
+        ):
+            logger.warning(
+                "%s scheme is only implemented for 1-D state spaces; this %dD "
+                "problem is falling back to explicit Euler at the configured "
+                "time_step (NOT an implicit, unconditionally-stable solve). Set "
+                "scheme=EXPLICIT (optionally with auto_cfl=False) to make this "
+                "explicit and future-proof.",
+                scheme.value,
+                self.problem.state_space.ndim,
+            )
 
     def _build_spatial_operator_1d(
         self,
@@ -835,26 +1062,34 @@ class HJBSolver:
 
         return result
 
-    def _compute_gradient(self) -> np.ndarray:
-        """Compute numerical gradient of the value function.
+    def _compute_gradient(self, value: Optional[np.ndarray] = None) -> np.ndarray:
+        """Compute the central-difference numerical gradient of a value function.
 
         Uses np.gradient which handles non-uniform grids with second-order
         accurate central differences in the interior and first-order accurate
-        one-sided differences at the boundaries.
+        one-sided differences at the boundaries. This is a *single* finite
+        difference (smooth); it is NOT the upwind ∇V the solver uses to integrate
+        the advection term -- see :meth:`_apply_upwind_scheme`.
+
+        Args:
+            value: Value function to differentiate. Defaults to
+                ``self.value_function``.
 
         Returns:
             Gradient array with shape state_shape + (ndim,)
         """
-        if self.value_function is None:
+        if value is None:
+            value = self.value_function
+        if value is None:
             shape = self.problem.state_space.shape + (self.problem.state_space.ndim,)
             return np.zeros(shape)
 
         grids = self.problem.state_space.grids
 
         if self.problem.state_space.ndim == 1:
-            grad_components = [np.gradient(self.value_function, grids[0])]
+            grad_components = [np.gradient(value, grids[0])]
         else:
-            grad_components = np.gradient(self.value_function, *grids)
+            grad_components = np.gradient(value, *grids)
 
         return np.stack(grad_components, axis=-1)
 
@@ -965,10 +1200,7 @@ class HJBSolver:
         ndim = self.problem.state_space.ndim
         for dim in range(ndim):
             sv = self.problem.state_space.state_variables[dim]
-            if (
-                sv.boundary_lower == BoundaryCondition.DIRICHLET
-                or sv.boundary_upper == BoundaryCondition.DIRICHLET
-            ):
+            if BoundaryCondition.DIRICHLET in (sv.boundary_lower, sv.boundary_upper):
                 lo_idx: List[Any] = [slice(None)] * ndim
                 hi_idx: List[Any] = [slice(None)] * ndim
                 lo_idx[dim] = 0
@@ -993,6 +1225,7 @@ class HJBSolver:
             Tuple of (value_function, optimal_policy_dict)
         """
         logger.info("Starting HJB solution with policy iteration")
+        self._warn_unsupported_scheme()
 
         self._initialize_solution_state()
         # _initialize_solution_state assigns both; narrow for the type checker
@@ -1097,6 +1330,7 @@ class HJBSolver:
                 "use solve() for infinite-horizon (stationary) problems."
             )
         logger.info("Starting HJB finite-horizon backward time-march")
+        self._warn_unsupported_scheme()
 
         horizon = float(self.problem.time_horizon)
         scheme = self.config.scheme
@@ -1109,8 +1343,11 @@ class HJBSolver:
         # Explicit scheme: pre-compute a CFL-safe dt once (against the initial
         # mid-range policy) so the step count is fixed and the march lands
         # exactly at t=0 without mid-march dt changes. The trial step's value is
-        # discarded; only the (possibly reduced) dt is kept.
-        if scheme == TimeSteppingScheme.EXPLICIT:
+        # discarded; only the (possibly reduced) dt is kept. Skipped when
+        # auto_cfl=False (#1611): the caller has opted to step at exactly
+        # config.time_step (e.g. a log-grid where the global CFL estimate is
+        # pathologically conservative); the per-step NaN/Inf guard still applies.
+        if scheme == TimeSteppingScheme.EXPLICIT and self.config.auto_cfl:
             self._invalidate_operator_cache()
             _, dt_safe = self._advance_value_one_step(dt, scheme, step_index=0, run_cfl_check=True)
             if dt_safe < dt:
@@ -1316,7 +1553,7 @@ class HJBSolver:
 
         return new_v
 
-    def _advance_value_one_step(
+    def _advance_value_one_step(  # pylint: disable=too-many-branches,too-many-statements
         self,
         dt: float,
         scheme: TimeSteppingScheme,
@@ -1380,8 +1617,9 @@ class HJBSolver:
             jump_vals = self._evaluate_jump_term(state_points, control_array, old_v)
             cost = cost + jump_vals.reshape(cost.shape)
 
-        # CFL stability check for explicit scheme (#452)
-        if scheme == TimeSteppingScheme.EXPLICIT and run_cfl_check:
+        # CFL stability check for explicit scheme (#452). Skipped when
+        # auto_cfl=False (#1611): the caller owns dt stability in that mode.
+        if scheme == TimeSteppingScheme.EXPLICIT and run_cfl_check and self.config.auto_cfl:
             adv_cfl, diff_cfl = self._compute_cfl_number(drift, sigma_sq, dt)
             if adv_cfl > 1.0 or diff_cfl > 1.0:
                 # Compute safe dt
@@ -1406,19 +1644,16 @@ class HJBSolver:
                     )
                     dt = dt_safe
 
-        # Time-stepping: branch on scheme (#451)
+        # Time-stepping: branch on scheme (#451). Implicit/CN are implemented for
+        # 1-D only; higher-dimensional requests fall back to explicit Euler here.
+        # That fallback is surfaced once, up-front, by _warn_unsupported_scheme
+        # (#1611) -- so it is not re-logged on every step (and is no longer gated
+        # on run_cfl_check, which never fired during the finite-horizon march).
         use_implicit = scheme in (
             TimeSteppingScheme.IMPLICIT,
             TimeSteppingScheme.CRANK_NICOLSON,
         )
         can_use_implicit = use_implicit and self.problem.state_space.ndim == 1
-
-        if use_implicit and not can_use_implicit and run_cfl_check:
-            logger.warning(
-                f"Implicit/CN schemes not yet supported for "
-                f"{self.problem.state_space.ndim}D problems; "
-                f"falling back to explicit."
-            )
 
         if can_use_implicit:
             # Implicit or Crank-Nicolson 1D step
@@ -1682,6 +1917,18 @@ class HJBSolver:
                 )
                 hamiltonian_2d += jump_vals.reshape(n_chunk, n_states)
 
+            # Hard state-dependent control constraint (optional): blank out
+            # inadmissible (state, control) pairs to -inf so the argmax below can
+            # never select them (issue #1649). States where every control is
+            # inadmissible keep -inf here and are repaired by the min-control
+            # fallback in _policy_improvement.
+            if self.problem.control_feasibility is not None:
+                feasible = np.asarray(
+                    self.problem.control_feasibility(states_tiled, controls_tiled),
+                    dtype=bool,
+                ).reshape(n_chunk, n_states)
+                hamiltonian_2d = np.where(feasible, hamiltonian_2d, -np.inf)
+
             # Find best combo per state within this chunk
             chunk_best_idx = np.argmax(hamiltonian_2d, axis=0)  # (n_states,)
             chunk_best_vals = hamiltonian_2d[chunk_best_idx, np.arange(n_states)]
@@ -1742,6 +1989,15 @@ class HJBSolver:
                     state_points, control_broadcast, self.value_function
                 )
                 hamiltonian = hamiltonian + jump_vals
+
+            # Hard state-dependent control constraint (optional): inadmissible
+            # (state, this-control) pairs cannot improve the best value (issue #1649).
+            if self.problem.control_feasibility is not None:
+                feasible = np.asarray(
+                    self.problem.control_feasibility(state_points, control_broadcast),
+                    dtype=bool,
+                ).ravel()
+                hamiltonian = np.where(feasible, hamiltonian, -np.inf)
 
             improved = hamiltonian > best_values
             best_values[improved] = hamiltonian[improved]
@@ -1920,6 +2176,18 @@ class HJBSolver:
             # "loop" or any unrecognized value falls back to legacy
             self._policy_improvement_loop(*args)
 
+        # Constrained solves (issue #1649): states where every sampled control was
+        # inadmissible keep best_values == -inf (the whole row was masked to -inf, so
+        # no combo "improved"). Fall back to each control variable's first sample --
+        # the grid minimum, e.g. the smallest retention / most coverage -- the safe
+        # default when no admissible control exists. No-op when control_feasibility is
+        # None (best_values is always finite then).
+        if self.problem.control_feasibility is not None:
+            no_feasible = ~np.isfinite(best_values)
+            if np.any(no_feasible):
+                for j in range(n_controls):
+                    best_controls[no_feasible, j] = control_samples[j][0]
+
         # Write optimal controls back to policy arrays
         for j, cv in enumerate(self.problem.control_variables):
             self.optimal_policy[cv.name] = best_controls[:, j].reshape(
@@ -1952,6 +2220,168 @@ class HJBSolver:
 
         return controls
 
+    def _assemble_hamiltonian_terms(
+        self, value: np.ndarray, control_array: np.ndarray
+    ) -> HamiltonianTerms:
+        """Assemble the per-term HJB Hamiltonian on the state grid.
+
+        Single source of truth for the HJB operator: used by the public
+        :meth:`hamiltonian_terms` diagnostic and by
+        :meth:`compute_convergence_metrics` (whose residual is ``|total|``). Every
+        term uses the SAME discretization the time-stepper integrates -- upwind
+        first derivative (:meth:`_apply_upwind_scheme`), compact non-uniform central
+        second derivative (:meth:`_compute_second_derivatives`), and the jump-term
+        callback -- so ``total`` reproduces the ``(V_new - V_old)/dt = -∂V/∂t`` that
+        :meth:`_advance_value_one_step` applies on interior cells (boundary cells are
+        separately overwritten by :meth:`_apply_boundary_conditions`).
+
+        Args:
+            value: Value function on the state grid, shape ``state_space.shape``.
+            control_array: Controls of shape ``(n_states, n_controls)`` in
+                ``problem.control_variables`` order.
+
+        Returns:
+            HamiltonianTerms with grid-shaped force arrays (see that dataclass).
+        """
+        ss = self.problem.state_space
+        state_shape = ss.shape
+        ndim = ss.ndim
+        state_points = np.stack(ss.flat_grids, axis=-1)
+
+        # Drift · ∇V using the solver's UPWIND scheme -- numerically identical to the
+        # advection assembled in _policy_improvement / _evaluate_and_update_best.
+        drift = np.asarray(self.problem.dynamics(state_points, control_array, 0.0))
+        drift = drift.reshape(state_shape + (-1,))
+        drift_term = np.zeros(state_shape)
+        n_dims = min(drift.shape[-1], ndim)
+        for dim in range(n_dims):
+            drift_term = drift_term + self._apply_upwind_scheme(value, drift[..., dim], dim)
+
+        # Central-difference ∇V (display only) and the compact ∇²V stencil used by
+        # the diffusion term.  grad is NOT the upwind ∇V folded into drift_term.
+        grad = self._compute_gradient(value)
+        d2v = self._compute_second_derivatives(value)
+
+        # ½ σ² · ∇²V (compact stencil); zero field if the problem has no diffusion.
+        diffusion_term = np.zeros(state_shape)
+        if self.problem.diffusion is not None:
+            sigma_sq = np.asarray(self.problem.diffusion(state_points, control_array, 0.0))
+            sigma_sq = sigma_sq.reshape(state_shape + (-1,))
+            n_diff = min(sigma_sq.shape[-1], d2v.shape[-1], ndim)
+            for dim in range(n_diff):
+                diffusion_term = diffusion_term + 0.5 * sigma_sq[..., dim] * d2v[..., dim]
+
+        # PIDE jump term λ·E_X[V(post) - V]; zero field if no jump term.
+        jump_term = np.zeros(state_shape)
+        if self.problem.jump_term is not None:
+            jump_term = self._evaluate_jump_term(state_points, control_array, value).reshape(
+                state_shape
+            )
+
+        # Running cost f(x,u).  _reshape_cost mirrors the cost handling in
+        # _policy_improvement (mean over any extra column), so the decomposition
+        # matches the Hamiltonian the solver maximized; identical to a plain reshape
+        # for the scalar-per-point costs used throughout this codebase.
+        running_cost = self._reshape_cost(
+            np.asarray(self.problem.running_cost(state_points, control_array, 0.0))
+        )
+
+        # Discount -ρV (control-independent; absent from the maximized Hamiltonian
+        # but part of the full operator -∂V/∂t).
+        discount = -self.problem.discount_rate * value
+
+        total = drift_term + diffusion_term + jump_term + running_cost + discount
+
+        return HamiltonianTerms(
+            drift=drift_term,
+            diffusion=diffusion_term,
+            jump=jump_term,
+            running_cost=running_cost,
+            discount=discount,
+            total=total,
+            grad=grad,
+            d2v=d2v,
+        )
+
+    def hamiltonian_terms(
+        self,
+        value: Optional[np.ndarray] = None,
+        policy: Optional[Dict[str, np.ndarray]] = None,
+    ) -> HamiltonianTerms:
+        """Per-term HJB Hamiltonian on the state grid at a fixed control policy.
+
+        Exposes the forces the solver actually balanced -- ``drift·∇V`` (upwind),
+        ``½σ²·∇²V`` (compact stencil), the ``jump_term`` callback, the running cost
+        and ``-ρV`` -- evaluated on the full state grid at ``policy`` using the SAME
+        discretization the time-stepper integrates (NOT ``np.gradient``). The
+        returned :attr:`HamiltonianTerms.total` is the solver's ``-∂V/∂t`` at this
+        ``(value, policy)``; see :class:`HamiltonianTerms` for the exact identity.
+
+        Intended for faithful, smooth diagnostic plots of the Hamiltonian
+        decomposition. Re-deriving the forces in user code with
+        ``np.gradient(np.gradient(V))`` instead amplifies grid-scale noise by
+        ``~1/Δx²`` (a *finer* grid makes it worse) and does not reproduce the
+        operator the solver optimized.
+
+        Args:
+            value: Value function on the state grid (shape ``state_space.shape``).
+                Defaults to the solved ``self.value_function``.
+            policy: Control policy as ``{control_name: array}``; each array is
+                ravelled in C-order to the state grid. Defaults to the solved
+                ``self.optimal_policy``. Pass a de-jittered/smoothed policy to
+                suppress argmax-step roughness in the plotted forces.
+
+        Returns:
+            HamiltonianTerms with grid-shaped force arrays.
+
+        Raises:
+            RuntimeError: If no value function or policy is available (no prior solve
+                and the corresponding argument was not supplied).
+            KeyError: If ``policy`` omits one of the problem's control variables.
+            ValueError: If ``value`` does not match the state-grid shape, or a policy
+                array does not have one entry per state-grid point.
+        """
+        if value is None:
+            value = self.value_function
+        if value is None:
+            raise RuntimeError(
+                "hamiltonian_terms requires a prior solve() / solve_finite_horizon() "
+                "to populate the value function, or an explicit `value=` argument."
+            )
+        value = np.asarray(value)
+        if value.shape != self.problem.state_space.shape:
+            raise ValueError(
+                f"value shape {value.shape} does not match the state grid "
+                f"{self.problem.state_space.shape}."
+            )
+
+        if policy is None:
+            policy = self.optimal_policy
+        if policy is None:
+            raise RuntimeError(
+                "hamiltonian_terms requires a prior solve to populate the policy, "
+                "or an explicit `policy=` argument."
+            )
+
+        n_states = int(np.prod(self.problem.state_space.shape))
+        control_cols = []
+        for cv in self.problem.control_variables:
+            if cv.name not in policy:
+                raise KeyError(
+                    f"policy is missing control variable '{cv.name}'; expected keys "
+                    f"{[c.name for c in self.problem.control_variables]}."
+                )
+            col = np.asarray(policy[cv.name]).ravel()
+            if col.size != n_states:
+                raise ValueError(
+                    f"policy['{cv.name}'] has {col.size} entries but the state grid "
+                    f"has {n_states} points."
+                )
+            control_cols.append(col)
+        control_array = np.stack(control_cols, axis=-1)
+
+        return self._assemble_hamiltonian_terms(value, control_array)
+
     def compute_convergence_metrics(self) -> Dict[str, Any]:
         """Compute metrics for assessing solution quality.
 
@@ -1961,51 +2391,16 @@ class HJBSolver:
         if self.value_function is None:
             return {"error": "No solution computed yet"}
 
-        # Compute residual of HJB equation
-        state_points = np.stack(self.problem.state_space.flat_grids, axis=-1)
-
-        # optimal_policy should be non-None at this point since value_function is non-None
+        # Assemble the HJB residual |H| = |-∂V/∂t| via the shared per-term operator
+        # (upwind drift, compact-stencil diffusion, jump callback, running cost, -ρV).
+        # Routing through _assemble_hamiltonian_terms guarantees this residual and
+        # HJBSolver.hamiltonian_terms().total use one identical discretization.
         assert self.optimal_policy is not None
         control_array = np.stack(
             [self.optimal_policy[cv.name].ravel() for cv in self.problem.control_variables], axis=-1
         )
-
-        # Evaluate HJB residual: |−ρV + f(x,u) + drift·∇V|
-        drift = self.problem.dynamics(state_points, control_array, 0.0)
-        cost = self.problem.running_cost(state_points, control_array, 0.0)
-
-        v_flat = self.value_function.ravel()
-        cost_flat = cost.ravel() if hasattr(cost, "ravel") else cost
-
-        # Compute drift * grad_V using upwind scheme (consistent with PDE)
-        drift_reshaped = drift.reshape(self.problem.state_space.shape + (-1,))
-        advection = np.zeros(self.problem.state_space.shape)
-        n_dims = min(drift_reshaped.shape[-1], len(self.problem.state_space.state_variables))
-        for dim in range(n_dims):
-            drift_component = drift_reshaped[..., dim]
-            advection += self._apply_upwind_scheme(self.value_function, drift_component, dim)
-        advection_flat = advection.ravel()
-
-        # Include diffusion in residual if present
-        diffusion_flat = np.zeros_like(v_flat)
-        if self.problem.diffusion is not None:
-            sigma_sq = self.problem.diffusion(state_points, control_array, 0.0)
-            sigma_sq_reshaped = sigma_sq.reshape(self.problem.state_space.shape + (-1,))
-            diffusion_term = self._apply_diffusion_term(self.value_function, sigma_sq_reshaped)
-            diffusion_flat = diffusion_term.ravel()
-
-        # Include PIDE jump term in residual if present
-        jump_flat = np.zeros_like(v_flat)
-        if self.problem.jump_term is not None:
-            jump_flat = self._evaluate_jump_term(state_points, control_array, self.value_function)
-
-        residual = np.abs(
-            -self.problem.discount_rate * v_flat
-            + cost_flat
-            + advection_flat
-            + diffusion_flat
-            + jump_flat
-        )
+        terms = self._assemble_hamiltonian_terms(self.value_function, control_array)
+        residual = np.abs(terms.total).ravel()
 
         # Check for NaN/Inf (#453)
         has_nan_inf = not np.all(np.isfinite(self.value_function))

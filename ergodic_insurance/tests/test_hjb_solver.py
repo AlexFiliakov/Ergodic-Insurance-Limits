@@ -4,8 +4,11 @@ Author: Alex Filiakov
 Date: 2025-01-26
 """
 
+# pylint: disable=too-many-lines  # broad solver coverage; splitting would scatter shared fixtures
+
 import numpy as np
 import pytest
+from scipy import interpolate
 
 from ergodic_insurance.hjb_solver import (
     _DRIFT_THRESHOLD,
@@ -14,6 +17,7 @@ from ergodic_insurance.hjb_solver import (
     BoundaryCondition,
     ControlVariable,
     ExpectedWealth,
+    HamiltonianTerms,
     HJBProblem,
     HJBSolver,
     HJBSolverConfig,
@@ -1866,3 +1870,723 @@ class TestSolveFiniteHorizon:
         interior = (grid >= 2.0) & (grid <= 15.0)
         assert interior.sum() > 5
         np.testing.assert_allclose(v_explicit[interior], v_implicit[interior], rtol=0.05, atol=0.05)
+
+
+class TestExplicitFixedDtAutoCFL:
+    """Explicit-fixed-dt / ``auto_cfl`` path and the non-silent implicit
+    fallback (issue #1611).
+
+    Notebook 07's 2-D HJB needs explicit Euler at exactly ``config.time_step``
+    with no auto-CFL trial -- the global-max-sigma^2 / global-min-dx CFL
+    estimate is pathologically conservative on a log-assets grid. Previously
+    that path was reached by abusing ``scheme=IMPLICIT`` (unsupported in 2-D ->
+    silent explicit fallback). The first-class, self-documenting way is
+    ``scheme=EXPLICIT, auto_cfl=False``.
+    """
+
+    @staticmethod
+    def _pathological_global_cfl_problem(time_horizon=0.2):
+        """2-D problem whose GLOBAL CFL estimate is unstable at dt=0.05 but
+        whose LOCAL CFL is tiny -- exactly the log-grid pathology #1611 is about.
+
+        Axis 0 ("a") is log-spaced with size-proportional drift and diffusion
+        (sigma^2 ~ a^2 and dx ~ a, so the true local sigma^2/dx^2 is roughly
+        constant); the conservative global estimate pairs sigma^2 at a=a_max
+        with dx at a=a_min and massively overstates the diffusion CFL. Axis 1
+        ("b") is inert. Neumann boundaries keep the march well-behaved.
+        """
+        sv_a = StateVariable(
+            "a",
+            1.0,
+            100.0,
+            20,
+            log_scale=True,
+            boundary_lower=BoundaryCondition.NEUMANN,
+            boundary_upper=BoundaryCondition.NEUMANN,
+        )
+        sv_b = StateVariable(
+            "b",
+            0.0,
+            1.0,
+            10,
+            log_scale=False,
+            boundary_lower=BoundaryCondition.NEUMANN,
+            boundary_upper=BoundaryCondition.NEUMANN,
+        )
+        ss = StateSpace([sv_a, sv_b])
+        cv = [ControlVariable("u", 0.0, 1.0, 3)]
+
+        def dyn(x, u, t):
+            a = x[..., 0]
+            return np.stack([0.02 * a, np.zeros_like(x[..., 1])], axis=-1)
+
+        def diff(x, u, t):
+            a = x[..., 0]
+            return np.stack([(0.05 * a) ** 2, np.zeros_like(x[..., 1])], axis=-1)
+
+        def terminal(x):
+            return np.log(np.maximum(x[..., 0], 1e-9))
+
+        return HJBProblem(
+            state_space=ss,
+            control_variables=cv,
+            utility_function=LogUtility(),
+            dynamics=dyn,
+            running_cost=lambda x, u, t: np.zeros(x.shape[0]),
+            diffusion=diff,
+            terminal_value=terminal,
+            discount_rate=0.0,
+            time_horizon=time_horizon,
+        )
+
+    def test_auto_cfl_defaults_true(self):
+        """``auto_cfl`` defaults to True (legacy CFL auto-reduction preserved)."""
+        assert HJBSolverConfig().auto_cfl is True
+
+    def test_auto_cfl_false_steps_at_configured_dt(self):
+        """auto_cfl=False keeps dt == config.time_step (no trial, no reduction).
+
+        The fixed step count is ``round(time_horizon / time_step)``; with
+        auto_cfl=True the pathological global CFL forces a much smaller dt and
+        many more steps. Step count is observed via ``policy_history`` length.
+        """
+        dt, horizon = 0.05, 0.2
+        expected_fixed_steps = round(horizon / dt)  # == 4
+
+        solver_off = HJBSolver(
+            self._pathological_global_cfl_problem(time_horizon=horizon),
+            HJBSolverConfig(
+                time_step=dt,
+                scheme=TimeSteppingScheme.EXPLICIT,
+                auto_cfl=False,
+                verbose=False,
+            ),
+        )
+        v_off, _ = solver_off.solve_finite_horizon(store_policy_history=True)
+        assert solver_off.policy_history is not None
+        assert len(solver_off.policy_history) == expected_fixed_steps
+        assert np.all(np.isfinite(v_off))
+
+        solver_on = HJBSolver(
+            self._pathological_global_cfl_problem(time_horizon=horizon),
+            HJBSolverConfig(
+                time_step=dt,
+                scheme=TimeSteppingScheme.EXPLICIT,
+                auto_cfl=True,
+                verbose=False,
+            ),
+        )
+        solver_on.solve_finite_horizon(store_policy_history=True)
+        assert solver_on.policy_history is not None
+        # auto_cfl=True auto-reduces dt -> strictly more steps than the fixed count.
+        assert len(solver_on.policy_history) > expected_fixed_steps
+
+    def test_auto_cfl_false_suppresses_cfl_reduction(self, caplog):
+        """auto_cfl=False emits no 'Auto-reducing dt' warning; True does."""
+        import logging
+
+        dt, horizon = 0.05, 0.2
+        solver = HJBSolver(
+            self._pathological_global_cfl_problem(time_horizon=horizon),
+            HJBSolverConfig(
+                time_step=dt,
+                scheme=TimeSteppingScheme.EXPLICIT,
+                auto_cfl=False,
+                verbose=False,
+            ),
+        )
+        with caplog.at_level(logging.WARNING, logger="ergodic_insurance.hjb_solver"):
+            solver.solve_finite_horizon()
+        assert not any(
+            "Auto-reducing dt" in r.message for r in caplog.records
+        ), f"auto_cfl=False must not auto-reduce dt: {[r.message for r in caplog.records]}"
+
+        caplog.clear()
+        solver2 = HJBSolver(
+            self._pathological_global_cfl_problem(time_horizon=horizon),
+            HJBSolverConfig(
+                time_step=dt,
+                scheme=TimeSteppingScheme.EXPLICIT,
+                auto_cfl=True,
+                verbose=False,
+            ),
+        )
+        with caplog.at_level(logging.WARNING, logger="ergodic_insurance.hjb_solver"):
+            solver2.solve_finite_horizon()
+        assert any(
+            "Auto-reducing dt" in r.message for r in caplog.records
+        ), "auto_cfl=True must auto-reduce dt on the pathological global CFL"
+
+    def test_implicit_multidim_fallback_warns_in_finite_horizon(self, caplog):
+        """A 2-D implicit request logs the explicit fallback (never silent).
+
+        The old per-step warning was gated on ``run_cfl_check``, which is always
+        False during the backward march -- so the downgrade was silent there.
+        It is now surfaced up-front by ``_warn_unsupported_scheme``.
+        """
+        import logging
+
+        solver = HJBSolver(
+            self._pathological_global_cfl_problem(),
+            HJBSolverConfig(time_step=0.05, scheme=TimeSteppingScheme.IMPLICIT, verbose=False),
+        )
+        with caplog.at_level(logging.WARNING, logger="ergodic_insurance.hjb_solver"):
+            v, _ = solver.solve_finite_horizon()
+        assert any(
+            "falling back to explicit" in r.message.lower() for r in caplog.records
+        ), f"implicit 2-D fallback must be logged: {[r.message for r in caplog.records]}"
+        assert np.all(np.isfinite(v))
+
+    def test_explicit_fixed_dt_matches_implicit_fallback(self):
+        """``EXPLICIT`` + auto_cfl=False reproduces the old ``IMPLICIT`` path.
+
+        This is the notebook-07 migration guarantee: both take explicit Euler
+        steps at the same fixed dt with no CFL trial, so the value functions and
+        policies are identical -- only the configuration becomes honest.
+        """
+        v_imp, p_imp = HJBSolver(
+            self._pathological_global_cfl_problem(),
+            HJBSolverConfig(time_step=0.05, scheme=TimeSteppingScheme.IMPLICIT, verbose=False),
+        ).solve_finite_horizon()
+
+        v_exp, p_exp = HJBSolver(
+            self._pathological_global_cfl_problem(),
+            HJBSolverConfig(
+                time_step=0.05,
+                scheme=TimeSteppingScheme.EXPLICIT,
+                auto_cfl=False,
+                verbose=False,
+            ),
+        ).solve_finite_horizon()
+
+        np.testing.assert_allclose(v_exp, v_imp, rtol=0.0, atol=1e-10)
+        np.testing.assert_allclose(p_exp["u"], p_imp["u"], rtol=0.0, atol=1e-10)
+
+    def test_compute_cfl_diagnostics_local_and_stable(self):
+        """``compute_cfl_diagnostics`` returns the realized LOCAL CFL.
+
+        The honest local CFL is far below the conservative global estimate the
+        auto-CFL trial would use on this log-grid: it is well under 1 even
+        though the global diffusion CFL at dt=0.05 is > 1.
+        """
+        dt = 0.05
+        prob = self._pathological_global_cfl_problem()
+        solver = HJBSolver(
+            prob,
+            HJBSolverConfig(
+                time_step=dt,
+                scheme=TimeSteppingScheme.EXPLICIT,
+                auto_cfl=False,
+                verbose=False,
+            ),
+        )
+        solver.solve_finite_horizon()
+        diag = solver.compute_cfl_diagnostics(dt)
+
+        assert set(diag) >= {"advection_cfl", "diffusion_cfl", "cfl", "dt", "stable"}
+        assert diag["dt"] == dt
+        assert np.isfinite(diag["cfl"])
+        assert diag["stable"] is True
+        assert diag["cfl"] <= 1.0
+
+        # The realized local CFL is far below the conservative global estimate
+        # (sigma^2 at a_max paired with dx at a_min) -- which is itself unstable.
+        a_grid = prob.state_space.grids[0]
+        global_diff_cfl = (
+            0.5 * (0.05 * a_grid.max()) ** 2 * dt / float(np.min(np.diff(a_grid))) ** 2
+        )
+        assert global_diff_cfl > 1.0  # the pathology the global trial would see
+        assert diag["diffusion_cfl"] < global_diff_cfl
+        assert diag["diffusion_cfl"] < 1.0  # but the realized local CFL is fine
+
+    def test_compute_cfl_diagnostics_requires_solve(self):
+        """``compute_cfl_diagnostics`` raises before a solve populates the policy."""
+        solver = HJBSolver(
+            self._pathological_global_cfl_problem(),
+            HJBSolverConfig(time_step=0.05, auto_cfl=False, verbose=False),
+        )
+        with pytest.raises(RuntimeError, match="requires a prior solve"):
+            solver.compute_cfl_diagnostics()
+
+
+def _interior_mask(shape):
+    """Boolean mask, True on strictly-interior cells (every axis in 1..N-2).
+
+    The finite-difference operators zero-pad at boundaries and
+    ``_apply_boundary_conditions`` overwrites the boundary layer after each step,
+    so per-term Hamiltonian identities only hold on interior cells.
+    """
+    mask = np.ones(shape, dtype=bool)
+    for dim in range(len(shape)):
+        sl: list = [slice(None)] * len(shape)
+        sl[dim] = 0
+        mask[tuple(sl)] = False
+        sl[dim] = -1
+        mask[tuple(sl)] = False
+    return mask
+
+
+class TestHamiltonianTerms:
+    """Tests for ``HJBSolver.hamiltonian_terms`` / ``_assemble_hamiltonian_terms`` (#1610).
+
+    The per-term Hamiltonian must reproduce the operator the solver integrates
+    (upwind drift, compact non-uniform second-derivative diffusion, the jump
+    callback) -- NOT ``np.gradient`` -- so diagnostic plots show the forces the
+    solver actually balanced, smoothly and faithfully.
+    """
+
+    @staticmethod
+    def _make_2d_problem(with_jump=True, with_diffusion=True, discount=0.0):
+        """Tiny 2-D (assets, equity-ratio) finite-horizon problem.
+
+        Mirrors the notebook's structure (the real use of ``hamiltonian_terms``) at a
+        small grid: a log-spaced assets axis, a linear equity-ratio axis, diagonal
+        operating-income diffusion that is control-INDEPENDENT (as in the notebook),
+        an equity-only loss jump that depends on the SIR control, and a terminal
+        log-equity condition.
+        """
+        sv_a = StateVariable("assets", 1.0, 100.0, 9, log_scale=True)
+        sv_e = StateVariable("equity_ratio", 0.05, 1.0, 8, log_scale=False)
+        ss = StateSpace([sv_a, sv_e])
+        cv = [ControlVariable("sir", 0.01, 5.0, 6, log_scale=True)]
+        mu, sigma, lam = 0.20, 0.05, 0.5
+
+        def dynamics(state, control, t):
+            A = state[..., 0]
+            e = state[..., 1]
+            sir = control[..., 0]
+            prem = 0.02 * sir  # toy premium rising in retention
+            a_dot = A * mu - prem
+            e_dot = (1.0 - e) * (a_dot / np.maximum(A, 1e-9))
+            return np.stack([a_dot, e_dot], axis=-1)
+
+        def diffusion(state, control, t):
+            A = state[..., 0]
+            e = state[..., 1]
+            return np.stack([(sigma * A) ** 2, (sigma * (1.0 - e)) ** 2], axis=-1)
+
+        def jump(state, control, t, value_function, state_grids):
+            a_grid, e_grid = state_grids
+            A = state[..., 0]
+            e = state[..., 1]
+            sir = control[..., 0]
+            loss_e = np.minimum(0.5 * sir / np.maximum(A, 1e-9), e)  # equity-ratio drop
+            post_e = np.clip(e - loss_e, e_grid[0], e_grid[-1])
+            interp = interpolate.RegularGridInterpolator(
+                (a_grid, e_grid),
+                value_function,
+                method="linear",
+                bounds_error=False,
+                fill_value=None,
+            )
+            cur = interp(np.stack([A, e], axis=-1))
+            post = interp(np.stack([A, post_e], axis=-1))
+            return lam * (post - cur)
+
+        def terminal(state):
+            return np.log(np.maximum(state[..., 1] * state[..., 0], 1e-3))
+
+        return HJBProblem(
+            state_space=ss,
+            control_variables=cv,
+            utility_function=LogUtility(),
+            dynamics=dynamics,
+            running_cost=lambda s, c, t: np.zeros(s.shape[0]),
+            diffusion=diffusion if with_diffusion else None,
+            jump_term=jump if with_jump else None,
+            terminal_value=terminal,
+            discount_rate=discount,
+            time_horizon=0.2,
+        )
+
+    @staticmethod
+    def _solved(prob, dt=0.05):
+        solver = HJBSolver(
+            prob,
+            HJBSolverConfig(
+                time_step=dt,
+                scheme=TimeSteppingScheme.EXPLICIT,
+                auto_cfl=False,
+                verbose=False,
+            ),
+        )
+        solver.solve_finite_horizon()
+        return solver
+
+    def test_decomposition_sums_to_total(self):
+        """``total`` is exactly the sum of the five component fields, with correct shapes."""
+        prob = self._make_2d_problem()
+        terms = self._solved(prob).hamiltonian_terms()
+        assert isinstance(terms, HamiltonianTerms)
+        recon = terms.drift + terms.diffusion + terms.jump + terms.running_cost + terms.discount
+        np.testing.assert_allclose(terms.total, recon, rtol=0, atol=1e-12)
+        shape = prob.state_space.shape
+        for field in (terms.drift, terms.diffusion, terms.jump, terms.total):
+            assert field.shape == shape
+        assert terms.grad.shape == shape + (2,)
+        assert terms.d2v.shape == shape + (2,)
+        assert np.all(np.isfinite(terms.total))
+
+    @pytest.mark.parametrize(
+        "with_jump,with_diffusion,discount",
+        [(True, True, 0.0), (True, True, 0.03), (False, False, 0.0), (False, True, 0.02)],
+    )
+    def test_total_reproduces_one_step_dvdt(self, with_jump, with_diffusion, discount):
+        """``total`` equals the solver's one-step ``-∂V/∂t`` on interior cells (core AC5).
+
+        Replays exactly one backward step (the same ``_advance_value_one_step`` the
+        finite-horizon march uses) and checks ``(V_next - V0)/dt`` against
+        ``hamiltonian_terms(value=V0).total``.  Boundary cells are excluded because
+        ``_apply_boundary_conditions`` overwrites them after the step.
+        """
+        dt = 0.05
+        prob = self._make_2d_problem(
+            with_jump=with_jump, with_diffusion=with_diffusion, discount=discount
+        )
+        solver = HJBSolver(
+            prob,
+            HJBSolverConfig(
+                time_step=dt,
+                scheme=TimeSteppingScheme.EXPLICIT,
+                auto_cfl=False,
+                verbose=False,
+            ),
+        )
+        solver._initialize_solution_state()
+        solver._invalidate_operator_cache()
+        solver._policy_improvement()  # control argmax against the terminal V
+        assert solver.value_function is not None
+        v0 = solver.value_function.copy()
+        v_next, dt_used = solver._advance_value_one_step(
+            dt, TimeSteppingScheme.EXPLICIT, step_index=0, run_cfl_check=False
+        )
+        dvdt = (v_next - v0) / dt_used
+
+        terms = solver.hamiltonian_terms(value=v0)  # at the just-improved policy
+        interior = _interior_mask(prob.state_space.shape)
+        np.testing.assert_allclose(terms.total[interior], dvdt[interior], rtol=1e-6, atol=1e-8)
+
+    def test_total_at_optimal_policy_is_max_hamiltonian(self):
+        """The optimal policy maximizes the policy-improvement Hamiltonian (AC6).
+
+        ``total - discount`` is the Hamiltonian the solver ranks (drift + diffusion +
+        jump + cost, no -ρV).  Evaluated at the solver's optimal policy it must be ≥
+        the same quantity at any fixed alternative control, on interior cells.  This
+        passes only because ``drift`` uses the solver's UPWIND ∇V (a central-difference
+        drift would not reproduce the upwind argmax the solver chose).
+        """
+        prob = self._make_2d_problem()
+        solver = self._solved(prob)
+        opt = solver.hamiltonian_terms()  # raw optimal (argmax) policy
+        h_opt = opt.total - opt.discount
+        interior = _interior_mask(prob.state_space.shape)
+        sir_vals = prob.control_variables[0].get_values()
+        for sir in (sir_vals[0], sir_vals[len(sir_vals) // 2], sir_vals[-1]):
+            alt = solver.hamiltonian_terms(policy={"sir": np.full(prob.state_space.shape, sir)})
+            h_alt = alt.total - alt.discount
+            assert np.all(h_opt[interior] >= h_alt[interior] - 1e-9)
+
+    def test_diffusion_uses_compact_stencil_not_double_gradient(self):
+        """``d2v`` is the exact compact stencil, not the noisy ``np.gradient²`` (AC2).
+
+        On a log grid the compact non-uniform stencil is exact for a quadratic
+        (``d²(x²)/dx² = 2``), whereas ``np.gradient(np.gradient(V))`` -- which skips
+        the immediate neighbours and decouples even/odd subgrids -- is not.  This is
+        the precise mechanism #1610 fixes.
+        """
+        sv = StateVariable("x", 1.0, 100.0, 21, log_scale=True)
+        ss = StateSpace([sv])
+        cv = [ControlVariable("u", 0.0, 1.0, 2)]
+        prob = HJBProblem(
+            state_space=ss,
+            control_variables=cv,
+            utility_function=LogUtility(),
+            dynamics=lambda s, c, t: np.zeros_like(s),
+            running_cost=lambda s, c, t: np.zeros(s.shape[0]),
+        )
+        solver = HJBSolver(prob, HJBSolverConfig(verbose=False))
+        x = ss.grids[0]
+        v = x**2
+        terms = solver.hamiltonian_terms(value=v, policy={"u": np.zeros(len(x))})
+        # compact stencil: exact (==2) on the interior of a non-uniform grid
+        np.testing.assert_allclose(terms.d2v[1:-1, 0], 2.0, rtol=1e-6, atol=1e-6)
+        # the double-gradient is materially wrong on the same log grid
+        dbl = np.gradient(np.gradient(v, x), x)
+        assert np.max(np.abs(dbl[1:-1] - 2.0)) > 1e-2
+
+    def test_grad_field_is_central_gradient(self):
+        """``grad`` reproduces the plain central ``np.gradient`` the notebook used.
+
+        Confirms re-sourcing the cell-18/23 first derivatives from ``terms.grad`` is a
+        numerical no-op (only the second derivative changes to the compact stencil).
+        """
+        prob = self._make_2d_problem(with_jump=False, with_diffusion=False)
+        solver = self._solved(prob)
+        terms = solver.hamiltonian_terms()
+        a_grid, e_grid = prob.state_space.grids
+        g_a, g_e = np.gradient(solver.value_function, a_grid, e_grid)
+        np.testing.assert_allclose(terms.grad[..., 0], g_a)
+        np.testing.assert_allclose(terms.grad[..., 1], g_e)
+        np.testing.assert_allclose(terms.grad, solver._compute_gradient(solver.value_function))
+
+    def test_matches_convergence_metrics_residual(self):
+        """``max|total|`` over the interior equals ``max_residual_interior`` (shared operator)."""
+        prob = self._make_2d_problem()
+        solver = self._solved(prob)
+        terms = solver.hamiltonian_terms()  # raw optimal policy (same as the metrics)
+        metrics = solver.compute_convergence_metrics()
+        interior = _interior_mask(prob.state_space.shape)
+        assert np.isclose(
+            float(np.max(np.abs(terms.total[interior]))),
+            metrics["max_residual_interior"],
+            rtol=1e-9,
+            atol=1e-12,
+        )
+
+    def test_policy_override_changes_jump_but_not_diffusion(self):
+        """A different control changes the (control-dependent) jump, not the diffusion.
+
+        In this problem (and the notebook) diffusion is control-independent, so the
+        diffusion term is identical across policies while the jump term differs.
+        """
+        prob = self._make_2d_problem()
+        solver = self._solved(prob)
+        sir_vals = prob.control_variables[0].get_values()
+        lo = solver.hamiltonian_terms(policy={"sir": np.full(prob.state_space.shape, sir_vals[0])})
+        hi = solver.hamiltonian_terms(policy={"sir": np.full(prob.state_space.shape, sir_vals[-1])})
+        assert not np.allclose(lo.jump, hi.jump)
+        np.testing.assert_allclose(lo.diffusion, hi.diffusion)
+
+    def test_requires_value_and_policy(self):
+        """Raises a clear error with no prior solve, or a policy missing a control."""
+        prob = self._make_2d_problem()
+        solver = HJBSolver(prob, HJBSolverConfig(verbose=False))
+        with pytest.raises(RuntimeError, match="requires a prior solve"):
+            solver.hamiltonian_terms()
+        # value supplied but the policy omits the 'sir' control
+        state_points = np.stack(prob.state_space.flat_grids, axis=-1)
+        v = prob.terminal_value(state_points).reshape(prob.state_space.shape)
+        with pytest.raises(KeyError, match="sir"):
+            solver.hamiltonian_terms(value=v, policy={"wrong": np.zeros(prob.state_space.shape)})
+
+    def test_value_shape_mismatch_raises(self):
+        """A value array that does not match the state grid is rejected."""
+        prob = self._make_2d_problem()
+        solver = self._solved(prob)
+        with pytest.raises(ValueError, match="does not match the state grid"):
+            solver.hamiltonian_terms(value=np.zeros((3, 3)))
+
+
+def _basin_match_verdict(sir_grid, H, idx_star, idx_argmax, T_cliff, *, anchor):
+    """Mirror notebook 07 cell-18's MATCH / FLAT-BAND verdict (issues #1614/#1620).
+
+    The Hamiltonian ``H(SIR)`` is nearly flat across the coverage basin ``SIR < T_cliff``
+    and then plunges once a single retained loss can bankrupt the firm (the single-loss-
+    insolvency cliff). The diagnostic flags the solver's ``SIR*`` as a MATCH when the
+    on-grid argmax is no more than 2% of a peak-to-trough span above it.
+
+    ``anchor="basin"`` measures that span over the coverage basin only (``SIR < T_cliff``)
+    -- the #1614 behaviour. ``anchor="full"`` measures it over the whole SIR grid -- the
+    pre-#1614 behaviour, whose span is dominated by the post-cliff plunge and is therefore
+    far too lenient inside the flat basin. Returns ``True`` for MATCH.
+    """
+    n_sir = len(sir_grid)
+    cliff_idx = int(np.searchsorted(sir_grid, T_cliff))
+    if anchor == "basin" and 2 <= cliff_idx < n_sir:
+        hspan = float(np.ptp(H[:cliff_idx])) or 1.0
+    else:
+        hspan = float(np.ptp(H)) or 1.0
+    return bool((idx_star == idx_argmax) or ((H[idx_argmax] - H[idx_star]) <= 0.02 * hspan))
+
+
+def test_hjb_basin_anchored_tolerance_flips_flat_band_verdict():
+    """#1614/#1620: basin anchoring flags a flat-basin near-tie that the full-span
+    tolerance (dominated by the post-cliff plunge) would have stamped MATCH.
+
+    Synthetic ``H(SIR)``: a nearly-flat coverage basin (peak-to-trough ~0.05) below the
+    single-loss-insolvency threshold ``T``, then a deep plunge (to -10) above it. The
+    solver's ``SIR*`` and the central-difference argmax sit at two *different* nodes inside
+    the flat basin, a meaningful retention apart, with ``H`` differing by 0.03 between them.
+    """
+    n_sir = 210
+    sir_grid = np.geomspace(10_000.0, 50_000_000.0, n_sir)
+    cliff_idx = 140  # single-loss-insolvency cliff index; T sits on a grid node
+    T_cliff = float(sir_grid[cliff_idx])
+
+    H = np.full(n_sir, -10.0)  # deep post-cliff plunge (p_ruin * V_RUIN)
+    basin = np.arange(cliff_idx, dtype=float)
+    centre = basin.mean()
+    H[:cliff_idx] = -0.05 * ((basin - centre) / centre) ** 2  # gentle bump, ptp ~0.05
+
+    idx_argmax = int(np.argmax(H[:cliff_idx]))  # basin peak (~centre)
+    idx_star = idx_argmax + 8  # solver SIR* a real retention away, still inside the basin
+    assert idx_star < cliff_idx
+    H[idx_star] = H[idx_argmax] - 0.03  # 0.03 utility-yr/yr below the peak
+
+    assert int(np.argmax(H)) == idx_argmax  # global argmax is the basin peak
+    assert idx_star != idx_argmax  # the first MATCH clause must NOT short-circuit
+
+    match_full = _basin_match_verdict(sir_grid, H, idx_star, idx_argmax, T_cliff, anchor="full")
+    match_basin = _basin_match_verdict(sir_grid, H, idx_star, idx_argmax, T_cliff, anchor="basin")
+
+    # full-span ptp ~10 -> 0.02 * 10 = 0.2 >> 0.03 gap  -> would (wrongly) MATCH
+    assert match_full is True
+    # basin ptp ~0.05 -> 0.02 * 0.05 = 0.001 < 0.03 gap -> correctly FLAT BAND (#1614)
+    assert match_basin is False
+
+
+def test_hjb_basin_anchored_tolerance_falls_back_to_full_span_when_cliff_off_grid():
+    """#1614/#1620: a tiny firm whose threshold ``T`` is below the SIR floor has no
+    on-grid coverage basin, so the verdict falls back to the full-span peak-to-trough.
+    """
+    n_sir = 210
+    sir_grid = np.geomspace(10_000.0, 50_000_000.0, n_sir)
+    H = np.linspace(0.0, -1.0, n_sir)  # monotone; no cliff, no flat basin
+    T_cliff = 5_000.0  # below the SIR floor -> cliff_idx = 0 (degenerate guard)
+    assert int(np.searchsorted(sir_grid, T_cliff)) == 0
+    idx_argmax, idx_star = 0, 30
+    match_basin = _basin_match_verdict(sir_grid, H, idx_star, idx_argmax, T_cliff, anchor="basin")
+    match_full = _basin_match_verdict(sir_grid, H, idx_star, idx_argmax, T_cliff, anchor="full")
+    assert match_basin == match_full  # basin anchor falls back to the full span
+
+
+class TestControlFeasibilityConstraint:
+    """Hard state-dependent admissible-control constraint (issue #1649).
+
+    ``HJBProblem.control_feasibility`` masks inadmissible (state, control) pairs to
+    ``-inf`` during policy improvement, so the argmax respects the constraint by
+    construction -- a hard control constraint, not a soft penalty. States with no
+    admissible control fall back to the grid-minimum control. ``None`` (the default)
+    leaves the solve unchanged. Notebook 07 uses this to bound the retention by the
+    endogenous single-loss-insolvency threshold ``T`` so ``SIR* <= equity`` holds
+    without a deployment-time cap.
+    """
+
+    @staticmethod
+    def _make_problem(control_feasibility=None, n_states=11, n_u=5):
+        """A small 1-D problem where the unconstrained argmax wants the LARGEST control.
+
+        Drift rises with the control and the running reward ``log(x)`` makes ``V``
+        increasing in ``x`` (so ``grad V > 0`` and a bigger drift is always better) --
+        a clean setting in which a state-dependent upper bound on the control visibly
+        binds.
+        """
+        state_space = StateSpace(
+            [
+                StateVariable(
+                    "x", min_value=1.0, max_value=10.0, num_points=n_states, log_scale=False
+                )
+            ]
+        )
+        control_variables = [ControlVariable("u", min_value=0.0, max_value=1.0, num_points=n_u)]
+
+        def dynamics(state, control, t):
+            return (0.02 + 0.10 * control[..., 0:1]) * state[..., 0:1]
+
+        def running_cost(state, control, t):
+            return np.log(np.maximum(state[..., 0], 1e-9))
+
+        return HJBProblem(
+            state_space=state_space,
+            control_variables=control_variables,
+            utility_function=LogUtility(),
+            dynamics=dynamics,
+            running_cost=running_cost,
+            discount_rate=0.05,
+            control_feasibility=control_feasibility,
+        )
+
+    @staticmethod
+    def _upper_bound(x):
+        """Admissible region: ``u <= x / 10`` (state-dependent)."""
+        return x / 10.0
+
+    @classmethod
+    def _feasible(cls, states, controls):
+        return controls[..., 0] <= cls._upper_bound(states[..., 0]) + 1e-12
+
+    def test_defaults_to_none(self):
+        assert self._make_problem().control_feasibility is None
+
+    def test_all_feasible_mask_matches_unconstrained(self):
+        """An always-True mask is a no-op: result is bit-identical to no constraint."""
+        cfg = HJBSolverConfig(time_step=0.05, max_iterations=30, tolerance=1e-7, verbose=False)
+        v0, pol0 = HJBSolver(self._make_problem(), cfg).solve()
+
+        def all_true(states, controls):
+            return np.ones(states.shape[0], dtype=bool)
+
+        v1, pol1 = HJBSolver(self._make_problem(all_true), cfg).solve()
+        np.testing.assert_array_equal(v0, v1)
+        np.testing.assert_array_equal(pol0["u"], pol1["u"])
+
+    def test_constraint_bounds_policy_vectorized(self):
+        """The selected control obeys the state-dependent bound everywhere (argmax)."""
+        cfg = HJBSolverConfig(
+            time_step=0.05,
+            max_iterations=60,
+            tolerance=1e-8,
+            verbose=False,
+            control_search_strategy="vectorized",
+        )
+        _, pol = HJBSolver(self._make_problem(self._feasible), cfg).solve()
+        x = self._make_problem().state_space.grids[0]
+        assert np.all(pol["u"] <= self._upper_bound(x) + 1e-9)
+
+    def test_constraint_bounds_policy_loop_strategy(self):
+        """The legacy loop strategy honors the constraint too."""
+        cfg = HJBSolverConfig(
+            time_step=0.05,
+            max_iterations=60,
+            tolerance=1e-8,
+            verbose=False,
+            control_search_strategy="loop",
+        )
+        _, pol = HJBSolver(self._make_problem(self._feasible), cfg).solve()
+        x = self._make_problem().state_space.grids[0]
+        assert np.all(pol["u"] <= self._upper_bound(x) + 1e-9)
+
+    def test_constraint_actually_binds(self):
+        """Sanity: the unconstrained optimum violates the bound, so the constraint
+        is doing real work (not vacuously satisfied)."""
+        cfg = HJBSolverConfig(time_step=0.05, max_iterations=60, tolerance=1e-8, verbose=False)
+        _, pol_free = HJBSolver(self._make_problem(), cfg).solve()
+        _, pol_con = HJBSolver(self._make_problem(self._feasible), cfg).solve()
+        x = self._make_problem().state_space.grids[0]
+        i = 5  # a mid-grid interior state (x ~ 5.5, bound ~ 0.55)
+        assert pol_free["u"][i] > self._upper_bound(x[i])  # unconstrained exceeds the bound
+        assert pol_con["u"][i] <= self._upper_bound(x[i]) + 1e-9  # constrained respects it
+
+    def test_all_infeasible_falls_back_to_min_control(self):
+        """When no control is admissible anywhere, every state takes the grid-min control."""
+        cfg = HJBSolverConfig(time_step=0.05, max_iterations=10, tolerance=1e-6, verbose=False)
+
+        def none_feasible(states, controls):
+            return np.zeros(states.shape[0], dtype=bool)
+
+        _, pol = HJBSolver(self._make_problem(none_feasible), cfg).solve()
+        u_min = self._make_problem().control_variables[0].get_values()[0]
+        np.testing.assert_allclose(pol["u"], u_min)
+
+    def test_constrained_value_not_above_unconstrained(self):
+        """Restricting the admissible set cannot raise the maximized value function."""
+        cfg = HJBSolverConfig(time_step=0.05, max_iterations=120, tolerance=1e-9, verbose=False)
+        v_free, _ = HJBSolver(self._make_problem(), cfg).solve()
+        v_con, _ = HJBSolver(self._make_problem(self._feasible), cfg).solve()
+        assert np.all(v_con <= v_free + 1e-6)
+
+    def test_constraint_respected_in_finite_horizon(self):
+        """The finite-horizon march (the notebook's solve path) also honors the bound."""
+        prob = self._make_problem(self._feasible)
+        prob.time_horizon = 2.0
+        prob.terminal_value = lambda s: np.log(np.maximum(s[..., 0], 1e-9))
+        cfg = HJBSolverConfig(
+            time_step=0.1,
+            verbose=False,
+            scheme=TimeSteppingScheme.EXPLICIT,
+            auto_cfl=False,
+            control_search_strategy="vectorized",
+        )
+        _, pol = HJBSolver(prob, cfg).solve_finite_horizon()
+        x = prob.state_space.grids[0]
+        assert np.all(pol["u"] <= self._upper_bound(x) + 1e-9)
