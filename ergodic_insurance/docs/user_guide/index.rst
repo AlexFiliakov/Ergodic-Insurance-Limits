@@ -17,6 +17,7 @@ No advanced mathematics or programming knowledge is required. We'll walk you thr
    :caption: Guide Contents:
 
    executive_summary
+   insurance_primer
    quick_start
    running_analysis
    decision_framework
@@ -29,6 +30,12 @@ No advanced mathematics or programming knowledge is required. We'll walk you thr
 
 Getting Started
 ---------------
+
+.. tip::
+
+   **New to commercial insurance?** Read :doc:`insurance_primer` first -- it explains
+   every term you'll meet in this guide and in the notebooks (tower, retention/SIR,
+   layers, attachment, limit, loss ratio) in about five minutes.
 
 If you're new to ergodic insurance optimization, we recommend reading the sections in order:
 
