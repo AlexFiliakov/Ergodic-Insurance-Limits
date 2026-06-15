@@ -245,6 +245,12 @@ class WidgetManufacturer(
         # Solvency tracking
         self.is_ruined = False
         self.ruin_month: Optional[int] = None
+        # Proximate cause of insolvency, recorded at the trigger site for the
+        # ruin-cause decomposition diagnostic. ``None`` until ruined; the first
+        # trigger to fire in a step wins (see SolvencyMixin._mark_ruin_reason).
+        # Diagnostic only -- does not affect any financial calculation.
+        self.ruin_reason: Optional[str] = None
+        self.ruin_detail: Optional[str] = None
 
         # Reserve development tracking (Issue #470, ASC 944-40-25)
         self.period_adverse_development: Decimal = to_decimal(0)
@@ -827,6 +833,7 @@ class WidgetManufacturer(
                 f"${self.cash:,.2f} breaches working-capital facility floor "
                 f"${liquidity_floor:,.2f} (Issue #1337/#1631)."
             )
+            self._mark_ruin_reason("payment_liquidity")
             self.is_ruined = True
             return self._handle_insolvent_step(time_resolution)
 
@@ -1058,6 +1065,8 @@ class WidgetManufacturer(
         self.current_month = 0
         self.is_ruined = False
         self.ruin_month = None
+        self.ruin_reason = None
+        self.ruin_detail = None
         self.metrics_history = []
 
         # Reset period insurance cost tracking
