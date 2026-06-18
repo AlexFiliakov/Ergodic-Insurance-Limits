@@ -1,0 +1,30 @@
+Premium loading
+Ensemble average
+Sensitivity analysis
+Ruin probability (insolvency / bankruptcy)
+Return on Equity (ROE)
+Ergodicity
+Pareto frontier (multi-objective trade-off)
+Widget manufacturer
+3-tier YAML configuration (profiles / modules / presets)
+Attachment point
+Risk metrics (VaR / TVaR / Expected Shortfall / PML)
+Geometric Brownian Motion (stochastic processes)
+Claim development (chain ladder)
+Net Operating Loss (NOL) / tax handling
+Geometric (compound) growth rate
+Double-entry ledger / balance sheet
+Insurance limit
+Time-average growth rate (TAGR)
+Walk-forward validation
+Business outcome optimizer
+Monte Carlo simulation
+Multi-layer insurance program (layers / reinstatements)
+Insurance market cycle (soft / normal / hard)
+Volatility drag (volatility tax)
+Working capital
+Hamilton-Jacobi-Bellman (HJB) optimal control
+Retention (deductible)
+Convergence diagnostics
+Loss distribution (frequency & severity)
+Constrained optimization (SLSQP / differential evolution)
