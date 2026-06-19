@@ -7,6 +7,48 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 <!-- next-version -->
 
+## [0.19.0] - 2026-06-19
+
+### Added
+- added failure mode decomposition as part of ruin output ([`957e342`](https://github.com/AlexFiliakov/Ergodic-Insurance-Limits/commit/957e34234119776a8f63770f1667fb1d0a01938a))
+
+### Changed
+- ran optimization no7 nb ([`75cc8db`](https://github.com/AlexFiliakov/Ergodic-Insurance-Limits/commit/75cc8db72e24b8c002bb6e9aa1b2f4c413d35331))
+- library keywords ([`0e6845a`](https://github.com/AlexFiliakov/Ergodic-Insurance-Limits/commit/0e6845ae0548e3a9c57fba633df09258ebe196af))
+- optimization no7 nb cosmetics ([`dbe58e2`](https://github.com/AlexFiliakov/Ergodic-Insurance-Limits/commit/dbe58e24459a9a9e597d9218120d2726abe26650))
+- ran optimization no7 nb ([`31e5328`](https://github.com/AlexFiliakov/Ergodic-Insurance-Limits/commit/31e5328a22eecc26a6820bd648fbc022a7e86189))
+- optimization no7 nb increased max wealth to $400M to avoid boundary distortion ([`692a95e`](https://github.com/AlexFiliakov/Ergodic-Insurance-Limits/commit/692a95e9634beccd1c517cac99923af63effba0c))
+- ran optimization no7 nb ([`5ffeb6c`](https://github.com/AlexFiliakov/Ergodic-Insurance-Limits/commit/5ffeb6c8bd9adc738d638bc39bf433c994dc52c0))
+- optimization no7 nb cosmetic changes ([`b4c8229`](https://github.com/AlexFiliakov/Ergodic-Insurance-Limits/commit/b4c82299ad84aec823767655df5d34bab001bfa3))
+- optimization no7 nb cosmetic changes ([`0ac5072`](https://github.com/AlexFiliakov/Ergodic-Insurance-Limits/commit/0ac5072854817e01d445adb5c4c75f22407159e6))
+- optimization no7 nb cosmetic changes ([`9287d36`](https://github.com/AlexFiliakov/Ergodic-Insurance-Limits/commit/9287d3696620f86b42b771669dc75c369620e58c))
+- optimization no7 nb documentation updates ([`7edbd07`](https://github.com/AlexFiliakov/Ergodic-Insurance-Limits/commit/7edbd070f64c2538872aa04614ef8ced66c9db6e))
+- ran optimization no7 nb and shrunk sir grid plot ([`28142d8`](https://github.com/AlexFiliakov/Ergodic-Insurance-Limits/commit/28142d839f8745910f4791fc974dd915ae39c915))
+- optimization no7 nb calibration ([`a1f5d93`](https://github.com/AlexFiliakov/Ergodic-Insurance-Limits/commit/a1f5d93305fcc43f463ff958fa625cd10dd50a17))
+- ran optimization no7 nb ([`9f187a0`](https://github.com/AlexFiliakov/Ergodic-Insurance-Limits/commit/9f187a08d0051ce30f1b997cd980cbff87b6cba1))
+- optimization no7 nb updated calibration and revised for EE language ([`a40a930`](https://github.com/AlexFiliakov/Ergodic-Insurance-Limits/commit/a40a9304d8e1d2a5fbc2ff104b621354c5babb46))
+- ran optimization no7 nb ([`35fb5d5`](https://github.com/AlexFiliakov/Ergodic-Insurance-Limits/commit/35fb5d567b035fd33c2e25df90cb3db39bd056d6))
+- optimization no7 nb tuned configuration, ready for a run ([`6417624`](https://github.com/AlexFiliakov/Ergodic-Insurance-Limits/commit/6417624db4ee55bc4122392a85feab48caa1e6da))
+- ran optimization no7 nb ([`39b6fb2`](https://github.com/AlexFiliakov/Ergodic-Insurance-Limits/commit/39b6fb27c238c1ec650a79ebe9abee11bfc3643a))
+- ran optimization no7 nb ([`f8dbb0f`](https://github.com/AlexFiliakov/Ergodic-Insurance-Limits/commit/f8dbb0ff08b29d8d6681bc98e3d9a7318f48f533))
+- optimization no7 nb cosmetic updates ([`b975bba`](https://github.com/AlexFiliakov/Ergodic-Insurance-Limits/commit/b975bba755ce3343ba73706502893acdd30faca6))
+- ran optimization no7 nb ([`d4e8955`](https://github.com/AlexFiliakov/Ergodic-Insurance-Limits/commit/d4e8955826e76587fb3866fb83089be232bf29c4))
+- optimization no7 nb additional charts ([`59515d4`](https://github.com/AlexFiliakov/Ergodic-Insurance-Limits/commit/59515d4846ae2cedcce2b42f840127aca249b991))
+- fixed stale comments in optimization no7 nb ([`554014d`](https://github.com/AlexFiliakov/Ergodic-Insurance-Limits/commit/554014dbf9048ae644d91070615ffff90bdf4429))
+- ran optimization no7 nb ([`6b4bb83`](https://github.com/AlexFiliakov/Ergodic-Insurance-Limits/commit/6b4bb835c55fb566332a21feefb482a03b60b305))
+- ran optimization no7 nb ([`fdea66f`](https://github.com/AlexFiliakov/Ergodic-Insurance-Limits/commit/fdea66fcc712c92c9b590df69bab8a0d2a77ded8))
+- fixed optimization no7 nb exhibits: removed 13b and 13c spurious relationship between E[X] and TAG in the simplified model ([`ab5c876`](https://github.com/AlexFiliakov/Ergodic-Insurance-Limits/commit/ab5c876f7b8a3b3124f8c930b4131b668182c866))
+- ran optimization no7 nb ([`6817888`](https://github.com/AlexFiliakov/Ergodic-Insurance-Limits/commit/6817888ef0161cbada1a1f2983fad3fbff6025e7))
+- added insurance primer ([`4b54a6c`](https://github.com/AlexFiliakov/Ergodic-Insurance-Limits/commit/4b54a6c2312ceeecb77ea669f0f59e2eedb81375))
+- added diagnostics to optimization no7 nb ([`b2a7c0f`](https://github.com/AlexFiliakov/Ergodic-Insurance-Limits/commit/b2a7c0fffa8ef5d157a579c7a818e3a8c8931891))
+- optimization directory cleanup ([`b82958e`](https://github.com/AlexFiliakov/Ergodic-Insurance-Limits/commit/b82958ee59b5d7af0774290554e8eec7a9abcff3))
+
+### Fixed
+- set dpi=150 on the nb07 ruin-path subplots call ([`2c913d9`](https://github.com/AlexFiliakov/Ergodic-Insurance-Limits/commit/2c913d9b74ecfc46e067f4b9147e714f6d1ec525))
+- replace removed plt.cm.get_cmap with plt.colormaps in tower plot ([`05e28a8`](https://github.com/AlexFiliakov/Ergodic-Insurance-Limits/commit/05e28a8e9e1b8b12e50e43c2a4e3bde72fab1a47))
+
+[0.19.0]: https://github.com/AlexFiliakov/Ergodic-Insurance-Limits/compare/v0.18.0...v0.19.0
+
 ## [0.18.0] - 2026-06-04
 
 ### Added
