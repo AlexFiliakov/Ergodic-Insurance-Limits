@@ -71,7 +71,7 @@ def plot_insurance_tower(  # pylint: disable=too-many-locals,too-many-branches,t
     fig, ax = plt.subplots(figsize=figsize)
 
     # Generate colors
-    cmap = plt.cm.get_cmap(color_scheme)
+    cmap = plt.colormaps[color_scheme]
     colors = [cmap(0.3 + 0.5 * i / len(layers)) for i in range(len(layers))]
 
     # Track annotations for layers that are too small

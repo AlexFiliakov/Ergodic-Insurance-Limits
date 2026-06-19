@@ -898,6 +898,7 @@ class BalanceSheetMixin:
                         f"Company cannot meet obligations despite positive book equity."
                     )
                     self._last_dividends_paid = to_decimal(0)
+                    self._mark_ruin_reason("operating_liquidity")
                     self.handle_insolvency()
                     return
 
@@ -940,6 +941,7 @@ class BalanceSheetMixin:
                             month=self.current_month,
                         )
                 self._last_dividends_paid = to_decimal(0)
+                self._mark_ruin_reason("operating_equity")
                 self.handle_insolvency()
                 return
 

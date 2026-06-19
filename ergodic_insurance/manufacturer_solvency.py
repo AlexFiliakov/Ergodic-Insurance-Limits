@@ -56,6 +56,27 @@ class SolvencyMixin:
 
     # Declare ruin_month type to match WidgetManufacturer.__init__ (Optional[int])
     ruin_month: Optional[int]
+    # Proximate cause of insolvency and optional detail, recorded at the trigger
+    # site for the ruin-cause decomposition diagnostic (set via _mark_ruin_reason).
+    ruin_reason: Optional[str]
+    ruin_detail: Optional[str]
+
+    def _mark_ruin_reason(self, reason: str, detail: Optional[str] = None) -> None:
+        """Record the proximate cause of insolvency (first trigger wins).
+
+        Sets ``self.ruin_reason``/``self.ruin_detail`` only if a reason has not
+        already been recorded this lifetime, so the FIRST insolvency trigger to
+        fire in a step is captured as the proximate cause. Used by the ruin-cause
+        decomposition diagnostic; it does not affect any financial calculation.
+
+        Args:
+            reason: Short machine code for the trigger (e.g. ``"equity_insolvency"``,
+                ``"midyear_liquidity"``, ``"going_concern"``).
+            detail: Optional human-readable detail (e.g. breached indicator names).
+        """
+        if getattr(self, "ruin_reason", None) is None:
+            self.ruin_reason = reason
+            self.ruin_detail = detail
 
     @property
     def solvency_equity(self) -> Decimal:
@@ -95,6 +116,10 @@ class SolvencyMixin:
 
         if not self.is_ruined:
             self.is_ruined = True
+            # Default cause for callers that did not record a specific trigger
+            # (e.g. a direct handle_insolvency() call). Specific call sites mark
+            # their reason first, so this only fills an otherwise-empty slot.
+            self._mark_ruin_reason("equity_insolvency")
             total_liabilities = self.total_claim_liabilities
             pre_liquidation_assets = self.total_assets
 
@@ -407,6 +432,7 @@ class SolvencyMixin:
                     f"(overdraft ${-self.cash:,.2f} > facility ${facility_limit_d:,.2f}). "
                     f"Company cannot meet obligations (ASC 205-40-50-12, Issue #1337)."
                 )
+                self._mark_ruin_reason("facility_breach")
                 self.handle_insolvency()
                 return False
 
@@ -414,6 +440,7 @@ class SolvencyMixin:
         # Use solvency_equity (operational equity) — see property docstring
         # for GAAP justification (ASC 205-40-50-7, Issue #464, #1311)
         if self.solvency_equity <= ZERO:
+            self._mark_ruin_reason("equity_insolvency")
             self.handle_insolvency()
             return False
 
@@ -460,6 +487,7 @@ class SolvencyMixin:
             if not self.is_ruined:
                 self.is_ruined = True
                 breached_names = [ind["name"] for ind in breached]
+                self._mark_ruin_reason("going_concern", detail=", ".join(breached_names))
                 logger.warning(
                     f"GOING CONCERN: {breached_count} of {len(indicators)} indicators "
                     f"breached (threshold: {min_required}). "
@@ -586,6 +614,7 @@ class SolvencyMixin:
         if floor is not None and min_cash < floor:
             self.is_ruined = True
             self.ruin_month = min_month
+            self._mark_ruin_reason("midyear_liquidity")
             logger.warning(
                 f"MID-YEAR INSOLVENCY: Company would become insolvent in month {min_month} "
                 f"with estimated cash of ${min_cash:,.2f} "

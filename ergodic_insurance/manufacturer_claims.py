@@ -82,6 +82,7 @@ class ClaimProcessingMixin:
                         f"${premium_decimal:,.2f}, available cash: ${self.cash:,.2f}, "
                         f"facility floor: ${floor:,.2f}. Company cannot operate without insurance."
                     )
+                    self._mark_ruin_reason("premium_unaffordable")
                     self.handle_insolvency()
                     return
 
@@ -181,6 +182,7 @@ class ClaimProcessingMixin:
                     f"${annual_premium_decimal:,.2f}, available cash: ${self.cash:,.2f}, "
                     f"facility floor: ${floor:,.2f}. Company cannot operate without insurance."
                 )
+                self._mark_ruin_reason("premium_unaffordable")
                 self.handle_insolvency()
                 return
 
