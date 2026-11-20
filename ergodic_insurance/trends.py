@@ -35,6 +35,7 @@ from abc import ABC, abstractmethod
 from typing import Dict, List, Optional, Union
 
 import numpy as np
+from scipy.signal import lfilter
 
 
 class Trend(ABC):
@@ -502,13 +503,17 @@ class MeanRevertingTrend(Trend):
         X[0] = log_initial
 
         if self.volatility > 0 or self.reversion_speed > 0:
-            for i in range(1, num_steps):
-                dW = self.rng.standard_normal() * np.sqrt(dt)
-                X[i] = (
-                    X[i - 1]
-                    + self.reversion_speed * (log_mean - X[i - 1]) * dt
-                    + self.volatility * dW
-                )
+            # Euler step X[i] = a*X[i-1] + c + b*Z[i] is a first-order linear
+            # recursion, so the whole path is computed with lfilter. Noise is
+            # drawn in one call, consuming the RNG stream in the same order as
+            # the former per-step loop (seeded output is unchanged).
+            a = 1.0 - self.reversion_speed * dt
+            c = self.reversion_speed * log_mean * dt
+            shocks = self.volatility * np.sqrt(dt) * self.rng.standard_normal(num_steps - 1)
+            drive = np.empty(num_steps)
+            drive[0] = log_initial
+            drive[1:] = c + shocks
+            X = lfilter([1.0], [1.0, -a], drive)
         else:
             X[:] = log_initial
 

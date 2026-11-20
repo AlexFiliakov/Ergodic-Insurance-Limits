@@ -625,6 +625,45 @@ class TestStatisticalProperties:
             f"early={early_variance:.4f}, late={late_variance:.4f}"
         )
 
+    @pytest.mark.parametrize(
+        "mean_level,reversion_speed,volatility,initial_level",
+        [
+            (1.0, 0.5, 0.1, 1.5),
+            (2.0, 3.0, 0.3, 0.5),
+            (1.0, 0.0, 0.2, 1.0),
+            (1.0, 0.5, 0.0, 1.2),
+        ],
+    )
+    def test_mean_reverting_path_matches_euler_reference(
+        self, mean_level, reversion_speed, volatility, initial_level
+    ):
+        """Vectorized path generation matches the explicit per-step Euler recursion."""
+        max_time, dt, seed = 20.0, 0.01, 123
+        trend = MeanRevertingTrend(
+            mean_level=mean_level,
+            reversion_speed=reversion_speed,
+            volatility=volatility,
+            initial_level=initial_level,
+            seed=seed,
+        )
+        trend._generate_path(max_time, dt)
+
+        # Reference: explicit loop with the same RNG stream
+        num_steps = int(max_time / dt) + 1
+        rng = np.random.default_rng(seed)
+        log_mean = np.log(mean_level)
+        X = np.zeros(num_steps)
+        X[0] = np.log(initial_level)
+        if volatility > 0 or reversion_speed > 0:
+            for i in range(1, num_steps):
+                dW = rng.standard_normal() * np.sqrt(dt)
+                X[i] = X[i - 1] + reversion_speed * (log_mean - X[i - 1]) * dt + volatility * dW
+        else:
+            X[:] = np.log(initial_level)
+
+        assert trend.cached_path is not None
+        np.testing.assert_allclose(trend.cached_path, np.exp(X), rtol=1e-12, atol=1e-12)
+
     def test_mean_reverting_autocorrelation_decay(self):
         """Test MeanRevertingTrend autocorrelation decays over time."""
         # Generate a single long path
